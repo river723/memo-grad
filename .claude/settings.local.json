@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(node test-app.js)",
+      "Bash(node simple-demo.js)",
+      "Bash(node 功能演示.js)",
+      "Bash(node test-word-entry.js)",
+      "Bash(start study-demo-complete.html)",
+      "Bash(npx expo *)"
+    ]
+  }
+}
