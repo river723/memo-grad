@@ -39,6 +39,10 @@ export default function SettingsScreen() {
     try {
       const savedSettings = await StorageService.getSettings();
       setSettings(prev => ({ ...prev, ...savedSettings }));
+      // 加载保存的API key
+      if (savedSettings.apiKey) {
+        setApiKey(savedSettings.apiKey);
+      }
     } catch (error) {
       console.error('Failed to load settings:', error);
     }

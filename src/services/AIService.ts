@@ -1,16 +1,55 @@
 import axios from 'axios';
-import { Word, AIResponse } from '../types';
+import { AIResponse } from '../types';
 import { API_CONFIG } from '../constants';
+
+// 测试网络连接
+const testNetworkConnection = async () => {
+  try {
+    const testResponse = await axios.get('https://httpbin.org/ip', { timeout: 5000 });
+    console.log('网络连接正常，IP:', testResponse.data.origin);
+    return true;
+  } catch (error) {
+    console.error('网络连接测试失败:', error.message);
+    return false;
+  }
+};
+
+// 测试API密钥
+const testApiKey = async (apiKey: string) => {
+  try {
+    const response = await axios.post(
+      `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
+      {
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 5
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+    console.log('API密钥测试成功');
+    return true;
+  } catch (error) {
+    console.error('API密钥测试失败:', error.message, error.response?.status);
+    return false;
+  }
+};
 
 class AIService {
   private apiKey: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string = '') {
     this.apiKey = apiKey;
   }
 
   async analyzeWord(word: string): Promise<AIResponse> {
     const prompt = this.buildWordAnalysisPrompt(word);
+    console.log('发送AI请求，单词:', word);
 
     try {
       const response = await axios.post(
@@ -39,12 +78,89 @@ class AIService {
         }
       );
 
+      console.log('AI响应状态:', response.status);
       const content = response.data.choices[0].message.content;
-      return this.parseAIResponse(content);
+      console.log('AI响应内容:', content.substring(0, 200) + '...');
+      const result = this.parseAIResponse(content);
+      console.log('解析后的结果:', result);
+      return result;
     } catch (error) {
       console.error('AI analysis error:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Error details:', error.message, error.response?.status, error.response?.data);
+      } else {
+        console.error('Error details:', error.message);
+      }
       throw new Error('AI分析失败，请检查网络连接或API密钥');
     }
+  }
+
+  async analyzeWords(words: string[]): Promise<Map<string, AIResponse>> {
+    const results = new Map<string, AIResponse>();
+    
+    // 批量处理，每次最多处理10个单词
+    const batchSize = 10;
+    for (let i = 0; i < words.length; i += batchSize) {
+      const batch = words.slice(i, i + batchSize);
+      const batchPrompt = this.buildBatchAnalysisPrompt(batch);
+      
+      try {
+        const response = await axios.post(
+          `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
+          {
+            model: API_CONFIG.DEFAULT_MODEL,
+            messages: [
+              {
+                role: 'system',
+                content: '你是一个专业的考研英语老师，专门帮助学生批量分析单词的考研用法。'
+              },
+              {
+                role: 'user',
+                content: batchPrompt
+              }
+            ],
+            temperature: 0.3,
+            max_tokens: 2000
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: API_CONFIG.TIMEOUT
+          }
+        );
+
+        const content = response.data.choices[0].message.content;
+        const batchResults = this.parseBatchAIResponse(content);
+        
+        // 将结果添加到总结果中
+        batchResults.forEach((result, word) => {
+          results.set(word, result);
+        });
+        
+      } catch (error) {
+        console.error('Batch AI analysis error:', error);
+        // 为失败的单词设置默认结果
+        batch.forEach(word => {
+          if (!results.has(word)) {
+            results.set(word, {
+              definitions: [{
+                part_of_speech: 'unknown',
+                meaning: 'AI分析失败，请手动添加释义',
+                example: '',
+                is_core: false,
+                is_rare_sense: false
+              }],
+              etymology: '',
+              similar_words: []
+            });
+          }
+        });
+      }
+    }
+    
+    return results;
   }
 
   async generateStudyContent(wordIds: number[], type: 'passage' | 'quiz' | 'writing'): Promise<string> {
@@ -122,15 +238,50 @@ class AIService {
     }
   }
 
-  private buildWordAnalysisPrompt(word: string): string {
+  buildBatchAnalysisPrompt(words: string[]): string {
+    return `请批量分析以下单词的考研英语用法，返回严格的JSON格式：
+
+单词列表：${words.join(', ')}
+
+要求：
+1. 只返回JSON，不要任何额外文本或说明
+2. 确保JSON格式正确，所有字符串都用双引号
+3. 每个单词提供1-2个重要释义
+4. 提供难度等级(1-5)
+
+示例格式：
+{
+  "results": {
+    "单词": {
+      "definitions": [
+        {
+          "part_of_speech": "词性",
+          "meaning": "释义",
+          "example": "例句",
+          "is_core": true/false,
+          "is_rare_sense": true/false
+        }
+      ],
+      "etymology": "词根词缀分析",
+      "suggestedDifficulty": 3
+    }
+  }
+
+  buildWordAnalysisPrompt(word: string): string {
     return `请分析单词 "${word}" 的考研英语用法，提供以下信息：
 
 1. 考研英语二最常考的3-5个释义（按重要性排序，特别标注熟词僻义）
 2. 每个释义配一个考研真题风格的例句
 3. 1-2个形近词或易混词提醒
 4. 简单的词根词缀分析（帮助记忆）
+5. 难度等级建议（1-5）
 
-请用以下JSON格式返回：
+难度等级说明：
+- 1-2: 高频基础词，考研必掌握
+- 3: 普通考研词汇
+- 4-5: 低频词或熟词僻义，需要重点复习
+
+请用以下JSON格式返回（确保是纯JSON，不要额外文本）：
 {
   "definitions": [
     {
@@ -148,17 +299,20 @@ class AIService {
       "relation": "spelling/meaning/root",
       "description": "区别说明"
     }
-  ]
+  ],
+  "suggestedDifficulty": 3
 }
 
 要求：
 - 只关注考研英语二的考点
 - 熟词僻义要特别标注
 - 例句要符合考研真题风格
-- 形近词要真正容易混淆的`;
+- 形近词要真正容易混淆的
+- 难度等级要根据单词的考研重要性和理解难度综合判断
+- 只返回JSON，不要任何额外说明或文本`;
   }
 
-  private buildContentGenerationPrompt(wordIds: number[], type: string): string {
+  buildContentGenerationPrompt(wordIds: number[], type: string): string {
     const typePrompt = {
       passage: '生成一段考研英语阅读风格的短文',
       quiz: '生成考研英语选择题',
@@ -176,7 +330,61 @@ class AIService {
     单词ID列表：${wordIds.join(', ')}`;
   }
 
-  private parseAIResponse(content: string): AIResponse {
+  parseBatchAIResponse(content: string): Map<string, AIResponse> {
+    const results = new Map<string, AIResponse>();
+
+    try {
+      // 提取JSON内容，处理可能的额外文本
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('未找到JSON内容，原始响应:', content);
+        return results;
+      }
+
+      console.log('AI响应JSON字符串长度:', jsonMatch[0].length);
+
+      // 尝试解析JSON
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (jsonError) {
+        console.error('JSON解析失败:', jsonError);
+        console.log('AI响应内容:', content.substring(0, 500));
+
+        // 尝试修复常见问题
+        try {
+          // 修复1：移除尾部逗号
+          const fixedJson = jsonMatch[0].replace(/,\s*\}/g, '}').replace(/,\s*\]/g, ']');
+          parsed = JSON.parse(fixedJson);
+          console.log('通过修复尾部逗号成功解析JSON');
+        } catch (fixError) {
+          console.error('修复后解析仍失败:', fixError);
+          return results;
+        }
+      }
+
+      if (parsed.results) {
+        Object.entries(parsed.results).forEach(([word, data]: [string, any]) => {
+          results.set(word, {
+            definitions: data.definitions || [],
+            etymology: data.etymology || '',
+            similar_words: data.similar_words || [],
+            suggestedDifficulty: data.suggestedDifficulty || 3,
+            suggestedCategory: data.suggestedCategory || 'reading'
+          });
+        });
+        console.log('成功解析单词数量:', results.size);
+      } else {
+        console.warn('AI响应中未找到results字段，完整响应:', parsed);
+      }
+    } catch (error) {
+      console.error('Parse batch AI response error:', error);
+    }
+
+    return results;
+  }
+
+  parseAIResponse(content: string): AIResponse {
     try {
       // 尝试解析JSON
       const jsonMatch = content.match(/\{.*\}/s);

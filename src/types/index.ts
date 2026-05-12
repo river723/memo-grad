@@ -59,4 +59,6 @@ export interface AIResponse {
   etymology?: string;
   similar_words?: SimilarWord[];
   examples?: string[];
+  suggestedDifficulty?: number; // AI建议难度 1-5
+  suggestedCategory?: WordCategory; // AI建议分类
 }

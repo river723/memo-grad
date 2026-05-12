@@ -1,9 +1,40 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Word, StudyRecord, StudyPlan } from '../types';
 
-// Web 平台兼容性处理
-if (typeof window !== 'undefined' && !window.AsyncStorage) {
-  console.log('StorageService: Web 平台检测');
+// 跨平台存储接口
+interface StorageInterface {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+  multiRemove(keys: string[]): Promise<void>;
+}
+
+// 根据平台选择存储实现
+let AsyncStorage: StorageInterface;
+
+if (typeof window !== 'undefined') {
+  // Web环境或React Native环境
+  const RNAsyncStorage = require('@react-native-async-storage/async-storage');
+  AsyncStorage = RNAsyncStorage.default || RNAsyncStorage;
+} else {
+  // Node.js环境 - 使用内存存储进行测试
+  console.log('StorageService: Node.js环境检测 - 使用内存存储');
+
+  const memoryStorage = new Map<string, string>();
+
+  AsyncStorage = {
+    getItem: async (key: string) => {
+      return memoryStorage.get(key) || null;
+    },
+    setItem: async (key: string, value: string) => {
+      memoryStorage.set(key, value);
+    },
+    removeItem: async (key: string) => {
+      memoryStorage.delete(key);
+    },
+    multiRemove: async (keys: string[]) => {
+      keys.forEach(key => memoryStorage.delete(key));
+    }
+  };
 }
 
 class StorageService {
@@ -172,7 +203,8 @@ class StorageService {
         dailyNewWords: 10,
         reviewInterval: [1, 2, 4, 7, 15],
         soundEnabled: true,
-        theme: 'light'
+        theme: 'light',
+        apiKey: ''
       };
     } catch (error) {
       console.error('Get settings error:', error);

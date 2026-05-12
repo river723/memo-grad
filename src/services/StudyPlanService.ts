@@ -136,7 +136,7 @@ class StudyPlanService {
     const weeklyProgress: number[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = format(subDays(new Date(), i), 'yyyy-MM-dd');
-      const records = await this.db.getStudyRecordsByDate(date);
+      const records = await this.storage.getStudyRecordsByDate(date);
       const correctCount = records.filter(r => r.result === 1).length;
       const accuracy = records.length > 0 ? correctCount / records.length : 0;
       weeklyProgress.push(accuracy);

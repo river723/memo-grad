@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Alert } from 'react-native';
 import {
   TextInput,
@@ -8,88 +8,263 @@ import {
   Chip,
   ActivityIndicator,
   Surface,
-  IconButton,
   SegmentedButtons
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, WordCategory, AIResponse } from '../types';
-import { WORD_CATEGORIES } from '../constants';
 
 export default function AddWordScreen() {
   const navigation = useNavigation();
-  const [word, setWord] = useState('');
+  const [input, setInput] = useState('');
   const [category, setCategory] = useState<WordCategory>('reading');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<AIResponse | null>(null);
-  const [customDefinitions, setCustomDefinitions] = useState('');
+  const [analysisResult, setAnalysisResult] = useState<Map<string, AIResponse> | AIResponse | null>(null);
   const [pronunciation, setPronunciation] = useState('');
-  const [difficulty, setDifficulty] = useState(3);
+  const [customDefinitions, setCustomDefinitions] = useState('');
+  const [parsedWords, setParsedWords] = useState<string[]>([]);
+  const [apiKey, setApiKey] = useState('');
+
+  useEffect(() => {
+    loadApiKey();
+
+    // 注册全局测试函数
+    (window as any).testAnalyze = async () => {
+      console.log('🧪 全局测试函数被调用');
+      console.log('当前状态:', { input, parsedWords, apiKey: apiKey?.length });
+      await analyzeWords();
+    };
+    console.log('🧪 测试函数已注册: window.testAnalyze()');
+
+    return () => {
+      // 清理全局函数
+      delete (window as any).testAnalyze;
+    };
+  }, [input, parsedWords, apiKey]);
+
+  const loadApiKey = async () => {
+    try {
+      console.log('开始加载API密钥...');
+      const settings = await StorageService.getSettings();
+      console.log('获取到的设置:', settings);
+      const loadedApiKey = settings?.apiKey || '';
+      console.log('加载的API密钥长度:', loadedApiKey.length);
+      setApiKey(loadedApiKey);
+
+      // 测试API密钥有效性
+      if (loadedApiKey) {
+        console.log('开始测试API密钥...');
+        const testResult = await testApiKeyValidity(loadedApiKey);
+        console.log('API密钥测试结果:', testResult);
+      }
+    } catch (error) {
+      console.error('Failed to load API key:', error);
+    }
+  };
+
+  const testApiKeyValidity = async (key: string): Promise<boolean> => {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${key}`
+        }
+      });
+
+      if (response.ok) {
+        console.log('API密钥验证成功');
+        return true;
+      } else {
+        console.error('API密钥验证失败:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('API密钥测试网络错误:', error);
+      return false;
+    }
+  };
+
+  // 解析输入的单词
+  const parseWords = (text: string): string[] => {
+    if (!text.trim()) return [];
+
+    const words = text
+      .split(/[\s\n,，。；;：:、\-]/)
+      .map(w => w.trim().toLowerCase())
+      .filter(w => w.length > 0 && /^[a-zA-Z]+$/.test(w));
+
+    const uniqueWords = [...new Set(words)];
+    return uniqueWords;
+  };
+
+  // 获取单词数量和预览
+  const getWordInfo = () => {
+    const words = parseWords(input);
+    setParsedWords(words);
+    return words;
+  };
 
   // 分析单词
-  const analyzeWord = async () => {
-    if (!word.trim()) {
-      Alert.alert('提示', '请输入单词');
+  const analyzeWords = async () => {
+    const words = getWordInfo();
+    console.log('解析到的单词:', words);
+
+    if (words.length === 0) {
+      Alert.alert('提示', '请输入有效的单词');
+      return;
+    }
+
+    if (words.length > 30) {
+      Alert.alert('提示', '一次最多只能处理30个单词');
       return;
     }
 
     setIsAnalyzing(true);
     try {
-      // 这里需要配置你的OpenRouter API密钥
-      const aiService = new AIService('your-api-key-here');
-      const analysis = await aiService.analyzeWord(word.trim());
-      setAiAnalysis(analysis);
+      // 检查是否有API key
+      if (!apiKey) {
+        Alert.alert('错误', '请先设置API密钥');
+        return;
+      }
+      console.log('使用API密钥:', apiKey.substring(0, 10) + '...');
+
+      const aiService = new AIService(apiKey);
+
+      if (words.length === 1) {
+        // 单个单词：使用单个分析接口获得更详细的信息
+        console.log('分析单个单词:', words[0]);
+        const result = await aiService.analyzeWord(words[0]);
+        console.log('单个单词分析结果:', result);
+        setAnalysisResult(result);
+      } else {
+        // 多个单词：使用批量分析接口
+        console.log('批量分析单词:', words);
+        const results = await aiService.analyzeWords(words);
+        console.log('批量分析结果:', results);
+        setAnalysisResult(results);
+      }
     } catch (error) {
       console.error('AI分析失败:', error);
+      console.error('错误详情:', error.message, error.response?.data);
       Alert.alert('错误', 'AI分析失败，请检查网络连接或API密钥');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
+  // 判断是否为单个单词结果
+  const isSingleWordResult = (): boolean => {
+    if (!analysisResult) return false;
+    return !(analysisResult instanceof Map) && 'definitions' in analysisResult;
+  };
+
+  // 获取难度等级（从AI结果或默认值）
+  const getDifficulty = (word: string): number => {
+    if (analysisResult instanceof Map) {
+      return (analysisResult.get(word)?.suggestedDifficulty) || 3;
+    } else if (analysisResult) {
+      return (analysisResult as AIResponse).suggestedDifficulty || 3;
+    }
+    return 3;
+  };
+
+  // 获取难度描述
+  const getDifficultyLabel = (difficulty: number): string => {
+    return difficulty <= 2 ? '简单' : difficulty <= 3 ? '中等' : difficulty <= 4 ? '困难' : '极难';
+  };
+
+  // 获取难度颜色
+  const getDifficultyColor = (difficulty: number): string => {
+    switch (difficulty) {
+      case 1: return '#4CAF50';
+      case 2: return '#8BC34A';
+      case 3: return '#FF9800';
+      case 4: return '#FF5722';
+      case 5: return '#F44336';
+      default: return '#9E9E9E';
+    }
+  };
+
   // 保存单词
-  const saveWord = async () => {
-    if (!word.trim()) {
-      Alert.alert('提示', '请输入单词');
+  const saveWords = async () => {
+    if (!analysisResult || parsedWords.length === 0) {
+      Alert.alert('提示', '请先进行AI分析');
       return;
     }
 
     try {
-      const wordData: Omit<Word, 'id'> = {
-        word: word.trim().toLowerCase(),
-        pronunciation_uk: pronunciation || undefined,
-        pronunciation_us: pronunciation || undefined,
-        definitions: aiAnalysis?.definitions || [
-          {
-            part_of_speech: 'unknown',
-            meaning: customDefinitions || '待添加释义',
-            example: '',
-            is_core: false,
-            is_rare_sense: false
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const word of parsedWords) {
+        try {
+          let analysis: AIResponse;
+          
+          if (analysisResult instanceof Map) {
+            analysis = analysisResult.get(word) || {
+              definitions: [{
+                part_of_speech: 'unknown',
+                meaning: '待添加释义',
+                example: '',
+                is_core: false,
+                is_rare_sense: false
+              }],
+              etymology: '',
+              similar_words: [],
+              suggestedDifficulty: 3,
+              suggestedCategory: 'reading'
+            };
+          } else {
+            // 单个单词情况
+            analysis = analysisResult;
           }
-        ],
-        etymology: aiAnalysis?.etymology || '',
-        similar_words: aiAnalysis?.similar_words || [],
-        category,
-        difficulty,
-        frequency: 1
-      };
 
-      await StorageService.addWord(wordData);
+          const difficulty = analysis.suggestedDifficulty || 3;
+          const suggestedCategory = analysis.suggestedCategory || category;
 
+          const wordData: Omit<Word, 'id'> = {
+            word: word,
+            pronunciation_uk: pronunciation || undefined,
+            pronunciation_us: pronunciation || undefined,
+            definitions: analysis?.definitions || [
+              {
+                part_of_speech: 'unknown',
+                meaning: customDefinitions || '待添加释义',
+                example: '',
+                is_core: false,
+                is_rare_sense: false
+              }
+            ],
+            etymology: analysis?.etymology || '',
+            similar_words: analysis?.similar_words || [],
+            category: suggestedCategory,
+            difficulty,
+            frequency: 1
+          };
+
+          await StorageService.addWord(wordData);
+          successCount++;
+        } catch (error) {
+          console.error(`保存单词 ${word} 失败:`, error);
+          failCount++;
+        }
+      }
+
+      const message = `成功保存 ${successCount} 个单词${failCount > 0 ? `，失败 ${failCount} 个` : ''}`;
+      
       Alert.alert(
-        '成功',
-        `单词 "${word}" 已添加到生词本`,
+        '保存完成',
+        message,
         [
           {
             text: '继续添加',
             onPress: () => {
-              setWord('');
-              setAiAnalysis(null);
-              setCustomDefinitions('');
+              setInput('');
+              setParsedWords([]);
+              setAnalysisResult(null);
               setPronunciation('');
-              setDifficulty(3);
+              setCustomDefinitions('');
             }
           },
           {
@@ -99,33 +274,44 @@ export default function AddWordScreen() {
         ]
       );
     } catch (error) {
-      console.error('保存单词失败:', error);
+      console.error('保存失败:', error);
       Alert.alert('错误', '保存失败，请重试');
     }
   };
 
-  // 难度选择器
   const renderDifficultySelector = () => (
     <View style={styles.difficultyContainer}>
-      <Text style={styles.label}>难度等级</Text>
-      <View style={styles.difficultyButtons}>
-        {[1, 2, 3, 4, 5].map(level => (
-          <Button
-            key={level}
-            mode={difficulty === level ? 'contained' : 'outlined'}
-            onPress={() => setDifficulty(level)}
-            style={styles.difficultyButton}
-            compact
-          >
-            {level}
-          </Button>
+      <Text style={styles.label}>AI建议难度等级</Text>
+      <View style={styles.difficultyDisplay}>
+        {parsedWords.map(word => (
+          <Surface key={word} style={styles.difficultyItem}>
+            <View style={styles.difficultyItemContent}>
+              <Text style={styles.difficultyWord}>{word}</Text>
+              <View style={styles.difficultyDots}>
+                {[1, 2, 3, 4, 5].map(level => (
+                  <View
+                    key={level}
+                    style={[
+                      styles.difficultyDot,
+                      {
+                        backgroundColor: level <= getDifficulty(word)
+                          ? getDifficultyColor(level)
+                          : '#E0E0E0'
+                      }
+                    ]}
+                  />
+                ))}
+              </View>
+              <Text style={styles.difficultyText}>{getDifficultyLabel(getDifficulty(word))}</Text>
+            </View>
+          </Surface>
         ))}
       </View>
-      <Text style={styles.difficultyHint}>
-        {difficulty <= 2 ? '简单' : difficulty <= 3 ? '中等' : difficulty <= 4 ? '困难' : '极难'}
-      </Text>
+      <Text style={styles.helperInfo}>难度由AI智能分析生成，根据考研重要性和理解难度自动评估。可在学习过程中根据成绩动态调整。</Text>
     </View>
   );
+
+  const wordCount = parsedWords.length;
 
   return (
     <ScrollView style={styles.container}>
@@ -133,26 +319,52 @@ export default function AddWordScreen() {
         <Card.Title title="添加新单词" titleStyle={styles.cardTitle} />
         <Card.Content>
           {/* 单词输入 */}
+          <Text style={styles.helperText}>输入1-30个单词，用空格、换行或标点符号分隔</Text>
           <TextInput
             label="输入英文单词"
-            value={word}
-            onChangeText={setWord}
+            value={input}
+            onChangeText={setInput}
             mode="outlined"
+            multiline
+            numberOfLines={5}
             style={styles.input}
-            placeholder="例如: abandon"
+            placeholder="例如: abandon persist diligent&#10;或者: abandon,persist,diligent"
             autoCapitalize="none"
             autoCorrect={false}
           />
 
-          {/* 音标输入 */}
-          <TextInput
-            label="音标 (可选)"
-            value={pronunciation}
-            onChangeText={setPronunciation}
-            mode="outlined"
-            style={styles.input}
-            placeholder="例如: [əˈbændən]"
-          />
+          {/* 单词预览 */}
+          {wordCount > 0 && (
+            <Surface style={styles.previewContainer}>
+              <View style={styles.previewHeader}>
+                <Text style={styles.previewTitle}>解析结果</Text>
+                <Chip 
+                  style={styles.wordCountChip}
+                  textStyle={styles.chipText}
+                >
+                  {wordCount}个单词
+                </Chip>
+              </View>
+              <Text style={styles.previewWords}>
+                {parsedWords.join(', ')}
+              </Text>
+              {wordCount > 30 && (
+                <Text style={styles.warningText}>超过30个限制，只会处理前30个</Text>
+              )}
+            </Surface>
+          )}
+
+          {/* 音标输入（仅单个单词时显示） */}
+          {wordCount === 1 && (
+            <TextInput
+              label="音标 (可选)"
+              value={pronunciation}
+              onChangeText={setPronunciation}
+              mode="outlined"
+              style={styles.input}
+              placeholder="例如: [əˈbændən]"
+            />
+          )}
 
           {/* 分类选择 */}
           <Text style={styles.label}>单词分类</Text>
@@ -171,18 +383,46 @@ export default function AddWordScreen() {
           {/* AI分析按钮 */}
           <Button
             mode="contained"
-            onPress={analyzeWord}
+            onPress={analyzeWords}
             loading={isAnalyzing}
-            disabled={isAnalyzing || !word.trim()}
+            disabled={isAnalyzing || wordCount === 0}
             style={styles.analyzeButton}
             icon="auto-fix"
           >
-            {isAnalyzing ? 'AI分析中...' : 'AI智能分析'}
+            {isAnalyzing ? 'AI分析中...' : `AI智能分析 (${wordCount}个)`}
           </Button>
+
+          {/* 测试按钮 - 临时添加用于诊断 */}
+          <Surface style={{ padding: 16, marginTop: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: '#1976D2' }}>🧪 测试区域</Text>
+            <Text style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
+              点击下方按钮测试AI分析功能，查看控制台日志
+            </Text>
+            <Button
+              mode="outlined"
+              onPress={async () => {
+                console.log('🧪 测试按钮被点击！');
+                console.log('当前输入:', input);
+                console.log('解析的单词:', parsedWords);
+                console.log('API密钥:', apiKey ? apiKey.substring(0, 10) + '...' : '未设置');
+                console.log('单词数量:', wordCount);
+
+                // 强制测试analyzeWords
+                await analyzeWords();
+              }}
+              style={{ marginBottom: 8 }}
+              icon="test-tube"
+            >
+              🧪 测试AI分析功能
+            </Button>
+            <Text style={{ fontSize: 10, color: '#999' }}>
+              也可在控制台输入: window.testAnalyze()
+            </Text>
+          </Surface>
         </Card.Content>
       </Card>
 
-      {/* AI分析结果 */}
+      {/* 分析中 */}
       {isAnalyzing && (
         <Card style={styles.card}>
           <Card.Content style={styles.loadingContainer}>
@@ -192,14 +432,15 @@ export default function AddWordScreen() {
         </Card>
       )}
 
-      {aiAnalysis && (
+      {/* 分析结果 - 单个单词 */}
+      {analysisResult && isSingleWordResult() && (
         <Card style={styles.card}>
           <Card.Title title="AI分析结果" titleStyle={styles.cardTitle} />
           <Card.Content>
             {/* 释义 */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📚 考研释义</Text>
-              {aiAnalysis.definitions?.map((def, index) => (
+              {(analysisResult as AIResponse).definitions?.map((def, index) => (
                 <Surface key={index} style={styles.definitionItem}>
                   <View style={styles.definitionHeader}>
                     <Text style={styles.partOfSpeech}>{def.part_of_speech}</Text>
@@ -215,20 +456,20 @@ export default function AddWordScreen() {
             </View>
 
             {/* 词根词缀 */}
-            {aiAnalysis.etymology && (
+            {(analysisResult as AIResponse).etymology && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>🔍 词根词缀</Text>
                 <Surface style={styles.etymologyContainer}>
-                  <Text style={styles.etymologyText}>{aiAnalysis.etymology}</Text>
+                  <Text style={styles.etymologyText}>{(analysisResult as AIResponse).etymology}</Text>
                 </Surface>
               </View>
             )}
 
             {/* 形近词 */}
-            {aiAnalysis.similar_words && aiAnalysis.similar_words.length > 0 && (
+            {(analysisResult as AIResponse).similar_words && (analysisResult as AIResponse).similar_words!.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>⚠️ 易混词提醒</Text>
-                {aiAnalysis.similar_words.map((similar, index) => (
+                {(analysisResult as AIResponse).similar_words!.map((similar, index) => (
                   <Surface key={index} style={styles.similarWordItem}>
                     <Text style={styles.similarWord}>
                       {similar.word} ({similar.relation}): {similar.description}
@@ -241,8 +482,32 @@ export default function AddWordScreen() {
         </Card>
       )}
 
-      {/* 手动添加释义 */}
-      {!aiAnalysis && (
+      {/* 分析结果 - 多个单词 */}
+      {analysisResult && !isSingleWordResult() && (
+        <Card style={styles.card}>
+          <Card.Title title={`批量AI分析结果 (${(analysisResult as Map<string, AIResponse>).size}个单词)`} titleStyle={styles.cardTitle} />
+          <Card.Content>
+            {Array.from((analysisResult as Map<string, AIResponse>).entries()).map(([word, analysis]) => (
+              <Surface key={word} style={styles.batchWordItem}>
+                <Text style={styles.batchWordTitle}>{word}</Text>
+                {analysis.definitions && analysis.definitions.length > 0 ? (
+                  analysis.definitions.slice(0, 2).map((def, index) => (
+                    <View key={index} style={styles.batchDefinition}>
+                      <Text style={styles.batchPartOfSpeech}>{def.part_of_speech}</Text>
+                      <Text style={styles.batchMeaning}>{def.meaning}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.batchNoAnalysis}>暂无AI分析结果</Text>
+                )}
+              </Surface>
+            ))}
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* 手动添加释义（仅单个单词且无分析时显示） */}
+      {wordCount === 1 && !analysisResult && (
         <Card style={styles.card}>
           <Card.Title title="手动添加释义" titleStyle={styles.cardTitle} />
           <Card.Content>
@@ -260,18 +525,19 @@ export default function AddWordScreen() {
         </Card>
       )}
 
-      {/* 难度选择 */}
-      {renderDifficultySelector()}
+      {/* AI建议难度等级显示（分析完成后显示） */}
+      {analysisResult && renderDifficultySelector()}
 
       {/* 保存按钮 */}
       <View style={styles.buttonContainer}>
         <Button
           mode="contained"
-          onPress={saveWord}
+          onPress={saveWords}
+          disabled={!analysisResult || wordCount === 0}
           style={styles.saveButton}
           icon="content-save"
         >
-          保存到生词本
+          保存 ({wordCount}个单词)
         </Button>
 
         <Button
@@ -279,7 +545,7 @@ export default function AddWordScreen() {
           onPress={() => navigation.goBack()}
           style={styles.cancelButton}
         >
-          取消
+          返回
         </Button>
       </View>
     </ScrollView>
@@ -300,8 +566,49 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  helperText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+  },
   input: {
     marginBottom: 16,
+  },
+  previewContainer: {
+    padding: 12,
+    marginBottom: 16,
+    borderRadius: 8,
+    elevation: 1,
+    backgroundColor: '#E3F2FD',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    justifyContent: 'space-between',
+  },
+  previewTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1976D2',
+  },
+  wordCountChip: {
+    backgroundColor: '#1976D2',
+  },
+  chipText: {
+    color: '#FFF',
+    fontSize: 12,
+  },
+  previewWords: {
+    fontSize: 12,
+    color: '#333',
+    lineHeight: 18,
+  },
+  warningText: {
+    fontSize: 11,
+    color: '#D32F2F',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   label: {
     fontSize: 16,
@@ -350,65 +657,115 @@ const styles = StyleSheet.create({
   },
   meaning: {
     fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 4,
+    color: '#333',
   },
   example: {
     fontSize: 12,
     color: '#666',
+    marginTop: 4,
     fontStyle: 'italic',
   },
   etymologyContainer: {
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#E3F2FD',
+    elevation: 1,
   },
   etymologyText: {
     fontSize: 14,
-    lineHeight: 20,
-    color: '#1976D2',
+    color: '#333',
   },
   similarWordItem: {
-    padding: 8,
-    marginBottom: 4,
-    borderRadius: 4,
-    backgroundColor: '#FFF3E0',
+    padding: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+    elevation: 1,
   },
   similarWord: {
-    fontSize: 12,
-    color: '#F57C00',
+    fontSize: 14,
+    color: '#333',
   },
   textArea: {
-    minHeight: 80,
+    marginBottom: 16,
   },
   difficultyContainer: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 8,
     marginBottom: 16,
-    elevation: 2,
   },
-  difficultyButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  difficultyDisplay: {
+    marginBottom: 12,
+  },
+  difficultyItem: {
+    padding: 12,
     marginBottom: 8,
+    borderRadius: 8,
+    elevation: 1,
   },
-  difficultyButton: {
-    flex: 1,
+  difficultyItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  difficultyWord: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    minWidth: 80,
+  },
+  difficultyDots: {
+    flexDirection: 'row',
+    marginHorizontal: 8,
+  },
+  difficultyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginHorizontal: 2,
   },
-  difficultyHint: {
-    textAlign: 'center',
+  difficultyText: {
     fontSize: 12,
     color: '#666',
+    minWidth: 50,
+    textAlign: 'right',
+  },
+  helperInfo: {
+    fontSize: 11,
+    color: '#999',
+    fontStyle: 'italic',
+    marginTop: 8,
+    lineHeight: 16,
   },
   buttonContainer: {
     marginBottom: 32,
   },
   saveButton: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  cancelButton: {
-    marginBottom: 16,
+  cancelButton: {},
+  batchWordItem: {
+    padding: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+    elevation: 1,
+  },
+  batchWordTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    marginBottom: 8,
+  },
+  batchDefinition: {
+    marginBottom: 4,
+  },
+  batchPartOfSpeech: {
+    fontSize: 12,
+    color: '#666',
+  },
+  batchMeaning: {
+    fontSize: 14,
+    color: '#333',
+  },
+  batchNoAnalysis: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
   },
 });
