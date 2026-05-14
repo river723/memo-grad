@@ -26,10 +26,13 @@ export default function AddWordScreen() {
   const [parsedWords, setParsedWords] = useState<string[]>([]);
   const [apiKey, setApiKey] = useState('');
 
+  // 组件挂载时加载API密钥（仅执行一次）
   useEffect(() => {
     loadApiKey();
+  }, []);
 
-    // 注册全局测试函数
+  // 注册全局测试函数（依赖于input和parsedWords）
+  useEffect(() => {
     (window as any).testAnalyze = async () => {
       console.log('🧪 全局测试函数被调用');
       console.log('当前状态:', { input, parsedWords, apiKey: apiKey?.length });
@@ -38,7 +41,6 @@ export default function AddWordScreen() {
     console.log('🧪 测试函数已注册: window.testAnalyze()');
 
     return () => {
-      // 清理全局函数
       delete (window as any).testAnalyze;
     };
   }, [input, parsedWords, apiKey]);
@@ -186,18 +188,46 @@ export default function AddWordScreen() {
     }
   };
 
+  const canSave = (): boolean => {
+    if (parsedWords.length === 0) return false;
+    if (analysisResult) return true;
+    return parsedWords.length === 1 && customDefinitions.trim().length > 0;
+  };
+
   // 保存单词
   const saveWords = async () => {
-    if (!analysisResult || parsedWords.length === 0) {
-      Alert.alert('提示', '请先进行AI分析');
+    console.log('🔵 saveWords 被调用');
+    console.log('canSave():', canSave());
+    console.log('parsedWords.length:', parsedWords.length);
+    console.log('analysisResult:', analysisResult);
+    console.log('customDefinitions:', customDefinitions);
+
+    if (!canSave() || parsedWords.length === 0) {
+      console.log('❌ 保存条件不满足');
+      Alert.alert('提示', '请先进行AI分析或填写手动释义');
       return;
     }
 
+    console.log('✅ 开始保存流程');
     try {
       let successCount = 0;
       let failCount = 0;
+      let duplicateCount = 0;
+
+      // 先获取所有已有单词
+      const existingWords = await StorageService.getWords();
+      const existingWordSet = new Set(existingWords.map(w => w.word.toLowerCase()));
 
       for (const word of parsedWords) {
+        console.log(`📝 处理单词: ${word}`);
+        
+        // 检查单词是否已存在
+        if (existingWordSet.has(word.toLowerCase())) {
+          console.log(`⏭️ 单词 ${word} 已存在，跳过`);
+          duplicateCount++;
+          continue;
+        }
+
         try {
           let analysis: AIResponse;
           
@@ -216,8 +246,25 @@ export default function AddWordScreen() {
               suggestedCategory: 'reading'
             };
           } else {
-            // 单个单词情况
-            analysis = analysisResult;
+            if (customDefinitions.trim().length > 0) {
+              analysis = {
+                definitions: [
+                  {
+                    part_of_speech: 'unknown',
+                    meaning: customDefinitions.trim(),
+                    example: '',
+                    is_core: false,
+                    is_rare_sense: false
+                  }
+                ],
+                etymology: '',
+                similar_words: [],
+                suggestedDifficulty: 3,
+                suggestedCategory: category
+              };
+            } else {
+              analysis = analysisResult as AIResponse;
+            }
           }
 
           const difficulty = analysis.suggestedDifficulty || 3;
@@ -227,10 +274,10 @@ export default function AddWordScreen() {
             word: word,
             pronunciation_uk: pronunciation || undefined,
             pronunciation_us: pronunciation || undefined,
-            definitions: analysis?.definitions || [
+            definitions: analysis.definitions || [
               {
                 part_of_speech: 'unknown',
-                meaning: customDefinitions || '待添加释义',
+                meaning: '待添加释义',
                 example: '',
                 is_core: false,
                 is_rare_sense: false
@@ -244,27 +291,32 @@ export default function AddWordScreen() {
           };
 
           await StorageService.addWord(wordData);
+          console.log(`✅ 单词 ${word} 保存成功`);
           successCount++;
         } catch (error) {
-          console.error(`保存单词 ${word} 失败:`, error);
+          console.error(`❌ 保存单词 ${word} 失败:`, error);
           failCount++;
         }
       }
 
-      const message = `成功保存 ${successCount} 个单词${failCount > 0 ? `，失败 ${failCount} 个` : ''}`;
+      console.log(`📊 保存统计: 成功${successCount}个，失败${failCount}个，重复${duplicateCount}个`);
+      const message = `成功保存 ${successCount} 个单词${failCount > 0 ? `，失败 ${failCount} 个` : ''}${duplicateCount > 0 ? `，已有 ${duplicateCount} 个` : ''}`;
+      
+      // 立即清空数据，让用户看到单词数变为0
+      setInput('');
+      setParsedWords([]);
+      setAnalysisResult(null);
+      setPronunciation('');
+      setCustomDefinitions('');
       
       Alert.alert(
-        '保存完成',
+        '保存成功 ✅',
         message,
         [
           {
             text: '继续添加',
             onPress: () => {
-              setInput('');
-              setParsedWords([]);
-              setAnalysisResult(null);
-              setPronunciation('');
-              setCustomDefinitions('');
+              // 数据已清空，无需再清空
             }
           },
           {
@@ -274,8 +326,8 @@ export default function AddWordScreen() {
         ]
       );
     } catch (error) {
-      console.error('保存失败:', error);
-      Alert.alert('错误', '保存失败，请重试');
+      console.error('❌ 保存异常:', error);
+      Alert.alert('错误', `保存失败，请重试: ${error.message}`);
     }
   };
 
@@ -533,7 +585,7 @@ export default function AddWordScreen() {
         <Button
           mode="contained"
           onPress={saveWords}
-          disabled={!analysisResult || wordCount === 0}
+          disabled={!canSave()}
           style={styles.saveButton}
           icon="content-save"
         >

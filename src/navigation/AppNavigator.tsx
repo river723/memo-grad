@@ -12,6 +12,7 @@ import AddWordScreen from '../screens/AddWordScreen';
 import StudyScreen from '../screens/StudyScreen';
 import StatsScreen from '../screens/StatsScreen';
 import WordListScreen from '../screens/WordListScreen';
+import WordDetailScreen from '../screens/WordDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
@@ -109,6 +110,36 @@ export default function AppNavigator() {
           options={{
             headerShown: !isWeb,
             title: '开始学习',
+            headerStyle: {
+              backgroundColor: '#1976D2',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
+        <Stack.Screen
+          name="WordList"
+          component={WordListScreen}
+          options={{
+            headerShown: !isWeb,
+            title: '单词本',
+            headerStyle: {
+              backgroundColor: '#1976D2',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
+        <Stack.Screen
+          name="WordDetail"
+          component={WordDetailScreen}
+          options={{
+            headerShown: !isWeb,
+            title: '单词详情',
             headerStyle: {
               backgroundColor: '#1976D2',
             },

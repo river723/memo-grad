@@ -246,8 +246,11 @@ class AIService {
 要求：
 1. 只返回JSON，不要任何额外文本或说明
 2. 确保JSON格式正确，所有字符串都用双引号
-3. 每个单词提供1-2个重要释义
-4. 提供难度等级(1-5)
+3. 每个单词提供1-2个重要释义，释义必须使用中文
+4. 其他字段如词根词缀分析、相似词提醒也请用中文
+5. 提供难度等级(1-5)
+
+提示：如果字段值中需要引用单词或短语，请使用中文书名号「」或单引号，避免未转义的双引号。
 
 示例格式：
 {
@@ -265,6 +268,8 @@ class AIService {
       "etymology": "词根词缀分析",
       "suggestedDifficulty": 3
     }
+  }
+`;
   }
 
   buildWordAnalysisPrompt(word: string): string {
@@ -305,10 +310,12 @@ class AIService {
 
 要求：
 - 只关注考研英语二的考点
+- 所有释义必须使用中文，不要输出英文释义
 - 熟词僻义要特别标注
 - 例句要符合考研真题风格
 - 形近词要真正容易混淆的
 - 难度等级要根据单词的考研重要性和理解难度综合判断
+- 如果字段值中需要引用，请使用中文书名号「」或单引号，避免未转义的双引号
 - 只返回JSON，不要任何额外说明或文本`;
   }
 
@@ -328,6 +335,64 @@ class AIService {
     - 如果是作文句型，要实用且高级
 
     单词ID列表：${wordIds.join(', ')}`;
+  }
+
+  normalizeJsonString(jsonString: string): string {
+    let fixed = jsonString
+      // 移除尾部多余逗号
+      .replace(/,\s*([}\]])/g, '$1')
+      // 修复单引号字符串
+      .replace(/:\s*'([^']*)'/g, ': "$1"');
+
+    let result = '';
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < fixed.length; i++) {
+      const char = fixed[i];
+
+      if (!inString) {
+        if (char === '"' && !escaped) {
+          inString = true;
+        }
+        result += char;
+        escaped = char === '\\' && !escaped;
+        continue;
+      }
+
+      if (char === '\\' && !escaped) {
+        result += char;
+        escaped = true;
+        continue;
+      }
+
+      if (char === '\n' || char === '\r') {
+        result += '\\n';
+        escaped = false;
+        continue;
+      }
+
+      if (char === '"' && !escaped) {
+        let j = i + 1;
+        while (j < fixed.length && /\s/.test(fixed[j])) {
+          j++;
+        }
+        const next = fixed[j] || '';
+        if (next === ',' || next === '}' || next === ']' || next === '') {
+          inString = false;
+          result += char;
+        } else {
+          result += '\\"';
+        }
+        escaped = false;
+        continue;
+      }
+
+      result += char;
+      escaped = false;
+    }
+
+    return result;
   }
 
   parseBatchAIResponse(content: string): Map<string, AIResponse> {
@@ -351,12 +416,10 @@ class AIService {
         console.error('JSON解析失败:', jsonError);
         console.log('AI响应内容:', content.substring(0, 500));
 
-        // 尝试修复常见问题
+        const fixedJson = this.normalizeJsonString(jsonMatch[0]);
         try {
-          // 修复1：移除尾部逗号
-          const fixedJson = jsonMatch[0].replace(/,\s*\}/g, '}').replace(/,\s*\]/g, ']');
           parsed = JSON.parse(fixedJson);
-          console.log('通过修复尾部逗号成功解析JSON');
+          console.log('通过 normalizeJsonString 成功解析JSON');
         } catch (fixError) {
           console.error('修复后解析仍失败:', fixError);
           return results;
@@ -387,9 +450,24 @@ class AIService {
   parseAIResponse(content: string): AIResponse {
     try {
       // 尝试解析JSON
-      const jsonMatch = content.match(/\{.*\}/s);
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const jsonString = jsonMatch[0];
+
+        try {
+          return JSON.parse(jsonString);
+        } catch (firstError) {
+          console.warn('首轮 JSON 解析失败，尝试修复格式:', firstError);
+
+          const fixedJson = this.normalizeJsonString(jsonString);
+
+          try {
+            return JSON.parse(fixedJson);
+          } catch (secondError) {
+            console.error('修复后 JSON 解析仍失败:', secondError);
+            console.error('原始 AI 内容:', content);
+          }
+        }
       }
 
       // 如果无法解析JSON，返回基本结构

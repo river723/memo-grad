@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import {
   Card,
@@ -9,7 +9,7 @@ import {
   Chip,
   Surface
 } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import { Word } from '../types';
@@ -25,9 +25,11 @@ export default function HomeScreen() {
   const [recentWords, setRecentWords] = useState<Word[]>([]);
   const [weeklyProgress, setWeeklyProgress] = useState<number[]>([]);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [])
+  );
 
   const loadDashboardData = async () => {
     try {
