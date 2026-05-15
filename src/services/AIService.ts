@@ -449,23 +449,46 @@ class AIService {
 
   parseAIResponse(content: string): AIResponse {
     try {
-      // 尝试解析JSON
+      // 尝试提取JSON内容 - 支持多种格式
+      let jsonString = '';
+
+      // 方法1: 直接匹配最外层JSON对象
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const jsonString = jsonMatch[0];
+        jsonString = jsonMatch[0];
+      }
 
+      // 如果没有找到，尝试查找 "```json" 包裹的内容
+      if (!jsonString) {
+        const codeBlockMatch = content.match(/```json\s*\n?([\s\S]*?)\n?\s*```/);
+        if (codeBlockMatch) {
+          jsonString = codeBlockMatch[1];
+        }
+      }
+
+      // 如果还是没有，尝试查找任何代码块
+      if (!jsonString) {
+        const codeBlockMatch = content.match(/```\s*\n?([\s\S]*?)\n?\s*```/);
+        if (codeBlockMatch) {
+          jsonString = codeBlockMatch[1];
+        }
+      }
+
+      if (jsonString) {
         try {
           return JSON.parse(jsonString);
         } catch (firstError) {
-          console.warn('首轮 JSON 解析失败，尝试修复格式:', firstError);
+          console.warn('首轮 JSON 解析失败，尝试修复格式:', firstError.message);
 
           const fixedJson = this.normalizeJsonString(jsonString);
 
           try {
             return JSON.parse(fixedJson);
           } catch (secondError) {
-            console.error('修复后 JSON 解析仍失败:', secondError);
-            console.error('原始 AI 内容:', content);
+            console.error('修复后 JSON 解析仍失败:', secondError.message);
+            console.error('原始内容长度:', content.length);
+            console.error('JSON字符串长度:', jsonString.length);
+            console.error('前500字符:', content.substring(0, 500));
           }
         }
       }
@@ -473,13 +496,17 @@ class AIService {
       // 如果无法解析JSON，返回基本结构
       return {
         definitions: [],
-        examples: []
+        etymology: '',
+        similar_words: [],
+        suggestedDifficulty: 3
       };
     } catch (error) {
       console.error('Parse AI response error:', error);
       return {
         definitions: [],
-        examples: []
+        etymology: '',
+        similar_words: [],
+        suggestedDifficulty: 3
       };
     }
   }

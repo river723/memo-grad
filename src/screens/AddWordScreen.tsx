@@ -7,8 +7,7 @@ import {
   Text,
   Chip,
   ActivityIndicator,
-  Surface,
-  SegmentedButtons
+  Surface
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
@@ -30,20 +29,6 @@ export default function AddWordScreen() {
   useEffect(() => {
     loadApiKey();
   }, []);
-
-  // 注册全局测试函数（依赖于input和parsedWords）
-  useEffect(() => {
-    (window as any).testAnalyze = async () => {
-      console.log('🧪 全局测试函数被调用');
-      console.log('当前状态:', { input, parsedWords, apiKey: apiKey?.length });
-      await analyzeWords();
-    };
-    console.log('🧪 测试函数已注册: window.testAnalyze()');
-
-    return () => {
-      delete (window as any).testAnalyze;
-    };
-  }, [input, parsedWords, apiKey]);
 
   const loadApiKey = async () => {
     try {
@@ -375,7 +360,12 @@ export default function AddWordScreen() {
           <TextInput
             label="输入英文单词"
             value={input}
-            onChangeText={setInput}
+            onChangeText={(text) => {
+              setInput(text);
+              // 输入变化时同步更新 parsedWords
+              const words = parseWords(text);
+              setParsedWords(words);
+            }}
             mode="outlined"
             multiline
             numberOfLines={5}
@@ -418,20 +408,6 @@ export default function AddWordScreen() {
             />
           )}
 
-          {/* 分类选择 */}
-          <Text style={styles.label}>单词分类</Text>
-          <SegmentedButtons
-            value={category}
-            onValueChange={(value) => setCategory(value as WordCategory)}
-            buttons={[
-              { value: 'reading', label: '阅读' },
-              { value: 'cloze', label: '完型' },
-              { value: 'translation', label: '翻译' },
-              { value: 'writing', label: '作文' }
-            ]}
-            style={styles.segmentedButtons}
-          />
-
           {/* AI分析按钮 */}
           <Button
             mode="contained"
@@ -443,34 +419,6 @@ export default function AddWordScreen() {
           >
             {isAnalyzing ? 'AI分析中...' : `AI智能分析 (${wordCount}个)`}
           </Button>
-
-          {/* 测试按钮 - 临时添加用于诊断 */}
-          <Surface style={{ padding: 16, marginTop: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: '#1976D2' }}>🧪 测试区域</Text>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
-              点击下方按钮测试AI分析功能，查看控制台日志
-            </Text>
-            <Button
-              mode="outlined"
-              onPress={async () => {
-                console.log('🧪 测试按钮被点击！');
-                console.log('当前输入:', input);
-                console.log('解析的单词:', parsedWords);
-                console.log('API密钥:', apiKey ? apiKey.substring(0, 10) + '...' : '未设置');
-                console.log('单词数量:', wordCount);
-
-                // 强制测试analyzeWords
-                await analyzeWords();
-              }}
-              style={{ marginBottom: 8 }}
-              icon="test-tube"
-            >
-              🧪 测试AI分析功能
-            </Button>
-            <Text style={{ fontSize: 10, color: '#999' }}>
-              也可在控制台输入: window.testAnalyze()
-            </Text>
-          </Surface>
         </Card.Content>
       </Card>
 

@@ -91,10 +91,17 @@ class StorageService {
     const words = await this.getWords();
     const filtered = words.filter(word => word.category === category);
 
+    // 按创建时间倒序排列（最新的在前）
+    const sorted = filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      return dateB - dateA;
+    });
+
     if (limit) {
-      return filtered.slice(0, limit);
+      return sorted.slice(0, limit);
     }
-    return filtered;
+    return sorted;
   }
 
   async searchWords(query: string): Promise<Word[]> {
