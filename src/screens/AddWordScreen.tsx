@@ -52,22 +52,29 @@ export default function AddWordScreen() {
 
   const testApiKeyValidity = async (key: string): Promise<boolean> => {
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${key}`
-        }
-      });
+      // 通过测试AI分析功能来验证API密钥
+      // 使用一个简单的单词测试，如果有响应则认为密钥有效
+      const aiService = new AIService(key);
+      console.log('开始测试API密钥有效性...');
 
-      if (response.ok) {
+      // 测试网络连接
+      const networkOk = await aiService.testNetworkConnection();
+      if (!networkOk) {
+        console.error('网络连接测试失败');
+        return false;
+      }
+
+      // 测试API密钥
+      const apiKeyOk = await aiService.testApiKey();
+      if (apiKeyOk) {
         console.log('API密钥验证成功');
         return true;
       } else {
-        console.error('API密钥验证失败:', response.status);
+        console.error('API密钥验证失败');
         return false;
       }
     } catch (error) {
-      console.error('API密钥测试网络错误:', error);
+      console.error('API密钥测试错误:', error);
       return false;
     }
   };

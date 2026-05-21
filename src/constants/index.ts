@@ -14,10 +14,11 @@ export const STUDY_MODES = {
 export const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30]; // 艾宾浩斯复习间隔（天）
 
 export const API_CONFIG = {
-  OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
-  DEFAULT_MODEL: 'anthropic/claude-3-haiku',
+  // 使用NVIDIA API端点
+  OPENROUTER_BASE_URL: 'https://integrate.api.nvidia.com/v1',
+  DEFAULT_MODEL: 'meta/llama-3.1-8b-instruct', // NVIDIA API支持的模型
   MAX_RETRIES: 3,
-  TIMEOUT: 10000
+  TIMEOUT: 30000 // 增加超时时间
 };
 
 export const DB_CONFIG = {

@@ -2,44 +2,6 @@ import axios from 'axios';
 import { AIResponse } from '../types';
 import { API_CONFIG } from '../constants';
 
-// 测试网络连接
-const testNetworkConnection = async () => {
-  try {
-    const testResponse = await axios.get('https://httpbin.org/ip', { timeout: 5000 });
-    console.log('网络连接正常，IP:', testResponse.data.origin);
-    return true;
-  } catch (error) {
-    console.error('网络连接测试失败:', error.message);
-    return false;
-  }
-};
-
-// 测试API密钥
-const testApiKey = async (apiKey: string) => {
-  try {
-    const response = await axios.post(
-      `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
-      {
-        model: 'gpt-3.5-turbo',
-        messages: [{ role: 'user', content: 'test' }],
-        max_tokens: 5
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 10000
-      }
-    );
-    console.log('API密钥测试成功');
-    return true;
-  } catch (error) {
-    console.error('API密钥测试失败:', error.message, error.response?.status);
-    return false;
-  }
-};
-
 class AIService {
   private apiKey: string;
 
@@ -47,9 +9,46 @@ class AIService {
     this.apiKey = apiKey;
   }
 
+  // 测试网络连接
+  async testNetworkConnection(): Promise<boolean> {
+    try {
+      await axios.get('https://httpbin.org/ip', { timeout: 5000 });
+      return true;
+    } catch (error: any) {
+      console.error('网络连接测试失败:', error.message);
+      return false;
+    }
+  }
+
+  // 测试API密钥
+  async testApiKey(): Promise<boolean> {
+    try {
+      await axios.post(
+        `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
+        {
+          model: 'gpt-3.5-turbo',
+          messages: [{ role: 'user', content: 'test' }],
+          max_tokens: 5
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000
+        }
+      );
+      console.log('API密钥测试成功');
+      return true;
+    } catch (error: any) {
+      console.error('API密钥测试失败:', error.message, error.response?.status);
+      return false;
+    }
+  }
+
   async analyzeWord(word: string): Promise<AIResponse> {
     const prompt = this.buildWordAnalysisPrompt(word);
-    console.log('发送AI请求，单词:', word);
+    console.log('发送AI请求，单词:', word, '使用模型:', API_CONFIG.DEFAULT_MODEL);
 
     try {
       const response = await axios.post(
@@ -103,6 +102,7 @@ class AIService {
     for (let i = 0; i < words.length; i += batchSize) {
       const batch = words.slice(i, i + batchSize);
       const batchPrompt = this.buildBatchAnalysisPrompt(batch);
+      console.log(`批量分析单词，使用模型: ${API_CONFIG.DEFAULT_MODEL}, 批次: ${i / batchSize + 1}/${Math.ceil(words.length / batchSize)}`);
       
       try {
         const response = await axios.post(
