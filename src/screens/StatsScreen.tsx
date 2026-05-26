@@ -13,10 +13,6 @@ import { format } from 'date-fns';
 export default function StatsScreen() {
   const [stats, setStats] = useState({
     totalWords: 0,
-    readingWords: 0,
-    clozeWords: 0,
-    translationWords: 0,
-    writingWords: 0,
     todayStudyCount: 0,
     todayCorrectCount: 0,
     todayAccuracy: 0,
@@ -35,12 +31,6 @@ export default function StatsScreen() {
       const today = format(new Date(), 'yyyy-MM-dd');
       const todayRecords = await StorageService.getStudyRecordsByDate(today);
       const allRecords = await StorageService.getStudyRecords();
-
-      // 按分类统计
-      const readingWords = allWords.filter(w => w.category === 'reading');
-      const clozeWords = allWords.filter(w => w.category === 'cloze');
-      const translationWords = allWords.filter(w => w.category === 'translation');
-      const writingWords = allWords.filter(w => w.category === 'writing');
 
       // 今日统计
       const todayStudyCount = todayRecords.length;
@@ -62,10 +52,6 @@ export default function StatsScreen() {
 
       setStats({
         totalWords: allWords.length,
-        readingWords: readingWords.length,
-        clozeWords: clozeWords.length,
-        translationWords: translationWords.length,
-        writingWords: writingWords.length,
         todayStudyCount,
         todayCorrectCount,
         todayAccuracy,
@@ -154,43 +140,6 @@ export default function StatsScreen() {
             </View>
           </View>
           {stats.totalWords > 0 && renderProgressBar((stats.masteredWords / stats.totalWords) * 100)}
-        </Card.Content>
-      </Card>
-
-      {/* 分类分布 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>📂 分类分布</Text>
-          <View style={styles.categoryGrid}>
-            <View style={styles.categoryItem}>
-              <View style={[styles.categoryIcon, { backgroundColor: '#E3F2FD' }]}>
-                <Text style={styles.categoryEmoji}>📖</Text>
-              </View>
-              <Text style={styles.categoryName}>阅读</Text>
-              <Text style={styles.categoryCount}>{stats.readingWords}</Text>
-            </View>
-            <View style={styles.categoryItem}>
-              <View style={[styles.categoryIcon, { backgroundColor: '#FFF3E0' }]}>
-                <Text style={styles.categoryEmoji}>📝</Text>
-              </View>
-              <Text style={styles.categoryName}>完型</Text>
-              <Text style={styles.categoryCount}>{stats.clozeWords}</Text>
-            </View>
-            <View style={styles.categoryItem}>
-              <View style={[styles.categoryIcon, { backgroundColor: '#E8F5E9' }]}>
-                <Text style={styles.categoryEmoji}>📄</Text>
-              </View>
-              <Text style={styles.categoryName}>翻译</Text>
-              <Text style={styles.categoryCount}>{stats.translationWords}</Text>
-            </View>
-            <View style={styles.categoryItem}>
-              <View style={[styles.categoryIcon, { backgroundColor: '#F3E5F5' }]}>
-                <Text style={styles.categoryEmoji}>✍️</Text>
-              </View>
-              <Text style={styles.categoryName}>作文</Text>
-              <Text style={styles.categoryCount}>{stats.writingWords}</Text>
-            </View>
-          </View>
         </Card.Content>
       </Card>
 
@@ -310,40 +259,6 @@ const styles = StyleSheet.create({
   progressBarFill: {
     height: '100%',
     borderRadius: 4,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  categoryItem: {
-    flex: 1,
-    minWidth: 80,
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 8,
-  },
-  categoryIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  categoryEmoji: {
-    fontSize: 24,
-  },
-  categoryName: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  categoryCount: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1976D2',
   },
   weeklyChart: {
     flexDirection: 'row',

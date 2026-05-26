@@ -7,14 +7,13 @@ import {
   ProgressBar,
   Surface,
   Chip,
-  SegmentedButtons,
-  Portal,
-  Dialog
+  SegmentedButtons
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word, StudyRecord, StudyMode } from '../types';
-import { format } from 'date-fns';
+import { REVIEW_INTERVALS } from '../constants';
+import { format, addDays } from 'date-fns';
 
 // Web 平台兼容性处理
 let Speech: any = null;
@@ -26,12 +25,8 @@ if (Platform.OS !== 'web') {
   }
 }
 
-interface StudyScreenProps {
-  route?: any;
-  navigation: any;
-}
-
-export default function StudyScreen({ navigation }: StudyScreenProps) {
+export default function StudyScreen() {
+  const navigation = useNavigation();
   const [currentMode, setCurrentMode] = useState<'flashcard' | 'listening' | 'quiz'>('flashcard');
   const [words, setWords] = useState<Word[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -49,6 +44,9 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
   const [showQuizResult, setShowQuizResult] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [listenAnswer, setListenAnswer] = useState('');
+  const [wordTypeCounts, setWordTypeCounts] = useState({ newCount: 0, reviewCount: 0 });
+  const [allStudiedToday, setAllStudiedToday] = useState(false);
+  const [isContinueSession, setIsContinueSession] = useState(false);
 
   useEffect(() => {
     loadStudyWords();
@@ -60,21 +58,85 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
     }
   }, [currentMode, currentIndex]);
 
-  const loadStudyWords = async () => {
+  const loadStudyWords = async (exceedDailyLimit = false) => {
     try {
       const todayPlans = await StorageService.getTodayStudyPlan();
       const allWords = await StorageService.getWords();
+      const allRecords = await StorageService.getStudyRecords();
+      const today = format(new Date(), 'yyyy-MM-dd');
+
+      const settings = await StorageService.getSettings();
+      const dailyLimit = typeof settings.dailyNewWords === 'number'
+        ? settings.dailyNewWords
+        : 10;
 
       let studyWords: Word[] = [];
+      let newWordList: Word[] = [];
+      let reviewWordList: Word[] = [];
 
       if (todayPlans.length > 0) {
         const wordIds = todayPlans.map(p => p.word_id).filter(id => id > 0);
         studyWords = allWords.filter(w => wordIds.includes(w.id!));
+        newWordList = studyWords.filter(w =>
+          todayPlans.some(p => p.word_id === w.id && p.plan_type === 'new')
+        );
+        reviewWordList = studyWords.filter(w =>
+          todayPlans.some(p => p.word_id === w.id && p.plan_type === 'review')
+        );
       } else {
-        studyWords = allWords.slice(0, 10);
+        const allNewWords: Word[] = [];
+        const allReviewWords: Word[] = [];
+
+        for (const word of allWords) {
+          const wordRecords = allRecords.filter(r => r.word_id === word.id);
+
+          if (wordRecords.length === 0) {
+            allNewWords.push(word);
+          } else {
+            const lastStudy = wordRecords.reduce((latest, r) =>
+              r.study_date > latest ? r.study_date : latest, ''
+            );
+            const diffDays = Math.floor(
+              (new Date(today).getTime() - new Date(lastStudy).getTime())
+              / (1000 * 60 * 60 * 24)
+            );
+
+            if (REVIEW_INTERVALS.includes(diffDays)) {
+              allReviewWords.push(word);
+            }
+          }
+        }
+
+        // 新词限量，复习词全取
+        newWordList = allNewWords.slice(0, dailyLimit);
+        reviewWordList = allReviewWords;
+        studyWords = [...newWordList, ...reviewWordList];
+
+        if (studyWords.length === 0) {
+          setAllStudiedToday(true);
+          setWords([]);
+          return;
+        }
+
+        setAllStudiedToday(false);
+
+        // 创建今日学习计划
+        for (const word of studyWords) {
+          const isNew = !allRecords.some(r => r.word_id === word.id);
+          await StorageService.addStudyPlan({
+            word_id: word.id!,
+            plan_date: today,
+            plan_type: isNew ? 'new' : 'review',
+            completed: false
+          });
+        }
       }
 
       setWords(studyWords);
+      setWordTypeCounts({
+        newCount: newWordList.length,
+        reviewCount: reviewWordList.length,
+      });
       setStudyStats({
         total: studyWords.length,
         completed: 0,
@@ -83,6 +145,7 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       });
       setCurrentIndex(0);
       setIsFlipped(false);
+      setIsContinueSession(exceedDailyLimit);
     } catch (error) {
       console.error('Failed to load study words:', error);
     }
@@ -106,6 +169,31 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       };
 
       await StorageService.addStudyRecord(record);
+
+      // 将对应学习计划标记为已完成
+      const allPlans = await StorageService.getStudyPlans();
+      const matchingPlan = allPlans.find(
+        p => p.word_id === currentWord.id && !p.completed
+      );
+      if (matchingPlan?.id) {
+        await StorageService.completeStudyPlan(matchingPlan.id);
+      }
+
+      // 为当前单词创建未来的艾宾浩斯复习计划
+      for (const interval of REVIEW_INTERVALS) {
+        const reviewDate = format(addDays(new Date(), interval), 'yyyy-MM-dd');
+        const alreadyPlanned = allPlans.some(
+          p => p.word_id === currentWord.id && p.plan_date === reviewDate
+        );
+        if (!alreadyPlanned) {
+          await StorageService.addStudyPlan({
+            word_id: currentWord.id!,
+            plan_date: reviewDate,
+            plan_type: 'review',
+            completed: false
+          });
+        }
+      }
 
       setStudyStats(prev => {
         const newCompleted = prev.completed + 1;
@@ -139,14 +227,30 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       setShowQuizResult(false);
       setListenAnswer('');
     } else {
-      Alert.alert(
-        '🎉 Study Complete!',
-        `Accuracy: ${studyStats.accuracy.toFixed(1)}%\nCorrect: ${studyStats.correct}/${studyStats.completed}`,
-        [
-          { text: 'Continue', onPress: () => loadStudyWords() },
-          { text: 'Back', onPress: () => navigation.goBack() }
-        ]
-      );
+      const newCompleted = Math.min(wordTypeCounts.newCount, studyStats.completed);
+      const reviewCompleted = Math.max(0, studyStats.completed - newCompleted);
+      const accuracyStr = studyStats.accuracy.toFixed(1);
+
+      const title = isContinueSession
+        ? 'Round Complete!'
+        : 'Daily Goal Reached!';
+
+      const statsMsg = [
+        `New: ${newCompleted}/${wordTypeCounts.newCount}`,
+        `Review: ${reviewCompleted}/${wordTypeCounts.reviewCount}`,
+        `Accuracy: ${accuracyStr}% (${studyStats.correct}/${studyStats.completed})`,
+      ].join('\n');
+
+      Alert.alert(title, statsMsg, [
+        {
+          text: 'Continue',
+          onPress: () => loadStudyWords(true),
+        },
+        {
+          text: 'Back',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
     }
   };
 
@@ -411,10 +515,21 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
       <View style={styles.container}>
         <Card style={styles.emptyCard}>
           <Card.Content style={styles.emptyContent}>
-            <Text style={styles.emptyTitle}>No Words Yet</Text>
-            <Text style={styles.emptyText}>
-              Please add some words to your vocabulary list first
-            </Text>
+            {allStudiedToday ? (
+              <>
+                <Text style={styles.emptyTitle}>All Caught Up!</Text>
+                <Text style={styles.emptyText}>
+                  You have studied all available words today. Come back tomorrow for reviews, or add more words to your vocabulary.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>No Words Yet</Text>
+                <Text style={styles.emptyText}>
+                  Please add some words to your vocabulary list first
+                </Text>
+              </>
+            )}
             <Button
               mode="contained"
               onPress={() => navigation.navigate('AddWord' as never)}
@@ -476,18 +591,16 @@ export default function StudyScreen({ navigation }: StudyScreenProps) {
         {currentMode === 'listening' && renderListeningMode()}
         {currentMode === 'quiz' && renderQuizMode()}
         {showResult && (
-          <Portal>
-            <Dialog visible dismissable={false}>
-              <Dialog.Content>
-                <Text style={[
-                  styles.resultText,
-                  currentResult === 'correct' ? styles.correctColor : styles.incorrectColor
-                ]}>
-                  {currentResult === 'correct' ? '✅ Correct!' : '❌ Review this word'}
-                </Text>
-              </Dialog.Content>
-            </Dialog>
-          </Portal>
+          <View style={styles.resultOverlay}>
+            <Surface style={styles.resultSurface}>
+              <Text style={[
+                styles.resultText,
+                currentResult === 'correct' ? styles.correctColor : styles.incorrectColor
+              ]}>
+                {currentResult === 'correct' ? '✅ Correct!' : '❌ Review this word'}
+              </Text>
+            </Surface>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -628,7 +741,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#E3F2FD',
     marginBottom: 16,
-    justifyContent: 'center',
   },
   soundEmoji: {
     fontSize: 32,
@@ -738,6 +850,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  resultOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 100,
+  },
+  resultSurface: {
+    padding: 32,
+    borderRadius: 16,
+    elevation: 8,
+    minWidth: 200,
   },
   correctColor: {
     color: '#4CAF50',

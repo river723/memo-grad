@@ -60,7 +60,14 @@ export default function HomeScreen() {
       });
 
       // 加载最近添加的单词
-      const words = await StorageService.getWordsByCategory('reading', 5);
+      const allWords = await StorageService.getWords();
+      const words = allWords
+        .sort((a, b) => {
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          return dateB - dateA;
+        })
+        .slice(0, 5);
       console.log('最近单词:', words);
       setRecentWords(words);
 
@@ -145,7 +152,7 @@ export default function HomeScreen() {
               </Button>
               <Button
                 mode="outlined"
-                onPress={() => navigation.navigate('Study' as never)}
+                onPress={() => navigation.navigate('学习' as never)}
                 style={styles.actionButton}
                 icon="book-open"
               >

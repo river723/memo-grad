@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, TouchableOpacity, FlatList } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import {
   Card,
   Text,
@@ -11,29 +11,14 @@ import {
   Surface
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
-import { Word, WordCategory } from '../types';
-import { WORD_CATEGORIES } from '../constants';
-
-const CATEGORY_NAMES: Record<string, string> = {
-  reading: '📖 阅读',
-  cloze: '📝 完型',
-  translation: '📄 翻译',
-  writing: '✍️ 作文'
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  reading: '#E3F2FD',
-  cloze: '#FFF3E0',
-  translation: '#E8F5E9',
-  writing: '#F3E5F5'
-};
+import { Word } from '../types';
 
 export default function WordListScreen() {
+  const navigation = useNavigation();
   const [words, setWords] = useState<Word[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [editingWord, setEditingWord] = useState<Word | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [wordToDelete, setWordToDelete] = useState<Word | null>(null);
 
@@ -58,11 +43,6 @@ export default function WordListScreen() {
       filtered = filtered.filter(
         w => w.word.toLowerCase().includes(searchQuery.toLowerCase())
       );
-    }
-
-    // 分类过滤
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(w => w.category === selectedCategory);
     }
 
     // 按创建时间倒序排列
@@ -97,24 +77,15 @@ export default function WordListScreen() {
 
   const renderWordItem = ({ item }: { item: Word }) => (
     <TouchableOpacity
-      onPress={() => setEditingWord(item)}
+      onPress={() => navigation.navigate('WordDetail' as never, { wordId: item.id } as never)}
       activeOpacity={0.7}
     >
       <Surface style={styles.wordItem}>
         <View style={styles.wordItemHeader}>
           <Text style={styles.wordText}>{item.word}</Text>
-          <View style={styles.wordMeta}>
-            <View style={[styles.categoryBadge, {
-              backgroundColor: CATEGORY_COLORS[item.category] || '#F5F5F5'
-            }]}>
-              <Text style={styles.categoryBadgeText}>
-                {CATEGORY_NAMES[item.category] || item.category}
-              </Text>
-            </View>
-            <Text style={styles.difficultyText}>
-              {getDifficultyStars(item.difficulty)}
-            </Text>
-          </View>
+          <Text style={styles.difficultyText}>
+            {getDifficultyStars(item.difficulty)}
+          </Text>
         </View>
 
         <Text style={styles.meaning}>
@@ -182,43 +153,6 @@ export default function WordListScreen() {
         />
       </Card>
 
-      {/* 分类筛选 */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoryScroll}
-        contentContainerStyle={styles.categoryScrollContent}
-      >
-        <TouchableOpacity
-          style={[styles.categoryChip, selectedCategory === 'all' && styles.categoryChipActive]}
-          onPress={() => setSelectedCategory('all')}
-        >
-          <Text style={[
-            styles.categoryChipText,
-            selectedCategory === 'all' && styles.categoryChipTextActive
-          ]}>
-            全部
-          </Text>
-        </TouchableOpacity>
-        {Object.entries(CATEGORY_NAMES).map(([key, name]) => (
-          <TouchableOpacity
-            key={key}
-            style={[
-              styles.categoryChip,
-              selectedCategory === key && styles.categoryChipActive
-            ]}
-            onPress={() => setSelectedCategory(key)}
-          >
-            <Text style={[
-              styles.categoryChipText,
-              selectedCategory === key && styles.categoryChipTextActive
-            ]}>
-              {name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
       {/* 单词列表 */}
       <FlatList
         data={getFilteredWords()}
@@ -229,12 +163,12 @@ export default function WordListScreen() {
           <View style={styles.emptyContainer}>
             <Icon name="search-off" size={48} color="#CCC" />
             <Text style={styles.emptyText}>
-              {searchQuery || selectedCategory !== 'all'
+              {searchQuery
                 ? '没有找到匹配的单词'
                 : '还没有添加单词'}
             </Text>
             <Text style={styles.emptyHint}>
-              {searchQuery || selectedCategory !== 'all'
+              {searchQuery
                 ? '试试调整搜索条件'
                 : '点击下方按钮添加你的第一个单词吧'}
             </Text>
@@ -245,7 +179,7 @@ export default function WordListScreen() {
       {/* 添加按钮 */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => {}}
+        onPress={() => navigation.navigate('AddWord' as never)}
         activeOpacity={0.8}
       >
         <Icon name="add" size={28} color="white" />
@@ -313,34 +247,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 12,
   },
-  categoryScroll: {
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  categoryScrollContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  categoryChipActive: {
-    backgroundColor: '#1976D2',
-    borderColor: '#1976D2',
-  },
-  categoryChipText: {
-    fontSize: 13,
-    color: '#666',
-  },
-  categoryChipTextActive: {
-    color: 'white',
-    fontWeight: '500',
-  },
   wordList: {
     flex: 1,
     paddingHorizontal: 16,
@@ -363,19 +269,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1976D2',
     flexShrink: 1,
-  },
-  wordMeta: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  categoryBadgeText: {
-    fontSize: 11,
-    fontWeight: '500',
   },
   difficultyText: {
     fontSize: 11,

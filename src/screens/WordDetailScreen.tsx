@@ -1,18 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { Text, Chip, Surface, Button } from 'react-native-paper';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
 
-type RouteParams = {
-  params: {
-    wordId: number;
-  };
-};
-
 export default function WordDetailScreen() {
-  const route = useRoute<RouteProp<Record<string, RouteParams>, string>>();
+  const route = useRoute<any>();
   const navigation = useNavigation();
   const [word, setWord] = useState<Word | null>(null);
 
@@ -43,7 +37,6 @@ export default function WordDetailScreen() {
         <Text style={styles.wordText}>{word.word}</Text>
         {word.pronunciation_uk && <Text style={styles.pronunciation}>UK {word.pronunciation_uk}</Text>}
         {word.pronunciation_us && <Text style={styles.pronunciation}>US {word.pronunciation_us}</Text>}
-        <Text style={styles.category}>分类：{word.category}</Text>
       </Surface>
 
       <Surface style={styles.card}>
@@ -119,11 +112,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 4,
-  },
-  category: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#444',
   },
   sectionTitle: {
     fontSize: 16,

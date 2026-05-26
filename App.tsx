@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
-import { Provider as PaperProvider, Text } from 'react-native-paper';
+import { Provider as PaperProvider, Text, MD3LightTheme } from 'react-native-paper';
 import AppNavigator from './src/navigation/AppNavigator';
 
-// 主题配置
 const theme = {
+  ...MD3LightTheme,
   colors: {
+    ...MD3LightTheme.colors,
     primary: '#1976D2',
-    accent: '#FF9800',
+    secondary: '#FF9800',
     background: '#F5F5F5',
     surface: '#FFFFFF',
-    text: '#212121',
-    disabled: '#BDBDBD',
-    placeholder: '#757575',
-    backdrop: 'rgba(0, 0, 0, 0.5)',
   },
 };
 

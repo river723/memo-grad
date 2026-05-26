@@ -12,12 +12,11 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
-import { Word, WordCategory, AIResponse } from '../types';
+import { Word, AIResponse } from '../types';
 
 export default function AddWordScreen() {
   const navigation = useNavigation();
   const [input, setInput] = useState('');
-  const [category, setCategory] = useState<WordCategory>('reading');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<Map<string, AIResponse> | AIResponse | null>(null);
   const [pronunciation, setPronunciation] = useState('');
@@ -234,8 +233,7 @@ export default function AddWordScreen() {
               }],
               etymology: '',
               similar_words: [],
-              suggestedDifficulty: 3,
-              suggestedCategory: 'reading'
+              suggestedDifficulty: 3
             };
           } else {
             if (customDefinitions.trim().length > 0) {
@@ -251,8 +249,7 @@ export default function AddWordScreen() {
                 ],
                 etymology: '',
                 similar_words: [],
-                suggestedDifficulty: 3,
-                suggestedCategory: category
+                suggestedDifficulty: 3
               };
             } else {
               analysis = analysisResult as AIResponse;
@@ -260,7 +257,6 @@ export default function AddWordScreen() {
           }
 
           const difficulty = analysis.suggestedDifficulty || 3;
-          const suggestedCategory = analysis.suggestedCategory || category;
 
           const wordData: Omit<Word, 'id'> = {
             word: word,
@@ -277,7 +273,6 @@ export default function AddWordScreen() {
             ],
             etymology: analysis?.etymology || '',
             similar_words: analysis?.similar_words || [],
-            category: suggestedCategory,
             difficulty,
             frequency: 1
           };

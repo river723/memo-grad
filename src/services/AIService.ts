@@ -24,9 +24,9 @@ class AIService {
   async testApiKey(): Promise<boolean> {
     try {
       await axios.post(
-        `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
+        `${API_CONFIG.BASE_URL}/chat/completions`,
         {
-          model: 'gpt-3.5-turbo',
+          model: API_CONFIG.DEFAULT_MODEL,
           messages: [{ role: 'user', content: 'test' }],
           max_tokens: 5
         },
@@ -52,7 +52,7 @@ class AIService {
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
+        `${API_CONFIG.BASE_URL}/chat/completions`,
         {
           model: API_CONFIG.DEFAULT_MODEL,
           messages: [
@@ -106,7 +106,7 @@ class AIService {
       
       try {
         const response = await axios.post(
-          `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
+          `${API_CONFIG.BASE_URL}/chat/completions`,
           {
             model: API_CONFIG.DEFAULT_MODEL,
             messages: [
@@ -168,7 +168,7 @@ class AIService {
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
+        `${API_CONFIG.BASE_URL}/chat/completions`,
         {
           model: API_CONFIG.DEFAULT_MODEL,
           messages: [
@@ -205,7 +205,7 @@ class AIService {
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.OPENROUTER_BASE_URL}/chat/completions`,
+        `${API_CONFIG.BASE_URL}/chat/completions`,
         {
           model: API_CONFIG.DEFAULT_MODEL,
           messages: [
@@ -432,8 +432,7 @@ class AIService {
             definitions: data.definitions || [],
             etymology: data.etymology || '',
             similar_words: data.similar_words || [],
-            suggestedDifficulty: data.suggestedDifficulty || 3,
-            suggestedCategory: data.suggestedCategory || 'reading'
+            suggestedDifficulty: data.suggestedDifficulty || 3
           });
         });
         console.log('成功解析单词数量:', results.size);

@@ -1,10 +1,3 @@
-export const WORD_CATEGORIES = {
-  reading: '阅读生词',
-  cloze: '完型生词',
-  translation: '翻译生词',
-  writing: '作文生词'
-};
-
 export const STUDY_MODES = {
   flashcard: '卡片背诵',
   listening: '听音背词',
@@ -14,11 +7,11 @@ export const STUDY_MODES = {
 export const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30]; // 艾宾浩斯复习间隔（天）
 
 export const API_CONFIG = {
-  // 使用NVIDIA API端点
-  OPENROUTER_BASE_URL: 'https://integrate.api.nvidia.com/v1',
-  DEFAULT_MODEL: 'meta/llama-3.1-8b-instruct', // NVIDIA API支持的模型
+  // 使用DeepSeek API端点
+  BASE_URL: 'https://api.deepseek.com/v1',
+  DEFAULT_MODEL: 'deepseek-v4-flash',
   MAX_RETRIES: 3,
-  TIMEOUT: 30000 // 增加超时时间
+  TIMEOUT: 30000
 };
 
 export const DB_CONFIG = {

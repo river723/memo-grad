@@ -13,6 +13,7 @@ import {
   Modal
 } from 'react-native-paper';
 import StorageService from '../services/StorageService';
+import { UI_CONFIG } from '../constants';
 import { format } from 'date-fns';
 
 export default function SettingsScreen() {
@@ -142,6 +143,14 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleAdjustDailyNewWords = (delta: number) => {
+    const newValue = Math.max(1, Math.min(
+      UI_CONFIG.DAILY_NEW_WORDS_LIMIT,
+      settings.dailyNewWords + delta
+    ));
+    saveSettings({ dailyNewWords: newValue });
+  };
+
   const renderSettingItem = (title: string, value: string | number, onPress?: () => void) => (
     <List.Item
       title={title}
@@ -161,23 +170,41 @@ export default function SettingsScreen() {
           <View style={styles.settingGroup}>
             <Text style={styles.settingLabel}>每日新词数量</Text>
             <View style={styles.numberInput}>
-              <Surface style={styles.numberButton}>
-                <Text style={styles.numberText}>{settings.dailyNewWords}</Text>
-              </Surface>
+              <View style={styles.stepperRow}>
+                <PaperButton
+                  mode="outlined"
+                  compact
+                  onPress={() => handleAdjustDailyNewWords(-1)}
+                  style={styles.stepperBtn}
+                  labelStyle={styles.stepperBtnLabel}
+                >
+                  -
+                </PaperButton>
+                <Surface style={styles.numberButton}>
+                  <Text style={styles.numberText}>{settings.dailyNewWords}</Text>
+                </Surface>
+                <PaperButton
+                  mode="outlined"
+                  compact
+                  onPress={() => handleAdjustDailyNewWords(1)}
+                  style={styles.stepperBtn}
+                  labelStyle={styles.stepperBtnLabel}
+                >
+                  +
+                </PaperButton>
+              </View>
             </View>
             <View style={styles.sliderContainer}>
-              <View style={styles.slider}>
-                <View
-                  style={[
-                    styles.sliderFill,
-                    { width: `${(settings.dailyNewWords / 50) * 100}%` }
-                  ]}
-                />
-              </View>
+              <View
+                style={[
+                  styles.sliderFill,
+                  { width: `${(settings.dailyNewWords / UI_CONFIG.DAILY_NEW_WORDS_LIMIT) * 100}%` }
+                ]}
+              />
             </View>
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabel}>1</Text>
-              <Text style={styles.sliderLabel}>50</Text>
+              <Text style={styles.sliderLabel}>{UI_CONFIG.DAILY_NEW_WORDS_LIMIT}</Text>
             </View>
           </View>
 
@@ -238,7 +265,7 @@ export default function SettingsScreen() {
         <Card.Title title="🤖 AI API设置" titleStyle={styles.cardTitle} />
         <Card.Content>
           <Text style={styles.apiInfo}>
-            配置OpenRouter API密钥以使用AI智能分析功能
+            配置DeepSeek API密钥以使用AI智能分析功能
           </Text>
           <View style={styles.apiKeyContainer}>
             <TextInput
@@ -264,7 +291,7 @@ export default function SettingsScreen() {
             保存API密钥
           </Button>
           <View style={styles.apiTips}>
-            <Text style={styles.apiTip}>🔗 前往 <Text style={styles.apiLink} onPress={() => Linking.openURL('https://openrouter.ai/')}>OpenRouter.ai</Text> 获取API密钥</Text>
+            <Text style={styles.apiTip}>🔗 前往 <Text style={styles.apiLink} onPress={() => Linking.openURL('https://platform.deepseek.com/')}>platform.deepseek.com</Text> 获取API密钥</Text>
           </View>
         </Card.Content>
       </Card>
@@ -429,6 +456,11 @@ const styles = StyleSheet.create({
   apiTips: {
     marginTop: 8,
   },
+  apiTip: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 20,
+  },
   apiLink: {
     color: '#1976D2',
     fontWeight: 'bold',
@@ -479,6 +511,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#CCC',
     marginTop: 2,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  stepperBtn: {
+    borderRadius: 8,
+    minWidth: 40,
+  },
+  stepperBtnLabel: {
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   exportModal: {
     flex: 1,

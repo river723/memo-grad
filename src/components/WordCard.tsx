@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Card, Text, Button, Chip, IconButton } from 'react-native-paper';
-import { Word, WordCategory } from '../types';
-import { WORD_CATEGORIES } from '../constants';
+import { Word } from '../types';
 
 // Web 平台兼容性处理
 let Speech: any = null;
@@ -98,11 +97,8 @@ export default function WordCard({ word, onEdit, onDelete, showActions = true }:
           </View>
         </View>
 
-        {/* 分类和难度 */}
+        {/* 难度 */}
         <View style={styles.meta}>
-          <Chip mode="outlined" compact>
-            {WORD_CATEGORIES[word.category]}
-          </Chip>
           <View style={styles.difficulty}>
             <Text style={styles.difficultyLabel}>难度:</Text>
             <View style={styles.difficultyDots}>

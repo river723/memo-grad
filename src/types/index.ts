@@ -6,7 +6,6 @@ export interface Word {
   definitions: WordDefinition[];
   etymology?: string;
   similar_words?: SimilarWord[];
-  category: WordCategory;
   difficulty: number; // 1-5
   frequency: number; // 考研频次
   created_at?: string;
@@ -26,8 +25,6 @@ export interface SimilarWord {
   relation: 'spelling' | 'meaning' | 'root';
   description: string;
 }
-
-export type WordCategory = 'reading' | 'cloze' | 'translation' | 'writing';
 
 export interface StudyRecord {
   id?: number;
@@ -60,5 +57,4 @@ export interface AIResponse {
   similar_words?: SimilarWord[];
   examples?: string[];
   suggestedDifficulty?: number; // AI建议难度 1-5
-  suggestedCategory?: WordCategory; // AI建议分类
 }
