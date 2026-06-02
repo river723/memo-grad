@@ -58,3 +58,15 @@ export interface AIResponse {
   examples?: string[];
   suggestedDifficulty?: number; // AI建议难度 1-5
 }
+
+export interface Article {
+  id?: number;
+  title: string;
+  content: string;          // 文章正文（英文）
+  words: string[];          // 包含的生词
+  word_ids: number[];       // 对应单词 ID
+  theme: string;            // 文章主题（technology, life, history, nature, science, random）
+  created_at: string;
+  read_count: number;
+  last_read_at?: string;
+}

@@ -14,6 +14,9 @@ import StatsScreen from '../screens/StatsScreen';
 import WordListScreen from '../screens/WordListScreen';
 import WordDetailScreen from '../screens/WordDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import ArticleListScreen from '../screens/ArticleListScreen';
+import ArticleGenerateScreen from '../screens/ArticleGenerateScreen';
+import ArticleDetailScreen from '../screens/ArticleDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -170,6 +173,51 @@ export default function AppNavigator() {
           options={{
             headerShown: !isWeb,
             title: '设置',
+            headerStyle: {
+              backgroundColor: '#1976D2',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
+        <Stack.Screen
+          name="ArticleList"
+          component={ArticleListScreen}
+          options={{
+            headerShown: true,
+            title: '趣味文章',
+            headerStyle: {
+              backgroundColor: '#1976D2',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
+        <Stack.Screen
+          name="ArticleGenerate"
+          component={ArticleGenerateScreen}
+          options={{
+            headerShown: true,
+            title: '生成文章',
+            headerStyle: {
+              backgroundColor: '#1976D2',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
+        <Stack.Screen
+          name="ArticleDetail"
+          component={ArticleDetailScreen}
+          options={{
+            headerShown: true,
+            title: '文章阅读',
             headerStyle: {
               backgroundColor: '#1976D2',
             },

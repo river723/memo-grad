@@ -163,8 +163,8 @@ class AIService {
     return results;
   }
 
-  async generateStudyContent(wordIds: number[], type: 'passage' | 'quiz' | 'writing'): Promise<string> {
-    const prompt = this.buildContentGenerationPrompt(wordIds, type);
+  async generateStudyContent(words: string[], type: 'passage' | 'quiz' | 'writing'): Promise<string> {
+    const prompt = this.buildContentGenerationPrompt(words, type);
 
     try {
       const response = await axios.post(
@@ -198,6 +198,99 @@ class AIService {
       console.error('AI content generation error:', error);
       throw new Error('AI内容生成失败，请重试');
     }
+  }
+
+  async generateFunArticle(
+    words: string[],
+    theme: string = 'random',
+    targetLength: number = 200
+  ): Promise<{ title: string; content: string }> {
+    const themes: Record<string, string> = {
+      technology: '科技',
+      life: '生活',
+      history: '历史',
+      nature: '自然',
+      science: '科学',
+      random: this.getRandomTheme()
+    };
+    const themeName = themes[theme] || this.getRandomTheme();
+
+    const prompt = `请使用以下单词创作一篇生动有趣的英文短文：
+
+单词列表：${words.join(', ')}
+文章主题：${themeName}
+
+要求：
+- 文章长度约 ${targetLength} 词
+- 每个目标单词自然融入文章，出现 1-2 次
+- 文章生动有趣，有完整的叙事结构
+- 适合考研英语二水平的读者
+- 标题要吸引人，能概括文章内容
+
+请返回严格的JSON格式，不要任何额外文本：
+{
+  "title": "文章标题",
+  "content": "文章正文（英文）"
+}`;
+
+    try {
+      const response = await axios.post(
+        `${API_CONFIG.BASE_URL}/chat/completions`,
+        {
+          model: API_CONFIG.DEFAULT_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个英语创意写手，擅长将指定的词汇自然融入生动有趣的英文短文中，帮助语言学习者通过阅读记忆单词。'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: API_CONFIG.TIMEOUT
+        }
+      );
+
+      const content = response.data.choices[0].message.content;
+      console.log('Fun article AI response:', content.substring(0, 200) + '...');
+
+      // Parse JSON response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return {
+            title: parsed.title || '未命名文章',
+            content: parsed.content || content
+          };
+        } catch (parseError) {
+          console.warn('JSON parse failed for fun article, using raw content');
+        }
+      }
+
+      // Fallback: use raw content as article body
+      return {
+        title: '趣味文章',
+        content: content
+      };
+    } catch (error) {
+      console.error('Fun article generation error:', error);
+      throw new Error('文章生成失败，请重试');
+    }
+  }
+
+  private getRandomTheme(): string {
+    const themes = ['科技', '生活', '历史', '自然', '科学'];
+    return themes[Math.floor(Math.random() * themes.length)];
   }
 
   async extractWordsFromText(text: string): Promise<string[]> {
@@ -319,7 +412,7 @@ class AIService {
 - 只返回JSON，不要任何额外说明或文本`;
   }
 
-  buildContentGenerationPrompt(wordIds: number[], type: string): string {
+  buildContentGenerationPrompt(words: string[], type: string): string {
     const typePrompt = {
       passage: '生成一段考研英语阅读风格的短文',
       quiz: '生成考研英语选择题',
@@ -334,7 +427,7 @@ class AIService {
     - 如果是选择题，选项要有区分度
     - 如果是作文句型，要实用且高级
 
-    单词ID列表：${wordIds.join(', ')}`;
+    单词列表：${words.join(', ')}`;
   }
 
   normalizeJsonString(jsonString: string): string {

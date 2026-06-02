@@ -1,4 +1,4 @@
-import { Word, StudyRecord, StudyPlan } from '../types';
+import { Word, StudyRecord, StudyPlan, Article } from '../types';
 
 // 跨平台存储接口
 interface StorageInterface {
@@ -52,7 +52,8 @@ class StorageService {
     WORDS: 'kaoyan_words',
     STUDY_RECORDS: 'kaoyan_study_records',
     STUDY_PLANS: 'kaoyan_study_plans',
-    SETTINGS: 'kaoyan_settings'
+    SETTINGS: 'kaoyan_settings',
+    ARTICLES: 'kaoyan_articles'
   };
 
   // 生词操作
@@ -185,6 +186,67 @@ class StorageService {
     }
   }
 
+  // 文章操作
+  async getArticles(): Promise<Article[]> {
+    try {
+      const data = await AsyncStorage.getItem(this.KEYS.ARTICLES);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Get articles error:', error);
+      return [];
+    }
+  }
+
+  async getArticleById(id: number): Promise<Article | null> {
+    const articles = await this.getArticles();
+    return articles.find(article => article.id === id) || null;
+  }
+
+  async saveArticle(article: Omit<Article, 'id'>): Promise<number> {
+    const articles = await this.getArticles();
+    const newId = articles.length > 0 ? Math.max(...articles.map(a => a.id!)) + 1 : 1;
+
+    const newArticle: Article = {
+      ...article,
+      id: newId,
+      created_at: new Date().toISOString(),
+      read_count: 0
+    };
+
+    articles.push(newArticle);
+    await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(articles));
+    return newId;
+  }
+
+  async updateArticle(id: number, updates: Partial<Article>): Promise<void> {
+    const articles = await this.getArticles();
+    const index = articles.findIndex(article => article.id === id);
+
+    if (index !== -1) {
+      articles[index] = { ...articles[index], ...updates };
+      await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(articles));
+    }
+  }
+
+  async deleteArticle(id: number): Promise<void> {
+    const articles = await this.getArticles();
+    const filtered = articles.filter(article => article.id !== id);
+    await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(filtered));
+  }
+
+  async getWordArticleCoverage(): Promise<Map<number, number>> {
+    const articles = await this.getArticles();
+    const coverage = new Map<number, number>();
+
+    for (const article of articles) {
+      for (const wordId of article.word_ids) {
+        coverage.set(wordId, (coverage.get(wordId) || 0) + 1);
+      }
+    }
+
+    return coverage;
+  }
+
   // 设置操作
   async getSettings(): Promise<any> {
     try {
@@ -194,7 +256,9 @@ class StorageService {
         reviewInterval: [1, 2, 4, 7, 15],
         soundEnabled: true,
         theme: 'light',
-        apiKey: ''
+        apiKey: '',
+        articleWordCount: 10,
+        articleLength: 200
       };
     } catch (error) {
       console.error('Get settings error:', error);
@@ -212,6 +276,7 @@ class StorageService {
       words: await this.getWords(),
       studyRecords: await this.getStudyRecords(),
       studyPlans: await this.getStudyPlans(),
+      articles: await this.getArticles(),
       settings: await this.getSettings(),
       exportDate: new Date().toISOString()
     };
@@ -231,6 +296,9 @@ class StorageService {
       if (data.studyPlans) {
         await AsyncStorage.setItem(this.KEYS.STUDY_PLANS, JSON.stringify(data.studyPlans));
       }
+      if (data.articles) {
+        await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(data.articles));
+      }
       if (data.settings) {
         await AsyncStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(data.settings));
       }
@@ -246,6 +314,7 @@ class StorageService {
       this.KEYS.WORDS,
       this.KEYS.STUDY_RECORDS,
       this.KEYS.STUDY_PLANS,
+      this.KEYS.ARTICLES,
       this.KEYS.SETTINGS
     ]);
   }

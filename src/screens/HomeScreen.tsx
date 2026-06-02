@@ -162,11 +162,11 @@ export default function HomeScreen() {
             <View style={styles.quickActions}>
               <Button
                 mode="outlined"
-                onPress={() => {/* 暂时禁用 */}}
+                onPress={() => navigation.navigate('ArticleList' as never)}
                 style={styles.actionButton}
                 icon="file-import"
               >
-                真题导入
+                趣味文章
               </Button>
               <Button
                 mode="outlined"

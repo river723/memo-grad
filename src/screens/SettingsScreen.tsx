@@ -25,7 +25,9 @@ export default function SettingsScreen() {
     fontSize: 14,
     autoPlaySound: true,
     showRareSense: true,
-    showEtymology: true
+    showEtymology: true,
+    articleWordCount: 10,
+    articleLength: 200
   });
   const [apiKey, setApiKey] = useState('');
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
@@ -109,7 +111,9 @@ export default function SettingsScreen() {
               fontSize: 14,
               autoPlaySound: true,
               showRareSense: true,
-              showEtymology: true
+              showEtymology: true,
+              articleWordCount: 10,
+              articleLength: 200
             });
             Alert.alert('已清除', '所有数据已清除');
           }
@@ -135,7 +139,9 @@ export default function SettingsScreen() {
               fontSize: 14,
               autoPlaySound: true,
               showRareSense: true,
-              showEtymology: true
+              showEtymology: true,
+              articleWordCount: 10,
+              articleLength: 200
             });
           }
         }
@@ -256,6 +262,108 @@ export default function SettingsScreen() {
               onValueChange={value => saveSettings({ autoPlaySound: value })}
               color="#1976D2"
             />
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* 文章生成设置 */}
+      <Card style={styles.card}>
+        <Card.Title title="📝 文章生成设置" titleStyle={styles.cardTitle} />
+        <Card.Content>
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingLabel}>每篇文章生词数</Text>
+            <View style={styles.numberInput}>
+              <View style={styles.stepperRow}>
+                <PaperButton
+                  mode="outlined"
+                  compact
+                  onPress={() => {
+                    const newValue = Math.max(5, (settings.articleWordCount || 10) - 1);
+                    saveSettings({ articleWordCount: newValue });
+                  }}
+                  style={styles.stepperBtn}
+                  labelStyle={styles.stepperBtnLabel}
+                >
+                  -
+                </PaperButton>
+                <Surface style={styles.numberButton}>
+                  <Text style={styles.numberText}>{settings.articleWordCount || 10}</Text>
+                </Surface>
+                <PaperButton
+                  mode="outlined"
+                  compact
+                  onPress={() => {
+                    const newValue = Math.min(20, (settings.articleWordCount || 10) + 1);
+                    saveSettings({ articleWordCount: newValue });
+                  }}
+                  style={styles.stepperBtn}
+                  labelStyle={styles.stepperBtnLabel}
+                >
+                  +
+                </PaperButton>
+              </View>
+            </View>
+            <View style={styles.sliderContainer}>
+              <View
+                style={[
+                  styles.sliderFill,
+                  { width: `${((settings.articleWordCount || 10) / 20) * 100}%` }
+                ]}
+              />
+            </View>
+            <View style={styles.sliderLabels}>
+              <Text style={styles.sliderLabel}>5</Text>
+              <Text style={styles.sliderLabel}>20</Text>
+            </View>
+          </View>
+
+          <Divider style={styles.divider} />
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingLabel}>文章目标词数</Text>
+            <View style={styles.numberInput}>
+              <View style={styles.stepperRow}>
+                <PaperButton
+                  mode="outlined"
+                  compact
+                  onPress={() => {
+                    const newValue = Math.max(100, (settings.articleLength || 200) - 50);
+                    saveSettings({ articleLength: newValue });
+                  }}
+                  style={styles.stepperBtn}
+                  labelStyle={styles.stepperBtnLabel}
+                >
+                  -
+                </PaperButton>
+                <Surface style={styles.numberButton}>
+                  <Text style={styles.numberText}>{settings.articleLength || 200}</Text>
+                </Surface>
+                <PaperButton
+                  mode="outlined"
+                  compact
+                  onPress={() => {
+                    const newValue = Math.min(500, (settings.articleLength || 200) + 50);
+                    saveSettings({ articleLength: newValue });
+                  }}
+                  style={styles.stepperBtn}
+                  labelStyle={styles.stepperBtnLabel}
+                >
+                  +
+                </PaperButton>
+              </View>
+            </View>
+            <View style={styles.sliderContainer}>
+              <View
+                style={[
+                  styles.sliderFill,
+                  { width: `${((settings.articleLength || 200) / 500) * 100}%` }
+                ]}
+              />
+            </View>
+            <View style={styles.sliderLabels}>
+              <Text style={styles.sliderLabel}>100</Text>
+              <Text style={styles.sliderLabel}>500</Text>
+            </View>
           </View>
         </Card.Content>
       </Card>
