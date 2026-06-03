@@ -10,7 +10,7 @@ import {
   Chip,
   Surface
 } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
@@ -116,7 +116,7 @@ export default function WordListScreen() {
             style={styles.actionBtn}
             onPress={() => handleDelete(item)}
           >
-            <Icon name="delete-outline" size={20} color="#F44336" />
+            <MaterialIcons name="delete-outline" size={20} color="#F44336" />
             <Text style={[styles.actionText, { color: '#F44336' }]}>删除</Text>
           </TouchableOpacity>
           <View style={styles.frequencyBar}>
@@ -161,7 +161,7 @@ export default function WordListScreen() {
         style={styles.wordList}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Icon name="search-off" size={48} color="#CCC" />
+            <MaterialIcons name="search-off" size={48} color="#CCC" />
             <Text style={styles.emptyText}>
               {searchQuery
                 ? '没有找到匹配的单词'
@@ -182,7 +182,7 @@ export default function WordListScreen() {
         onPress={() => navigation.navigate('AddWord' as never)}
         activeOpacity={0.8}
       >
-        <Icon name="add" size={28} color="white" />
+        <MaterialIcons name="add" size={28} color="white" />
       </TouchableOpacity>
 
       {/* 删除确认对话框 */}

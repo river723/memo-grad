@@ -204,7 +204,7 @@ class AIService {
     words: string[],
     theme: string = 'random',
     targetLength: number = 200
-  ): Promise<{ title: string; content: string }> {
+  ): Promise<{ title: string; content: string; translation: string }> {
     const themes: Record<string, string> = {
       technology: '科技',
       life: '生活',
@@ -215,7 +215,7 @@ class AIService {
     };
     const themeName = themes[theme] || this.getRandomTheme();
 
-    const prompt = `请使用以下单词创作一篇生动有趣的英文短文：
+    const prompt = `请使用以下单词创作一篇生动有趣的英文短文，并提供中文翻译：
 
 单词列表：${words.join(', ')}
 文章主题：${themeName}
@@ -226,11 +226,13 @@ class AIService {
 - 文章生动有趣，有完整的叙事结构
 - 适合考研英语二水平的读者
 - 标题要吸引人，能概括文章内容
+- 翻译要准确流畅，符合中文表达习惯，帮助读者理解原文
 
 请返回严格的JSON格式，不要任何额外文本：
 {
   "title": "文章标题",
-  "content": "文章正文（英文）"
+  "content": "文章正文（英文）",
+  "translation": "文章的中文翻译"
 }`;
 
     try {
@@ -241,7 +243,7 @@ class AIService {
           messages: [
             {
               role: 'system',
-              content: '你是一个英语创意写手，擅长将指定的词汇自然融入生动有趣的英文短文中，帮助语言学习者通过阅读记忆单词。'
+              content: '你是一个英语创意写手兼翻译，擅长将指定的词汇自然融入生动有趣的英文短文中，并准确地翻译成中文，帮助语言学习者通过阅读记忆单词。'
             },
             {
               role: 'user',
@@ -249,7 +251,7 @@ class AIService {
             }
           ],
           temperature: 0.7,
-          max_tokens: 2000
+          max_tokens: 4000
         },
         {
           headers: {
@@ -270,7 +272,8 @@ class AIService {
           const parsed = JSON.parse(jsonMatch[0]);
           return {
             title: parsed.title || '未命名文章',
-            content: parsed.content || content
+            content: parsed.content || content,
+            translation: parsed.translation || ''
           };
         } catch (parseError) {
           console.warn('JSON parse failed for fun article, using raw content');
@@ -280,7 +283,8 @@ class AIService {
       // Fallback: use raw content as article body
       return {
         title: '趣味文章',
-        content: content
+        content: content,
+        translation: ''
       };
     } catch (error) {
       console.error('Fun article generation error:', error);

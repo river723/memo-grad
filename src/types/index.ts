@@ -63,6 +63,7 @@ export interface Article {
   id?: number;
   title: string;
   content: string;          // 文章正文（英文）
+  translation: string;      // 文章中文翻译
   words: string[];          // 包含的生词
   word_ids: number[];       // 对应单词 ID
   theme: string;            // 文章主题（technology, life, history, nature, science, random）

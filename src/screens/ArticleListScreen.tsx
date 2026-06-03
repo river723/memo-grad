@@ -10,7 +10,7 @@ import {
   Surface,
   IconButton,
 } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Article } from '../types';
@@ -126,7 +126,7 @@ export default function ArticleListScreen() {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Icon name="article" size={64} color="#CCC" />
+      <MaterialIcons name="article" size={64} color="#CCC" />
       <Text style={styles.emptyTitle}>还没有文章</Text>
       <Text style={styles.emptyHint}>
         点击下方按钮，用你的单词本生成{'\n'}第一篇生动有趣的英文文章吧！
@@ -159,7 +159,7 @@ export default function ArticleListScreen() {
         contentContainerStyle={styles.modalContent}
       >
         <View style={styles.modalIcon}>
-          <Icon name="delete-outline" size={48} color="#F44336" />
+          <MaterialIcons name="delete-outline" size={48} color="#F44336" />
         </View>
         <Text style={styles.modalTitle}>确认删除</Text>
         <Text style={styles.modalText}>

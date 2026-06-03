@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import {
   Card,
@@ -7,15 +7,48 @@ import {
   Chip,
   ActivityIndicator,
   Surface,
-  IconButton,
   Searchbar,
   SegmentedButtons,
 } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, Article } from '../types';
+
+// 将文章内容中的目标单词高亮
+interface PreviewSegment {
+  text: string;
+  isWord: boolean;
+}
+
+function parsePreviewContent(content: string, targetWords: string[]): PreviewSegment[] {
+  if (!content || targetWords.length === 0) {
+    return [{ text: content || '', isWord: false }];
+  }
+
+  const escapedWords = targetWords
+    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(`\\b(${escapedWords.join('|')})\\b`, 'gi');
+
+  const segments: PreviewSegment[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ text: content.substring(lastIndex, match.index), isWord: false });
+    }
+    segments.push({ text: match[0], isWord: true });
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    segments.push({ text: content.substring(lastIndex), isWord: false });
+  }
+
+  return segments;
+}
 
 const THEMES = [
   { key: 'random', label: '随机', icon: 'shuffle' },
@@ -42,6 +75,7 @@ export default function ArticleGenerateScreen() {
   const [generatedArticle, setGeneratedArticle] = useState<{
     title: string;
     content: string;
+    translation: string;
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -210,6 +244,7 @@ export default function ArticleGenerateScreen() {
       const articleData: Omit<Article, 'id'> = {
         title: generatedArticle.title,
         content: generatedArticle.content,
+        translation: generatedArticle.translation,
         words: selectedWords.map(w => w.word),
         word_ids: selectedWords.map(w => w.id!).filter(id => id != null),
         theme: selectedTheme,
@@ -423,8 +458,29 @@ export default function ArticleGenerateScreen() {
           <Card.Content>
             <ScrollView style={styles.previewScroll} nestedScrollEnabled>
               <Text style={styles.previewContent}>
-                {generatedArticle.content}
+                {parsePreviewContent(
+                  generatedArticle.content,
+                  selectedWords.map(w => w.word)
+                ).map((seg, index) => {
+                  if (seg.isWord) {
+                    return (
+                      <Text key={index} style={styles.previewHighlightedWord}>
+                        {seg.text}
+                      </Text>
+                    );
+                  }
+                  return <Text key={index}>{seg.text}</Text>;
+                })}
               </Text>
+              {generatedArticle.translation ? (
+                <>
+                  <View style={styles.translationDivider} />
+                  <Text style={styles.translationLabel}>中文翻译</Text>
+                  <Text style={styles.translationContent}>
+                    {generatedArticle.translation}
+                  </Text>
+                </>
+              ) : null}
             </ScrollView>
           </Card.Content>
           <Card.Actions style={styles.previewActions}>
@@ -605,9 +661,32 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontFamily: undefined,
   },
+  previewHighlightedWord: {
+    color: '#1565C0',
+    fontWeight: '800',
+    textDecorationLine: 'underline',
+    textDecorationColor: '#1565C0',
+    textDecorationStyle: 'solid',
+  },
   previewActions: {
     justifyContent: 'flex-end',
     gap: 8,
     paddingTop: 8,
+  },
+  translationDivider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 16,
+  },
+  translationLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1976D2',
+    marginBottom: 8,
+  },
+  translationContent: {
+    fontSize: 15,
+    color: '#555',
+    lineHeight: 26,
   },
 });

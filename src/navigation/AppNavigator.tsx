@@ -2,7 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 
 // Web 平台兼容性处理
 const isWeb = typeof window !== 'undefined';
@@ -61,7 +61,7 @@ function MainTabs() {
             iconName = 'settings';
           }
 
-          return <Icon name={iconName} size={size} color={color} />;
+          return <MaterialIcons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#1976D2',
         tabBarInactiveTintColor: '#757575',

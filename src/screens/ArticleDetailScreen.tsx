@@ -3,7 +3,6 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   Alert,
 } from 'react-native';
 import {
@@ -15,7 +14,6 @@ import {
   ActivityIndicator,
   IconButton,
 } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
@@ -98,6 +96,7 @@ export default function ArticleDetailScreen() {
   const [showWordModal, setShowWordModal] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -185,6 +184,7 @@ export default function ArticleDetailScreen() {
       await StorageService.updateArticle(article.id!, {
         title: result.title,
         content: result.content,
+        translation: result.translation,
       });
 
       // 重新加载
@@ -242,22 +242,47 @@ export default function ArticleDetailScreen() {
                 <Text style={styles.regeneratingText}>正在重新生成文章...</Text>
               </View>
             ) : (
-              <Text style={styles.articleText}>
-                {segments.map((seg, index) => {
-                  if (seg.isWord) {
-                    return (
-                      <Text
-                        key={index}
-                        style={styles.highlightedWord}
-                        onPress={() => handleWordTap(seg.wordObj)}
-                      >
-                        {seg.text}
-                      </Text>
-                    );
-                  }
-                  return <Text key={index}>{seg.text}</Text>;
-                })}
-              </Text>
+              <>
+                <Text style={styles.articleText}>
+                  {segments.map((seg, index) => {
+                    if (seg.isWord) {
+                      return (
+                        <Text
+                          key={index}
+                          style={styles.highlightedWord}
+                          onPress={() => handleWordTap(seg.wordObj)}
+                        >
+                          {seg.text}
+                        </Text>
+                      );
+                    }
+                    return <Text key={index}>{seg.text}</Text>;
+                  })}
+                </Text>
+                {article.translation ? (
+                  <View style={styles.translationToggleArea}>
+                    <Button
+                      mode="outlined"
+                      compact
+                      onPress={() => setShowTranslation(!showTranslation)}
+                      icon={showTranslation ? 'eye-off' : 'eye'}
+                      labelStyle={styles.translationToggleLabel}
+                      style={styles.translationToggleBtn}
+                    >
+                      {showTranslation ? '隐藏译文' : '显示译文'}
+                    </Button>
+                  </View>
+                ) : null}
+                {article.translation && showTranslation && (
+                  <View>
+                    <View style={styles.translationDivider} />
+                    <Text style={styles.translationLabel}>中文翻译</Text>
+                    <Text style={styles.translationContent}>
+                      {article.translation}
+                    </Text>
+                  </View>
+                )}
+              </>
             )}
           </Card.Content>
         </Card>
@@ -579,5 +604,32 @@ const styles = StyleSheet.create({
     color: '#555',
     lineHeight: 20,
     marginBottom: 2,
+  },
+  translationToggleArea: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  translationToggleBtn: {
+    borderColor: '#1976D2',
+  },
+  translationToggleLabel: {
+    fontSize: 12,
+    color: '#1976D2',
+  },
+  translationDivider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 16,
+  },
+  translationLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1976D2',
+    marginBottom: 8,
+  },
+  translationContent: {
+    fontSize: 15,
+    color: '#555',
+    lineHeight: 26,
   },
 });
