@@ -224,7 +224,7 @@ class AIService {
 - 文章长度约 ${targetLength} 词
 - 每个目标单词自然融入文章，出现 1-2 次
 - 文章生动有趣，有完整的叙事结构
-- 适合考研英语二水平的读者
+- 适合考研英语水平的读者，目标单词以外的词汇要简单易懂
 - 标题要吸引人，能概括文章内容
 - 翻译要准确流畅，符合中文表达习惯，帮助读者理解原文
 
@@ -289,6 +289,222 @@ class AIService {
     } catch (error) {
       console.error('Fun article generation error:', error);
       throw new Error('文章生成失败，请重试');
+    }
+  }
+
+  async generateClozeQuestions(
+    words: { word: string; meaning: string }[]
+  ): Promise<{
+    target_word: string;
+    sentence: string;
+    options: string[];
+    correct_answer: string;
+    chinese_hint: string;
+  }[]> {
+    const wordList = words.map(w => `- ${w.word}: ${w.meaning}`).join('\n');
+
+    const prompt = `请为以下单词各生成一个完形填空题目。
+
+单词列表（含释义）：
+${wordList}
+
+要求：
+- 每个句子包含该目标单词，用 [BLANK] 替换目标单词
+- 句子长度 15-30 词，难度符合考研英语二水平
+- 句子语境清晰，能通过上下文推断出正确答案
+- 提供 4 个选项：1 个正确答案 + 3 个干扰项
+- 干扰项应与正确答案在词形、词义或搭配上具有迷惑性（但不能是句子中已出现的其他单词）
+- 提供一句中文语境提示，帮助理解句子大意
+
+请返回严格的 JSON 格式（只返回 JSON，不要任何额外文本）：
+{
+  "questions": [
+    {
+      "target_word": "单词",
+      "sentence": "包含 [BLANK] 的完整英文句子",
+      "options": ["正确选项", "干扰项1", "干扰项2", "干扰项3"],
+      "correct_answer": "正确选项",
+      "chinese_hint": "句子中文大意"
+    }
+  ]
+}`;
+
+    try {
+      const response = await axios.post(
+        `${API_CONFIG.BASE_URL}/chat/completions`,
+        {
+          model: API_CONFIG.DEFAULT_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个专业的考研英语老师，专门生成完形填空练习题。请严格按照 JSON 格式返回结果。'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.5,
+          max_tokens: 4000
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: API_CONFIG.TIMEOUT
+        }
+      );
+
+      const content = response.data.choices[0].message.content;
+      console.log('Cloze questions AI response:', content.substring(0, 300) + '...');
+
+      // Parse JSON response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.questions && Array.isArray(parsed.questions)) {
+            return parsed.questions.map((q: any) => ({
+              target_word: q.target_word || '',
+              sentence: q.sentence || '',
+              options: Array.isArray(q.options) ? q.options : [],
+              correct_answer: q.correct_answer || '',
+              chinese_hint: q.chinese_hint || '',
+            }));
+          }
+        } catch (parseError) {
+          console.warn('JSON parse failed for cloze questions, trying normalize');
+          try {
+            const fixedJson = this.normalizeJsonString(jsonMatch[0]);
+            const parsed = JSON.parse(fixedJson);
+            if (parsed.questions && Array.isArray(parsed.questions)) {
+              return parsed.questions.map((q: any) => ({
+                target_word: q.target_word || '',
+                sentence: q.sentence || '',
+                options: Array.isArray(q.options) ? q.options : [],
+                correct_answer: q.correct_answer || '',
+                chinese_hint: q.chinese_hint || '',
+              }));
+            }
+          } catch (fixError) {
+            console.error('Fixed JSON parse also failed:', fixError);
+          }
+        }
+      }
+
+      throw new Error('AI 返回格式异常，请重试');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('Cloze generation error:', error.message, error.response?.status);
+      }
+      throw new Error('完形填空题目生成失败，请重试');
+    }
+  }
+
+  async generateDefinitionQuestions(
+    words: { word: string; meaning: string }[]
+  ): Promise<{
+    target_word: string;
+    sentence: string;
+    options: string[];
+    correct_definition: string;
+  }[]> {
+    const wordList = words.map(w => `- ${w.word}: ${w.meaning}`).join('\n');
+
+    const prompt = `请为以下单词各生成一个释义单选题。
+
+单词列表（含中文释义）：
+${wordList}
+
+要求：
+- 为每个单词编写一个自然流畅的英文句子，句子包含该目标单词
+- 目标单词在句子中用 *word* 包裹标记（例如 *ubiquitous*）
+- 句子长度 15-30 词，难度符合考研英语二水平
+- 提供 4 个英文释义选项：1 个正确释义 + 3 个干扰释义
+- 正确释义要准确反映该单词在句子中的实际含义
+- 干扰释义应与正确答案在含义上接近但明显不同，具有迷惑性
+- 所有释义选项使用英文，长度控制在 3-10 词
+
+请返回严格的 JSON 格式（只返回 JSON，不要任何额外文本）：
+{
+  "questions": [
+    {
+      "target_word": "单词",
+      "sentence": "包含 *单词* 的完整英文句子",
+      "options": ["正确英文释义", "干扰释义1", "干扰释义2", "干扰释义3"],
+      "correct_definition": "正确英文释义"
+    }
+  ]
+}`;
+
+    try {
+      const response = await axios.post(
+        `${API_CONFIG.BASE_URL}/chat/completions`,
+        {
+          model: API_CONFIG.DEFAULT_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个专业的考研英语老师，专门生成释义单选题。请严格按照 JSON 格式返回结果。'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.5,
+          max_tokens: 4000
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: API_CONFIG.TIMEOUT
+        }
+      );
+
+      const content = response.data.choices[0].message.content;
+      console.log('Definition questions AI response:', content.substring(0, 300) + '...');
+
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.questions && Array.isArray(parsed.questions)) {
+            return parsed.questions.map((q: any) => ({
+              target_word: q.target_word || '',
+              sentence: q.sentence || '',
+              options: Array.isArray(q.options) ? q.options : [],
+              correct_definition: q.correct_definition || '',
+            }));
+          }
+        } catch (parseError) {
+          console.warn('JSON parse failed for definition questions, trying normalize');
+          try {
+            const fixedJson = this.normalizeJsonString(jsonMatch[0]);
+            const parsed = JSON.parse(fixedJson);
+            if (parsed.questions && Array.isArray(parsed.questions)) {
+              return parsed.questions.map((q: any) => ({
+                target_word: q.target_word || '',
+                sentence: q.sentence || '',
+                options: Array.isArray(q.options) ? q.options : [],
+                correct_definition: q.correct_definition || '',
+              }));
+            }
+          } catch (fixError) {
+            console.error('Fixed JSON parse also failed:', fixError);
+          }
+        }
+      }
+
+      throw new Error('AI 返回格式异常，请重试');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('Definition generation error:', error.message, error.response?.status);
+      }
+      throw new Error('释义单选题生成失败，请重试');
     }
   }
 

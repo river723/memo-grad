@@ -14,9 +14,15 @@ import StatsScreen from '../screens/StatsScreen';
 import WordListScreen from '../screens/WordListScreen';
 import WordDetailScreen from '../screens/WordDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import PracticeHubScreen from '../screens/PracticeHubScreen';
 import ArticleListScreen from '../screens/ArticleListScreen';
 import ArticleGenerateScreen from '../screens/ArticleGenerateScreen';
 import ArticleDetailScreen from '../screens/ArticleDetailScreen';
+import ExamSetupScreen from '../screens/ExamSetupScreen';
+import ExamAnswerScreen from '../screens/ExamAnswerScreen';
+import ExamResultScreen from '../screens/ExamResultScreen';
+import WrongQuestionReviewScreen from '../screens/WrongQuestionReviewScreen';
+import ExamHistoryScreen from '../screens/ExamHistoryScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -29,19 +35,28 @@ function WordListTabScreen() {
   return <WordListScreen />;
 }
 
-function StudyTabScreen() {
-  return <StudyScreen />;
-}
-
-function StatsTabScreen() {
-  return <StatsScreen />;
+function PracticeHubTabScreen() {
+  return <PracticeHubScreen />;
 }
 
 function SettingsTabScreen() {
   return <SettingsScreen />;
 }
 
-// 主标签导航
+// 统一的 Stack header 样式
+const stackHeaderOptions = (title: string) => ({
+  headerShown: !isWeb as boolean,
+  title,
+  headerStyle: {
+    backgroundColor: '#1976D2',
+  },
+  headerTintColor: '#fff',
+  headerTitleStyle: {
+    fontWeight: 'bold' as const,
+  },
+});
+
+// 主标签导航（4 个 Tab）
 function MainTabs() {
   return (
     <Tab.Navigator
@@ -53,10 +68,8 @@ function MainTabs() {
             iconName = 'home';
           } else if (route.name === '单词本') {
             iconName = 'book';
-          } else if (route.name === '学习') {
-            iconName = 'school';
-          } else if (route.name === '统计') {
-            iconName = 'bar-chart';
+          } else if (route.name === '练习') {
+            iconName = 'edit';
           } else if (route.name === '设置') {
             iconName = 'settings';
           }
@@ -79,8 +92,7 @@ function MainTabs() {
     >
       <Tab.Screen name="首页" component={HomeTabScreen} />
       <Tab.Screen name="单词本" component={WordListTabScreen} />
-      <Tab.Screen name="学习" component={StudyTabScreen} />
-      <Tab.Screen name="统计" component={StatsTabScreen} />
+      <Tab.Screen name="练习" component={PracticeHubTabScreen} />
       <Tab.Screen name="设置" component={SettingsTabScreen} />
     </Tab.Navigator>
   );
@@ -95,136 +107,85 @@ export default function AppNavigator() {
         <Stack.Screen
           name="AddWord"
           component={AddWordScreen}
-          options={{
-            headerShown: !isWeb,
-            title: '添加单词',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
+          options={stackHeaderOptions('添加单词')}
         />
         <Stack.Screen
           name="Study"
           component={StudyScreen}
-          options={{
-            headerShown: !isWeb,
-            title: '开始学习',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
-        />
-        <Stack.Screen
-          name="WordList"
-          component={WordListScreen}
-          options={{
-            headerShown: !isWeb,
-            title: '单词本',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
+          options={stackHeaderOptions('开始学习')}
         />
         <Stack.Screen
           name="WordDetail"
           component={WordDetailScreen}
-          options={{
-            headerShown: !isWeb,
-            title: '单词详情',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
+          options={stackHeaderOptions('单词详情')}
         />
         <Stack.Screen
           name="Stats"
           component={StatsScreen}
-          options={{
-            headerShown: !isWeb,
-            title: '学习统计',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
-        />
-        <Stack.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={{
-            headerShown: !isWeb,
-            title: '设置',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
+          options={stackHeaderOptions('学习统计')}
         />
         <Stack.Screen
           name="ArticleList"
           component={ArticleListScreen}
           options={{
+            ...stackHeaderOptions('趣味文章'),
             headerShown: true,
-            title: '趣味文章',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
           }}
         />
         <Stack.Screen
           name="ArticleGenerate"
           component={ArticleGenerateScreen}
           options={{
+            ...stackHeaderOptions('生成文章'),
             headerShown: true,
-            title: '生成文章',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
           }}
         />
         <Stack.Screen
           name="ArticleDetail"
           component={ArticleDetailScreen}
           options={{
+            ...stackHeaderOptions('文章阅读'),
             headerShown: true,
-            title: '文章阅读',
-            headerStyle: {
-              backgroundColor: '#1976D2',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
+          }}
+        />
+        <Stack.Screen
+          name="ExamSetup"
+          component={ExamSetupScreen}
+          options={{
+            ...stackHeaderOptions('考题练习'),
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
+          name="ExamAnswer"
+          component={ExamAnswerScreen}
+          options={{
+            ...stackHeaderOptions('答题中'),
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
+          name="ExamResult"
+          component={ExamResultScreen}
+          options={{
+            ...stackHeaderOptions('练习结果'),
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
+          name="WrongQuestionReview"
+          component={WrongQuestionReviewScreen}
+          options={{
+            ...stackHeaderOptions('错题复习'),
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
+          name="ExamHistory"
+          component={ExamHistoryScreen}
+          options={{
+            ...stackHeaderOptions('练习历史'),
+            headerShown: true,
           }}
         />
       </Stack.Navigator>

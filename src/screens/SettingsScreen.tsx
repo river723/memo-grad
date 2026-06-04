@@ -27,7 +27,8 @@ export default function SettingsScreen() {
     showRareSense: true,
     showEtymology: true,
     articleWordCount: 10,
-    articleLength: 200
+    articleLength: 200,
+    examQuestionCount: 10,
   });
   const [apiKey, setApiKey] = useState('');
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
@@ -113,7 +114,8 @@ export default function SettingsScreen() {
               showRareSense: true,
               showEtymology: true,
               articleWordCount: 10,
-              articleLength: 200
+              articleLength: 200,
+              examQuestionCount: 10,
             });
             Alert.alert('已清除', '所有数据已清除');
           }
@@ -141,7 +143,8 @@ export default function SettingsScreen() {
               showRareSense: true,
               showEtymology: true,
               articleWordCount: 10,
-              articleLength: 200
+              articleLength: 200,
+              examQuestionCount: 10,
             });
           }
         }
@@ -155,6 +158,14 @@ export default function SettingsScreen() {
       settings.dailyNewWords + delta
     ));
     saveSettings({ dailyNewWords: newValue });
+  };
+
+  const handleAdjustExamQuestionCount = (delta: number) => {
+    const newValue = Math.max(5, Math.min(
+      20,
+      (settings.examQuestionCount || 10) + delta
+    ));
+    saveSettings({ examQuestionCount: newValue });
   };
 
   const renderSettingItem = (title: string, value: string | number, onPress?: () => void) => (
@@ -211,6 +222,49 @@ export default function SettingsScreen() {
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabel}>1</Text>
               <Text style={styles.sliderLabel}>{UI_CONFIG.DAILY_NEW_WORDS_LIMIT}</Text>
+            </View>
+          </View>
+
+          <Divider style={styles.divider} />
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingLabel}>考题练习题数</Text>
+            <View style={styles.numberInput}>
+              <View style={styles.stepperRow}>
+                <PaperButton
+                  mode="outlined"
+                  compact
+                  onPress={() => handleAdjustExamQuestionCount(-1)}
+                  style={styles.stepperBtn}
+                  labelStyle={styles.stepperBtnLabel}
+                >
+                  -
+                </PaperButton>
+                <Surface style={styles.numberButton}>
+                  <Text style={styles.numberText}>{settings.examQuestionCount || 10}</Text>
+                </Surface>
+                <PaperButton
+                  mode="outlined"
+                  compact
+                  onPress={() => handleAdjustExamQuestionCount(1)}
+                  style={styles.stepperBtn}
+                  labelStyle={styles.stepperBtnLabel}
+                >
+                  +
+                </PaperButton>
+              </View>
+            </View>
+            <View style={styles.sliderContainer}>
+              <View
+                style={[
+                  styles.sliderFill,
+                  { width: `${((settings.examQuestionCount || 10) / 20) * 100}%` }
+                ]}
+              />
+            </View>
+            <View style={styles.sliderLabels}>
+              <Text style={styles.sliderLabel}>5</Text>
+              <Text style={styles.sliderLabel}>20</Text>
             </View>
           </View>
 

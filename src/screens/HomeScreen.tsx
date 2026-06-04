@@ -5,9 +5,8 @@ import {
   Text,
   Button,
   ProgressBar,
-  FAB,
   Chip,
-  Surface
+  Surface,
 } from 'react-native-paper';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
@@ -17,10 +16,9 @@ import { Word } from '../types';
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [todayStats, setTodayStats] = useState({
-    newWords: 0,
-    reviewWords: 0,
+    pendingWords: 0,
     completedWords: 0,
-    accuracy: 0
+    accuracy: 0,
   });
   const [recentWords, setRecentWords] = useState<Word[]>([]);
   const [weeklyProgress, setWeeklyProgress] = useState<number[]>([]);
@@ -35,28 +33,20 @@ export default function HomeScreen() {
     try {
       console.log('开始加载仪表板数据...');
 
-      // 加载今日学习数据
       const today = new Date().toISOString().split('T')[0];
-      console.log('今日日期:', today);
-
       const todayPlans = await StorageService.getTodayStudyPlan();
-      console.log('今日计划:', todayPlans);
-
       const todayRecords = await StorageService.getStudyRecordsByDate(today);
-      console.log('今日记录:', todayRecords);
 
-      const newWords = todayPlans.filter(p => p.plan_type === 'new').length;
-      const reviewWords = todayPlans.filter(p => p.plan_type === 'review').length;
+      const totalWords = todayPlans.length;
       const completedWords = todayPlans.filter(p => p.completed).length;
       const accuracy = todayRecords.length > 0
         ? todayRecords.filter(r => r.result === 1).length / todayRecords.length
         : 0;
 
       setTodayStats({
-        newWords,
-        reviewWords,
+        pendingWords: totalWords - completedWords,
         completedWords,
-        accuracy
+        accuracy,
       });
 
       // 加载最近添加的单词
@@ -68,25 +58,17 @@ export default function HomeScreen() {
           return dateB - dateA;
         })
         .slice(0, 5);
-      console.log('最近单词:', words);
       setRecentWords(words);
 
       // 加载一周进度
       const studyPlanService = new StudyPlanService();
       const stats = await studyPlanService.calculateStudyStats();
-      console.log('学习统计:', stats);
       setWeeklyProgress(stats.weeklyProgress || []);
 
       console.log('仪表板数据加载完成');
     } catch (error) {
       console.error('加载仪表板数据失败:', error);
-      // 设置默认值避免渲染错误
-      setTodayStats({
-        newWords: 0,
-        reviewWords: 0,
-        completedWords: 0,
-        accuracy: 0
-      });
+      setTodayStats({ pendingWords: 0, completedWords: 0, accuracy: 0 });
       setRecentWords([]);
       setWeeklyProgress([]);
     }
@@ -98,21 +80,22 @@ export default function HomeScreen() {
     return '#F44336';
   };
 
+  const totalPlanned = todayStats.pendingWords + todayStats.completedWords;
+  const progress = totalPlanned > 0 ? todayStats.completedWords / totalPlanned : 0;
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content}>
-        {/* 今日学习概览 */}
+        {/* 今日学习概览 - 精简为 3 个指标 */}
         <Card style={styles.card}>
           <Card.Title title="今日学习" titleStyle={styles.cardTitle} />
           <Card.Content>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{todayStats.newWords}</Text>
-                <Text style={styles.statLabel}>新词</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{todayStats.reviewWords}</Text>
-                <Text style={styles.statLabel}>复习</Text>
+                <Text style={[styles.statNumber, { color: todayStats.pendingWords > 0 ? '#FF9800' : '#1976D2' }]}>
+                  {todayStats.pendingWords}
+                </Text>
+                <Text style={styles.statLabel}>待学习</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{todayStats.completedWords}</Text>
@@ -127,9 +110,18 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.progressSection}>
-              <Text style={styles.progressLabel}>今日进度</Text>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressLabel}>
+                  {totalPlanned > 0
+                    ? `进度 ${todayStats.completedWords}/${totalPlanned}`
+                    : '今日暂无学习计划'}
+                </Text>
+                <Text style={styles.progressPercent}>
+                  {Math.round(progress * 100)}%
+                </Text>
+              </View>
               <ProgressBar
-                progress={todayStats.completedWords / Math.max(todayStats.newWords + todayStats.reviewWords, 1)}
+                progress={progress}
                 color="#1976D2"
                 style={styles.progressBar}
               />
@@ -137,44 +129,75 @@ export default function HomeScreen() {
           </Card.Content>
         </Card>
 
-        {/* 快速操作 */}
+        {/* 核心操作区 - 3 个主要入口 */}
         <Card style={styles.card}>
           <Card.Title title="快速开始" titleStyle={styles.cardTitle} />
           <Card.Content>
-            <View style={styles.quickActions}>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('Study' as never)}
+              style={styles.primaryButton}
+              icon="book-open-variant"
+              labelStyle={styles.primaryButtonLabel}
+            >
+              开始背诵
+            </Button>
+            <View style={styles.actionRow}>
               <Button
-                mode="contained"
-                onPress={() => navigation.navigate('AddWord' as never)}
-                style={styles.actionButton}
-                icon="plus"
-              >
-                添加单词
-              </Button>
-              <Button
-                mode="outlined"
-                onPress={() => navigation.navigate('学习' as never)}
-                style={styles.actionButton}
-                icon="book-open"
-              >
-                开始背诵
-              </Button>
-            </View>
-            <View style={styles.quickActions}>
-              <Button
-                mode="outlined"
-                onPress={() => navigation.navigate('ArticleList' as never)}
-                style={styles.actionButton}
-                icon="file-import"
-              >
-                趣味文章
-              </Button>
-              <Button
-                mode="outlined"
-                onPress={() => {/* 暂时禁用 */}}
+                mode="contained-tonal"
+                onPress={() => navigation.navigate('ExamSetup' as never)}
                 style={styles.actionButton}
                 icon="pencil"
               >
                 考题练习
+              </Button>
+              <Button
+                mode="contained-tonal"
+                onPress={() => navigation.navigate('ArticleList' as never)}
+                style={styles.actionButton}
+                icon="file-document"
+              >
+                趣味文章
+              </Button>
+            </View>
+
+            {/* 次要入口 */}
+            <View style={styles.secondaryRow}>
+              <Button
+                mode="text"
+                compact
+                onPress={() => navigation.navigate('AddWord' as never)}
+                icon="plus"
+                textColor="#1976D2"
+              >
+                添加单词
+              </Button>
+              <Button
+                mode="text"
+                compact
+                onPress={() => navigation.navigate('WrongQuestionReview' as never)}
+                icon="alert-circle-outline"
+                textColor="#1976D2"
+              >
+                错题本
+              </Button>
+              <Button
+                mode="text"
+                compact
+                onPress={() => navigation.navigate('ExamHistory' as never)}
+                icon="history"
+                textColor="#1976D2"
+              >
+                练习历史
+              </Button>
+              <Button
+                mode="text"
+                compact
+                onPress={() => navigation.navigate('Stats' as never)}
+                icon="chart-bar"
+                textColor="#1976D2"
+              >
+                统计
               </Button>
             </View>
           </Card.Content>
@@ -197,8 +220,8 @@ export default function HomeScreen() {
                         styles.chartBar,
                         {
                           height: Math.max(progress * 60, 4),
-                          backgroundColor: getProgressColor(progress)
-                        }
+                          backgroundColor: getProgressColor(progress),
+                        },
                       ]}
                     />
                     <Text style={styles.chartLabel}>{dayLabel}</Text>
@@ -216,7 +239,7 @@ export default function HomeScreen() {
             title="最近添加"
             titleStyle={styles.cardTitle}
             right={() => (
-              <Button onPress={() => navigation.navigate('WordList' as never)}>
+              <Button onPress={() => navigation.navigate('单词本' as never)}>
                 查看全部
               </Button>
             )}
@@ -243,20 +266,16 @@ export default function HomeScreen() {
             <Text style={styles.reminderTitle}>📚 学习提醒</Text>
             <Text style={styles.reminderText}>
               {todayStats.completedWords === 0
-                ? "今天还没有开始学习，快来背几个单词吧！"
+                ? '今天还没有开始学习，快来背几个单词吧！'
+                : todayStats.accuracy === 0
+                ? '刚开始学习，坚持下去！'
                 : todayStats.accuracy < 0.6
-                ? "今天的正确率偏低，建议多复习几遍"
-                : "学习状态不错，继续保持！"}
+                ? '今天的正确率偏低，建议多复习几遍'
+                : '学习状态不错，继续保持！'}
             </Text>
           </Card.Content>
         </Card>
       </ScrollView>
-
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddWord' as never)}
-      />
     </View>
   );
 }
@@ -275,7 +294,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   lastCard: {
-    marginBottom: 80, // 为FAB留出空间
+    marginBottom: 24,
   },
   cardTitle: {
     fontSize: 18,
@@ -290,7 +309,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#1976D2',
   },
@@ -300,25 +319,49 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   progressSection: {
-    marginTop: 8,
+    marginTop: 4,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   progressLabel: {
     fontSize: 14,
-    marginBottom: 8,
     color: '#666',
+  },
+  progressPercent: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1976D2',
   },
   progressBar: {
     height: 8,
     borderRadius: 4,
   },
-  quickActions: {
+  primaryButton: {
+    marginBottom: 12,
+    paddingVertical: 6,
+  },
+  primaryButtonLabel: {
+    fontSize: 16,
+  },
+  actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   actionButton: {
     flex: 1,
     marginHorizontal: 4,
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E0E0E0',
+    paddingTop: 8,
   },
   weeklyChart: {
     flexDirection: 'row',
@@ -361,12 +404,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#1976D2',
   },
 });

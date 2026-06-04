@@ -1,4 +1,4 @@
-import { Word, StudyRecord, StudyPlan, Article } from '../types';
+import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion } from '../types';
 
 // 跨平台存储接口
 interface StorageInterface {
@@ -53,7 +53,9 @@ class StorageService {
     STUDY_RECORDS: 'kaoyan_study_records',
     STUDY_PLANS: 'kaoyan_study_plans',
     SETTINGS: 'kaoyan_settings',
-    ARTICLES: 'kaoyan_articles'
+    ARTICLES: 'kaoyan_articles',
+    EXAM_SESSIONS: 'kaoyan_exam_sessions',
+    WRONG_QUESTIONS: 'kaoyan_wrong_questions'
   };
 
   // 生词操作
@@ -234,6 +236,107 @@ class StorageService {
     await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(filtered));
   }
 
+  // 考题练习记录操作
+  async saveExamSession(session: Omit<ExamSession, 'id'>): Promise<number> {
+    const sessions = await this.getExamSessions();
+    const newId = sessions.length > 0 ? Math.max(...sessions.map(s => s.id!)) + 1 : 1;
+    const newSession: ExamSession = { ...session, id: newId };
+    sessions.push(newSession);
+    await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(sessions));
+    return newId;
+  }
+
+  async getExamSessions(): Promise<ExamSession[]> {
+    try {
+      const data = await AsyncStorage.getItem(this.KEYS.EXAM_SESSIONS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Get exam sessions error:', error);
+      return [];
+    }
+  }
+
+  async deleteExamSession(id: number): Promise<void> {
+    const sessions = await this.getExamSessions();
+    const filtered = sessions.filter(s => s.id !== id);
+    await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(filtered));
+  }
+
+  async updateExamSession(id: number, session: Omit<ExamSession, 'id'>): Promise<void> {
+    const sessions = await this.getExamSessions();
+    const index = sessions.findIndex(s => s.id === id);
+    if (index !== -1) {
+      sessions[index] = { ...session, id };
+      await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(sessions));
+    }
+  }
+
+  // 错题本操作
+  async getWrongQuestions(): Promise<WrongQuestion[]> {
+    try {
+      const data = await AsyncStorage.getItem(this.KEYS.WRONG_QUESTIONS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Get wrong questions error:', error);
+      return [];
+    }
+  }
+
+  async addOrUpdateWrongQuestion(
+    question: ExamSession['questions'][0],
+    wrongAnswer: string,
+    isCorrectNow: boolean
+  ): Promise<void> {
+    const wrongQuestions = await this.getWrongQuestions();
+    const wordId = question.word_id;
+    const qType = question.type;
+
+    // 去重：同一 word_id + type 视为同一道题
+    const existing = wrongQuestions.find(
+      q => q.question.word_id === wordId && q.question.type === qType
+    );
+
+    if (existing) {
+      if (isCorrectNow) {
+        existing.correct_count += 1;
+      } else {
+        existing.wrong_count += 1;
+        existing.wrong_answer = wrongAnswer;
+      }
+      existing.last_attempt_at = new Date().toISOString();
+    } else {
+      const newQ: WrongQuestion = {
+        id: wrongQuestions.length > 0
+          ? Math.max(...wrongQuestions.map(q => q.id!)) + 1
+          : 1,
+        question,
+        wrong_answer: wrongAnswer,
+        correct_count: isCorrectNow ? 1 : 0,
+        wrong_count: isCorrectNow ? 0 : 1,
+        last_attempt_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      };
+      wrongQuestions.push(newQ);
+    }
+
+    await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(wrongQuestions));
+  }
+
+  async updateWrongQuestion(id: number, updates: Partial<WrongQuestion>): Promise<void> {
+    const questions = await this.getWrongQuestions();
+    const index = questions.findIndex(q => q.id === id);
+    if (index !== -1) {
+      questions[index] = { ...questions[index], ...updates };
+      await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(questions));
+    }
+  }
+
+  async removeWrongQuestion(id: number): Promise<void> {
+    const questions = await this.getWrongQuestions();
+    const filtered = questions.filter(q => q.id !== id);
+    await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(filtered));
+  }
+
   async getWordArticleCoverage(): Promise<Map<number, number>> {
     const articles = await this.getArticles();
     const coverage = new Map<number, number>();
@@ -258,7 +361,8 @@ class StorageService {
         theme: 'light',
         apiKey: '',
         articleWordCount: 10,
-        articleLength: 200
+        articleLength: 200,
+        examQuestionCount: 10,
       };
     } catch (error) {
       console.error('Get settings error:', error);
@@ -277,6 +381,8 @@ class StorageService {
       studyRecords: await this.getStudyRecords(),
       studyPlans: await this.getStudyPlans(),
       articles: await this.getArticles(),
+      examSessions: await this.getExamSessions(),
+      wrongQuestions: await this.getWrongQuestions(),
       settings: await this.getSettings(),
       exportDate: new Date().toISOString()
     };
@@ -302,6 +408,12 @@ class StorageService {
       if (data.settings) {
         await AsyncStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(data.settings));
       }
+      if (data.examSessions) {
+        await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(data.examSessions));
+      }
+      if (data.wrongQuestions) {
+        await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(data.wrongQuestions));
+      }
     } catch (error) {
       console.error('Import data error:', error);
       throw new Error('数据导入失败');
@@ -315,6 +427,8 @@ class StorageService {
       this.KEYS.STUDY_RECORDS,
       this.KEYS.STUDY_PLANS,
       this.KEYS.ARTICLES,
+      this.KEYS.EXAM_SESSIONS,
+      this.KEYS.WRONG_QUESTIONS,
       this.KEYS.SETTINGS
     ]);
   }

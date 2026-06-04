@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { Provider as PaperProvider, Text, MD3LightTheme } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppNavigator from './src/navigation/AppNavigator';
 
 const theme = {
@@ -12,6 +13,12 @@ const theme = {
     background: '#F5F5F5',
     surface: '#FFFFFF',
   },
+};
+
+// 使用 @expo/vector-icons 替代 react-native-vector-icons
+// react-native-vector-icons 在 Expo SDK 55 + New Architecture 下字体加载可能失败
+const paperSettings = {
+  icon: (props: any) => <MaterialCommunityIcons {...props} />,
 };
 
 // 错误边界组件
@@ -73,7 +80,7 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <PaperProvider theme={theme}>
+      <PaperProvider theme={theme} settings={paperSettings}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' }}>
           <Text style={{ fontSize: 18, color: '#1976D2' }}>加载中...</Text>
           <Text style={{ fontSize: 14, color: '#666', marginTop: 10 }}>考研英语生词本</Text>
@@ -84,7 +91,7 @@ export default function App() {
 
   if (hasError) {
     return (
-      <PaperProvider theme={theme}>
+      <PaperProvider theme={theme} settings={paperSettings}>
         <ErrorFallback error={error!} />
       </PaperProvider>
     );
@@ -92,14 +99,14 @@ export default function App() {
 
   try {
     return (
-      <PaperProvider theme={theme}>
+      <PaperProvider theme={theme} settings={paperSettings}>
         <AppNavigator />
       </PaperProvider>
     );
   } catch (err) {
     console.error('App 渲染错误:', err);
     return (
-      <PaperProvider theme={theme}>
+      <PaperProvider theme={theme} settings={paperSettings}>
         <ErrorFallback error={err as Error} />
       </PaperProvider>
     );

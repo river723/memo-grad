@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, Article } from '../types';
+import { getRecommendedWords } from '../utils/examHelpers';
 
 // 将文章内容中的目标单词高亮
 interface PreviewSegment {
@@ -117,7 +118,7 @@ export default function ArticleGenerateScreen() {
 
       // 智能推荐模式：自动选取单词
       if (selectMode === 'smart') {
-        const recommended = getRecommendedWords(words, cov, accMap);
+        const recommended = selectRecommendedWords(words, cov, accMap);
         setSelectedWords(recommended);
       }
     } catch (error) {
@@ -125,46 +126,13 @@ export default function ArticleGenerateScreen() {
     }
   };
 
-  // 覆盖度优先级算法
-  const getRecommendedWords = (
+  // 覆盖度优先级算法 —— 委托给共享工具函数
+  const selectRecommendedWords = (
     words: Word[],
     cov: Map<number, number>,
     acc: Map<number, number>
   ): Word[] => {
-    const wordCount = words.filter(w => w.id != null).length;
-    if (wordCount === 0) return [];
-
-    // 分类排序
-    const p1: Word[] = []; // 未覆盖 + 正确率 < 80%
-    const p2: Word[] = []; // 未覆盖 + 正确率 ≥ 80%
-    const p3: Word[] = []; // 覆盖 1 次 + 正确率 < 80%
-    const p4: Word[] = []; // 覆盖 1 次 + 正确率 ≥ 80%
-    const rest: Word[] = []; // 其余（覆盖 ≥ 2 但 < 3）
-
-    for (const word of words) {
-      if (word.id == null) continue;
-      const count = cov.get(word.id) || 0;
-      const accuracy = acc.get(word.id) || 1;
-
-      if (count >= 3) continue; // 排除已覆盖 ≥ 3 次
-
-      if (count === 0) {
-        if (accuracy < 0.8) p1.push(word);
-        else p2.push(word);
-      } else if (count === 1) {
-        if (accuracy < 0.8) p3.push(word);
-        else p4.push(word);
-      } else {
-        // count === 2
-        rest.push(word);
-      }
-    }
-
-    // 打乱每个优先级内部顺序（避免每次推荐完全相同）
-    const shuffle = (arr: Word[]) => arr.sort(() => Math.random() - 0.5);
-    const pool = [...shuffle(p1), ...shuffle(p2), ...shuffle(p3), ...shuffle(p4), ...shuffle(rest)];
-
-    return pool.slice(0, articleWordCount);
+    return getRecommendedWords(words, cov, acc, articleWordCount);
   };
 
   const getCoverageLabel = (wordId: number): string => {
@@ -276,7 +244,7 @@ export default function ArticleGenerateScreen() {
         <Button
           mode="text"
           compact
-          onPress={() => navigation.navigate('Settings' as never)}
+          onPress={() => navigation.navigate('设置' as never)}
           labelStyle={styles.settingsLink}
         >
           调整
@@ -292,7 +260,7 @@ export default function ArticleGenerateScreen() {
             onValueChange={(val) => {
               setSelectMode(val as 'smart' | 'manual');
               if (val === 'smart') {
-                const recommended = getRecommendedWords(allWords, coverage, wordAccuracy);
+                const recommended = selectRecommendedWords(allWords, coverage, wordAccuracy);
                 setSelectedWords(recommended);
               }
             }}
@@ -321,6 +289,9 @@ export default function ArticleGenerateScreen() {
                       style={styles.selectedWordChip}
                       textStyle={styles.wordChipText}
                       onClose={() => replaceWord(word)}
+                      closeIcon={({color, size}) => (
+                        <Text style={{color, fontSize: size, lineHeight: size}}>✕</Text>
+                      )}
                     >
                       {word.word}
                     </Chip>
@@ -338,7 +309,7 @@ export default function ArticleGenerateScreen() {
               <Button
                 mode="text"
                 onPress={() => {
-                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy);
+                  const recommended = selectRecommendedWords(allWords, coverage, wordAccuracy);
                   setSelectedWords(recommended);
                 }}
                 icon="refresh"
