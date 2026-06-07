@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, TextInput, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, ScrollView, StyleSheet, TextInput, Platform } from 'react-native';
 import {
   Card,
   Text,
@@ -7,7 +7,8 @@ import {
   ProgressBar,
   Surface,
   Chip,
-  SegmentedButtons
+  SegmentedButtons,
+  Modal
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
@@ -47,10 +48,23 @@ export default function StudyScreen() {
   const [wordTypeCounts, setWordTypeCounts] = useState({ newCount: 0, reviewCount: 0 });
   const [allStudiedToday, setAllStudiedToday] = useState(false);
   const [isContinueSession, setIsContinueSession] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [trulyCompleted, setTrulyCompleted] = useState(0);
+  // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
+  const retryMapRef = useRef<Map<number, number>>(new Map());
+  const pendingIndexRef = useRef<number>(0);
 
   useEffect(() => {
     loadStudyWords();
   }, []);
+
+  // 监听浮层关闭 + 队列为空 → 触发完成卡片
+  useEffect(() => {
+    if (!showResult && words.length === 0 && studyStats.completed > 0) {
+      setShowCompletion(true);
+    }
+  }, [showResult, words.length]);
 
   useEffect(() => {
     if (currentMode === 'quiz' && words.length > 0) {
@@ -146,6 +160,9 @@ export default function StudyScreen() {
       setCurrentIndex(0);
       setIsFlipped(false);
       setIsContinueSession(exceedDailyLimit);
+      setShowCompletion(false);
+      retryMapRef.current = new Map();
+      setTrulyCompleted(0);
     } catch (error) {
       console.error('Failed to load study words:', error);
     }
@@ -156,45 +173,51 @@ export default function StudyScreen() {
     return words[currentIndex] || null;
   };
 
-  const handleResult = async (isCorrect: boolean) => {
-    const currentWord = getCurrentWord();
-    if (!currentWord) return;
-
+  // 处理单词正式完成后的收尾工作（创建复习计划、标记计划完成）
+  const finishWord = async (word: Word) => {
     try {
-      const record: Omit<StudyRecord, 'id'> = {
-        word_id: currentWord.id!,
-        study_date: format(new Date(), 'yyyy-MM-dd'),
-        result: isCorrect ? 1 : 0,
-        study_mode: currentMode
-      };
-
-      await StorageService.addStudyRecord(record);
-
-      // 将对应学习计划标记为已完成
       const allPlans = await StorageService.getStudyPlans();
       const matchingPlan = allPlans.find(
-        p => p.word_id === currentWord.id && !p.completed
+        p => p.word_id === word.id && !p.completed
       );
       if (matchingPlan?.id) {
         await StorageService.completeStudyPlan(matchingPlan.id);
       }
 
-      // 为当前单词创建未来的艾宾浩斯复习计划
       for (const interval of REVIEW_INTERVALS) {
         const reviewDate = format(addDays(new Date(), interval), 'yyyy-MM-dd');
         const alreadyPlanned = allPlans.some(
-          p => p.word_id === currentWord.id && p.plan_date === reviewDate
+          p => p.word_id === word.id && p.plan_date === reviewDate
         );
         if (!alreadyPlanned) {
           await StorageService.addStudyPlan({
-            word_id: currentWord.id!,
+            word_id: word.id!,
             plan_date: reviewDate,
             plan_type: 'review',
             completed: false
           });
         }
       }
+    } catch (error) {
+      console.error('Failed to finish word:', error);
+    }
+  };
 
+  const handleResult = async (isCorrect: boolean) => {
+    const currentWord = getCurrentWord();
+    if (!currentWord) return;
+
+    try {
+      // 1. 记录学习记录
+      const record: Omit<StudyRecord, 'id'> = {
+        word_id: currentWord.id!,
+        study_date: format(new Date(), 'yyyy-MM-dd'),
+        result: isCorrect ? 1 : 0,
+        study_mode: currentMode
+      };
+      await StorageService.addStudyRecord(record);
+
+      // 2. 更新统计
       setStudyStats(prev => {
         const newCompleted = prev.completed + 1;
         const newCorrect = prev.correct + (isCorrect ? 1 : 0);
@@ -206,51 +229,62 @@ export default function StudyScreen() {
         };
       });
 
+      const retryMap = retryMapRef.current;
+      const inRetry = retryMap.has(currentWord.id!);
+      let wordFinished = false;
+
+      if (isCorrect && !inRetry) {
+        // ★ 首次就答对 → 直接完成
+        await finishWord(currentWord);
+        wordFinished = true;
+      } else if (isCorrect && inRetry) {
+        // ★ 重试中答对 → 计数器 +1
+        const count = retryMap.get(currentWord.id!)! + 1;
+        if (count >= 2) {
+          await finishWord(currentWord);
+          retryMap.delete(currentWord.id!);
+          wordFinished = true;
+        } else {
+          retryMap.set(currentWord.id!, count);
+        }
+      } else {
+        // ★ 答错 → 进入重试模式（或计数器归零）
+        retryMap.set(currentWord.id!, 0);
+      }
+
+      // 3. 更新队列 + 计算 nextIndex
+      const wasLast = currentIndex >= words.length - 1;
+      const nextIndex = wasLast ? 0 : currentIndex;
+
+      if (wordFinished) {
+        setWords(prev => prev.filter((_, i) => i !== currentIndex));
+        setTrulyCompleted(prev => prev + 1);
+      } else {
+        setWords(prev => {
+          const newWords = [...prev];
+          const [moved] = newWords.splice(currentIndex, 1);
+          newWords.push(moved);
+          return newWords;
+        });
+      }
+
+      pendingIndexRef.current = nextIndex;
+
+      // 4. 显示结果浮层
       setCurrentResult(isCorrect ? 'correct' : 'incorrect');
       setShowResult(true);
 
       setTimeout(() => {
         setShowResult(false);
-        nextWord();
-      }, 2000);
+        setCurrentIndex(pendingIndexRef.current);
+        setIsFlipped(false);
+        setSelectedAnswer('');
+        setShowQuizResult(false);
+        setListenAnswer('');
+      }, wordFinished ? 1500 : 1200);
 
     } catch (error) {
       console.error('Failed to save study record:', error);
-    }
-  };
-
-  const nextWord = () => {
-    if (currentIndex < words.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-      setIsFlipped(false);
-      setSelectedAnswer('');
-      setShowQuizResult(false);
-      setListenAnswer('');
-    } else {
-      const newCompleted = Math.min(wordTypeCounts.newCount, studyStats.completed);
-      const reviewCompleted = Math.max(0, studyStats.completed - newCompleted);
-      const accuracyStr = studyStats.accuracy.toFixed(1);
-
-      const title = isContinueSession
-        ? 'Round Complete!'
-        : 'Daily Goal Reached!';
-
-      const statsMsg = [
-        `New: ${newCompleted}/${wordTypeCounts.newCount}`,
-        `Review: ${reviewCompleted}/${wordTypeCounts.reviewCount}`,
-        `Accuracy: ${accuracyStr}% (${studyStats.correct}/${studyStats.completed})`,
-      ].join('\n');
-
-      Alert.alert(title, statsMsg, [
-        {
-          text: 'Continue',
-          onPress: () => loadStudyWords(true),
-        },
-        {
-          text: 'Back',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
     }
   };
 
@@ -345,22 +379,50 @@ export default function StudyScreen() {
                   style={styles.soundButton}
                   icon="volume-high"
                 >
-                  Speak
+                  发音
                 </Button>
-                <Text style={styles.flipHint}>Tap to flip</Text>
+                <Text style={styles.flipHint}>点击翻转</Text>
               </View>
             ) : (
               <View style={styles.cardBack}>
+                {/* 单词 + 发音 */}
+                <View style={styles.cardBackWordHeader}>
+                  <Text style={styles.cardBackWord}>{currentWord.word}</Text>
+                  <Button
+                    mode="text"
+                    onPress={() => speakWord(currentWord.word)}
+                    icon="volume-high"
+                    compact
+                  >
+                    {' '}
+                  </Button>
+                </View>
+                {currentWord.pronunciation_uk && (
+                  <Text style={styles.cardBackPronunciation}>
+                    UK [{currentWord.pronunciation_uk}]
+                    {currentWord.pronunciation_us ? `  US [${currentWord.pronunciation_us}]` : ''}
+                  </Text>
+                )}
+
+                {/* 词根词缀 */}
+                {currentWord.etymology && (
+                  <Surface style={styles.etymologyBox}>
+                    <Text style={styles.etymologyTitle}>🔍 词根词缀</Text>
+                    <Text style={styles.etymologyText}>{currentWord.etymology}</Text>
+                  </Surface>
+                )}
+
+                {/* 释义列表 */}
                 {currentWord.definitions.map((def, index) => (
                   <Surface key={index} style={styles.definitionItem}>
                     <View style={styles.definitionHeader}>
                       <Text style={styles.partOfSpeech}>{def.part_of_speech}</Text>
-                      {def.is_core && <Chip mode="flat" compact style={styles.coreTag}>Core</Chip>}
-                      {def.is_rare_sense && <Chip mode="flat" compact style={styles.rareTag}>Rare Sense</Chip>}
+                      {def.is_core && <Chip mode="flat" compact style={styles.coreTag}>核心</Chip>}
+                      {def.is_rare_sense && <Chip mode="flat" compact style={styles.rareTag}>熟词僻义</Chip>}
                     </View>
                     <Text style={styles.meaning}>{def.meaning}</Text>
                     {def.example && (
-                      <Text style={styles.example}>Ex: {def.example}</Text>
+                      <Text style={styles.example}>例句: {def.example}</Text>
                     )}
                   </Surface>
                 ))}
@@ -374,7 +436,7 @@ export default function StudyScreen() {
           onPress={() => setIsFlipped(!isFlipped)}
           style={styles.flipButton}
         >
-          {isFlipped ? 'Show Word' : 'Show Meaning'}
+          {isFlipped ? '显示单词' : '显示释义'}
         </Button>
 
         {isFlipped && (
@@ -384,14 +446,14 @@ export default function StudyScreen() {
               onPress={() => handleResult(false)}
               style={[styles.resultButton, { backgroundColor: '#F44336' }]}
             >
-              Unknown
+              不认识
             </Button>
             <Button
               mode="contained"
               onPress={() => handleResult(true)}
               style={[styles.resultButton, { backgroundColor: '#4CAF50' }]}
             >
-              Known
+              认识
             </Button>
           </View>
         )}
@@ -408,12 +470,12 @@ export default function StudyScreen() {
         <Card style={styles.wordCard}>
           <Card.Content>
             <View style={styles.listeningContainer}>
-              <Text style={styles.listeningTitle}>Listening Practice</Text>
+              <Text style={styles.listeningTitle}>听力练习</Text>
               <Surface style={styles.soundIcon}>
                 <Text style={styles.soundEmoji}>{isListening ? '🔊' : '🎧'}</Text>
               </Surface>
               <Text style={styles.listeningHint}>
-                {isListening ? 'Playing...' : 'Tap to listen to the word pronunciation'}
+                {isListening ? '播放中...' : '点击听取单词发音'}
               </Text>
               <Button
                 mode="contained"
@@ -423,15 +485,15 @@ export default function StudyScreen() {
                 style={styles.playButton}
                 icon="play"
               >
-                Listen
+                播放
               </Button>
 
               {isListening && (
                 <View style={styles.answerSection}>
-                  <Text style={styles.answerTitle}>What word did you hear?</Text>
+                  <Text style={styles.answerTitle}>你听到了哪个单词？</Text>
                   <TextInput
                     mode="outlined"
-                    placeholder="Enter the word you heard"
+                    placeholder="输入你听到的单词"
                     value={listenAnswer}
                     onChangeText={setListenAnswer}
                     style={styles.listenInput}
@@ -443,14 +505,14 @@ export default function StudyScreen() {
                       onPress={() => handleResult(false)}
                       style={styles.answerBtn}
                     >
-                      Skip
+                      跳过
                     </Button>
                     <Button
                       mode="contained"
                       onPress={handleListenSubmit}
                       style={styles.answerBtn}
                     >
-                      Submit
+                      提交
                     </Button>
                   </View>
                 </View>
@@ -470,7 +532,7 @@ export default function StudyScreen() {
       <View style={styles.modeContainer}>
         <Card style={styles.wordCard}>
           <Card.Content>
-            <Text style={styles.quizTitle}>Choose the correct meaning</Text>
+            <Text style={styles.quizTitle}>选择正确的释义</Text>
             <Text style={styles.quizWord}>{currentWord.word}</Text>
 
             <View style={styles.optionsContainer}>
@@ -517,16 +579,16 @@ export default function StudyScreen() {
           <Card.Content style={styles.emptyContent}>
             {allStudiedToday ? (
               <>
-                <Text style={styles.emptyTitle}>All Caught Up!</Text>
+                <Text style={styles.emptyTitle}>今日任务已完成！</Text>
                 <Text style={styles.emptyText}>
-                  You have studied all available words today. Come back tomorrow for reviews, or add more words to your vocabulary.
+                  你今天已经学完了所有可用单词。明天再来复习，或者添加更多单词到生词本吧。
                 </Text>
               </>
             ) : (
               <>
-                <Text style={styles.emptyTitle}>No Words Yet</Text>
+                <Text style={styles.emptyTitle}>暂无单词</Text>
                 <Text style={styles.emptyText}>
-                  Please add some words to your vocabulary list first
+                  请先添加一些单词到生词本
                 </Text>
               </>
             )}
@@ -535,8 +597,17 @@ export default function StudyScreen() {
               onPress={() => navigation.navigate('AddWord' as never)}
               style={styles.addWordBtn}
             >
-              Add Words
+              添加单词
             </Button>
+            {allStudiedToday && (
+              <Button
+                mode="outlined"
+                onPress={() => navigation.goBack()}
+                style={styles.addWordBtn}
+              >
+                返回
+              </Button>
+            )}
           </Card.Content>
         </Card>
       </View>
@@ -560,9 +631,9 @@ export default function StudyScreen() {
               setIsListening(false);
             }}
             buttons={[
-              { value: 'flashcard', label: '📖 Card' },
-              { value: 'listening', label: '🔊 Listen' },
-              { value: 'quiz', label: '✏️ Quiz' }
+              { value: 'flashcard', label: '📖 单词卡' },
+              { value: 'listening', label: '🔊 听写' },
+              { value: 'quiz', label: '✏️ 选择释义' }
             ]}
           />
         </Card.Content>
@@ -574,9 +645,21 @@ export default function StudyScreen() {
             <Text style={styles.progressText}>
               {currentIndex + 1} / {words.length}
             </Text>
-            <Text style={styles.accuracyText}>
-              Accuracy: {studyStats.accuracy.toFixed(1)}%
-            </Text>
+            <View style={styles.progressRight}>
+              <Text style={styles.accuracyText}>
+                准确率: {studyStats.accuracy.toFixed(1)}%
+              </Text>
+              <Button
+                mode="text"
+                onPress={() => setShowExitConfirm(true)}
+                icon="close"
+                textColor="#999"
+                compact
+                style={styles.exitBtn}
+              >
+                退出
+              </Button>
+            </View>
           </View>
           <ProgressBar
             progress={(currentIndex + 1) / Math.max(words.length, 1)}
@@ -587,9 +670,72 @@ export default function StudyScreen() {
       </Card>
 
       <ScrollView style={styles.content}>
-        {currentMode === 'flashcard' && renderFlashcardMode()}
-        {currentMode === 'listening' && renderListeningMode()}
-        {currentMode === 'quiz' && renderQuizMode()}
+        {showCompletion ? (
+          <Card style={styles.completionCard}>
+            <Card.Content style={styles.completionContent}>
+              <Text style={styles.completionIcon}>
+                {studyStats.accuracy >= 80 ? '\u{1F389}' : '\u{1F4AA}'}
+              </Text>
+              <Text style={styles.completionTitle}>
+                {isContinueSession ? '本轮完成！' : '今日目标达成！'}
+              </Text>
+
+              <View style={styles.completionStats}>
+                <View style={styles.completionStatItem}>
+                  <Text style={styles.completionStatNumber}>
+                    {Math.min(wordTypeCounts.newCount, studyStats.completed)}
+                  </Text>
+                  <Text style={styles.completionStatLabel}>新词</Text>
+                </View>
+                <View style={styles.completionStatItem}>
+                  <Text style={styles.completionStatNumber}>
+                    {Math.max(0, studyStats.completed -
+                      Math.min(wordTypeCounts.newCount, studyStats.completed))}
+                  </Text>
+                  <Text style={styles.completionStatLabel}>复习</Text>
+                </View>
+                <View style={styles.completionStatItem}>
+                  <Text style={[styles.completionStatNumber, {
+                    color: studyStats.accuracy >= 80 ? '#4CAF50' :
+                           studyStats.accuracy >= 60 ? '#FF9800' : '#F44336'
+                  }]}>
+                    {studyStats.accuracy.toFixed(1)}%
+                  </Text>
+                  <Text style={styles.completionStatLabel}>准确率</Text>
+                </View>
+              </View>
+
+              <Text style={styles.completionDetail}>
+                {studyStats.correct}/{studyStats.completed} 正确
+              </Text>
+
+              <View style={styles.completionActions}>
+                <Button
+                  mode="contained"
+                  onPress={() => loadStudyWords(true)}
+                  style={styles.completionPrimaryBtn}
+                  icon="refresh"
+                >
+                  再来一组
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => navigation.goBack()}
+                  style={styles.completionSecondaryBtn}
+                  icon="arrow-left"
+                >
+                  返回
+                </Button>
+              </View>
+            </Card.Content>
+          </Card>
+        ) : (
+          <>
+            {currentMode === 'flashcard' && renderFlashcardMode()}
+            {currentMode === 'listening' && renderListeningMode()}
+            {currentMode === 'quiz' && renderQuizMode()}
+          </>
+        )}
         {showResult && (
           <View style={styles.resultOverlay}>
             <Surface style={styles.resultSurface}>
@@ -597,12 +743,48 @@ export default function StudyScreen() {
                 styles.resultText,
                 currentResult === 'correct' ? styles.correctColor : styles.incorrectColor
               ]}>
-                {currentResult === 'correct' ? '✅ Correct!' : '❌ Review this word'}
+                {currentResult === 'correct' ? '✅ 正确！' : '❌ 需要复习'}
               </Text>
             </Surface>
           </View>
         )}
       </ScrollView>
+
+      {/* Exit confirmation Modal */}
+      <Modal
+        visible={showExitConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExitConfirm(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Surface style={styles.modalContent}>
+            <Text style={styles.modalTitle}>退出学习？</Text>
+            <Text style={styles.modalText}>
+              你已完成 {studyStats.completed} / {studyStats.total} 个单词。
+              {'\n'}
+              准确率: {studyStats.accuracy.toFixed(1)}%
+              {'\n\n'}
+              剩余单词将保留在学习计划中，下次可继续学习。
+            </Text>
+            <View style={styles.modalButtons}>
+              <Button onPress={() => setShowExitConfirm(false)}>
+                继续学习
+              </Button>
+              <Button
+                mode="contained"
+                onPress={() => {
+                  setShowExitConfirm(false);
+                  navigation.goBack();
+                }}
+                buttonColor="#F44336"
+              >
+                退出
+              </Button>
+            </View>
+          </Surface>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -624,6 +806,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  progressRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  exitBtn: {
+    marginLeft: 4,
   },
   progressText: {
     fontSize: 16,
@@ -658,6 +848,40 @@ const styles = StyleSheet.create({
   },
   cardBack: {
     flex: 1,
+  },
+  cardBackWordHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  cardBackWord: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1976D2',
+  },
+  cardBackPronunciation: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 12,
+  },
+  etymologyBox: {
+    padding: 10,
+    marginBottom: 12,
+    borderRadius: 8,
+    elevation: 1,
+    backgroundColor: '#F5F0FF',
+  },
+  etymologyTitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#7C4DFF',
+    marginBottom: 4,
+  },
+  etymologyText: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 18,
   },
   wordText: {
     fontSize: 36,
@@ -845,6 +1069,94 @@ const styles = StyleSheet.create({
   },
   addWordBtn: {
     paddingHorizontal: 24,
+    marginTop: 8,
+  },
+  completionCard: {
+    marginBottom: 16,
+    elevation: 4,
+    borderRadius: 16,
+  },
+  completionContent: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+  completionIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  completionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  completionStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 12,
+  },
+  completionStatItem: {
+    alignItems: 'center',
+  },
+  completionStatNumber: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1976D2',
+  },
+  completionStatLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  completionDetail: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 28,
+  },
+  completionActions: {
+    width: '100%',
+    gap: 10,
+  },
+  completionPrimaryBtn: {
+    borderRadius: 12,
+    paddingVertical: 4,
+  },
+  completionSecondaryBtn: {
+    borderRadius: 12,
+    paddingVertical: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: 320,
+    padding: 24,
+    borderRadius: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+    color: '#333',
+  },
+  modalText: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#666',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
   },
   resultText: {
     fontSize: 18,

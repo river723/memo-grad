@@ -16,7 +16,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kaoyan.vocabulary"
+      "bundleIdentifier": "com.kaoyan.vocabulary",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,6 +30,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "df15d00c-a6ad-4210-bbe5-583b7e294a9e"
+      }
+    },
+    "owner": "river723"
   }
 }

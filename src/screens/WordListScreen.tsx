@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import {
   Card,
@@ -11,7 +11,7 @@ import {
   Surface
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
 
@@ -22,9 +22,11 @@ export default function WordListScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [wordToDelete, setWordToDelete] = useState<Word | null>(null);
 
-  useEffect(() => {
-    loadWords();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadWords();
+    }, [])
+  );
 
   const loadWords = async () => {
     try {
