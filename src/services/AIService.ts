@@ -97,8 +97,8 @@ class AIService {
   async analyzeWords(words: string[]): Promise<Map<string, AIResponse>> {
     const results = new Map<string, AIResponse>();
     
-    // 批量处理，每次最多处理10个单词
-    const batchSize = 10;
+    // 批量处理，使用配置的批次大小
+    const batchSize = API_CONFIG.BATCH_SIZE;
     for (let i = 0; i < words.length; i += batchSize) {
       const batch = words.slice(i, i + batchSize);
       const batchPrompt = this.buildBatchAnalysisPrompt(batch);
@@ -120,7 +120,7 @@ class AIService {
               }
             ],
             temperature: 0.3,
-            max_tokens: 2000
+            max_tokens: API_CONFIG.BATCH_MAX_TOKENS
           },
           {
             headers: {
@@ -132,12 +132,36 @@ class AIService {
         );
 
         const content = response.data.choices[0].message.content;
+        const finishReason = response.data.choices[0].finish_reason;
+        if (finishReason === 'length') {
+          console.warn(`⚠️ 批次 ${i / batchSize + 1}/${Math.ceil(words.length / batchSize)}: API响应因max_tokens限制被截断(finish_reason=length)，部分单词结果可能不完整`);
+        }
         const batchResults = this.parseBatchAIResponse(content);
         
         // 将结果添加到总结果中
         batchResults.forEach((result, word) => {
           results.set(word, result);
         });
+
+        // 检测并补齐本批次中未返回结果的单词（JSON截断或AI未生成导致）
+        const missingWords = batch.filter(w => !results.has(w));
+        if (missingWords.length > 0) {
+          console.warn(`批次中 ${missingWords.length} 个单词缺少AI分析结果，使用默认值:`, missingWords.join(', '));
+          missingWords.forEach(word => {
+            results.set(word, {
+              definitions: [{
+                part_of_speech: 'unknown',
+                meaning: 'AI分析结果不完整，请手动添加释义',
+                example: '',
+                is_core: false,
+                is_rare_sense: false
+              }],
+              etymology: '',
+              similar_words: [],
+              suggestedDifficulty: 3
+            });
+          });
+        }
         
       } catch (error) {
         console.error('Batch AI analysis error:', error);
@@ -715,7 +739,7 @@ ${wordList}
       // 提取JSON内容，处理可能的额外文本
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.error('未找到JSON内容，原始响应:', content);
+        console.error(`未找到JSON内容，响应总长度=${content.length}，前200字符:`, content.substring(0, 200));
         return results;
       }
 
@@ -734,7 +758,7 @@ ${wordList}
           parsed = JSON.parse(fixedJson);
           console.log('通过 normalizeJsonString 成功解析JSON');
         } catch (fixError) {
-          console.error('修复后解析仍失败:', fixError);
+          console.error('修复后解析仍失败:', fixError, '响应尾部200字符:', content.substring(Math.max(0, content.length - 200)));
           return results;
         }
       }
@@ -744,7 +768,7 @@ ${wordList}
           results.set(word, {
             definitions: data.definitions || [],
             etymology: data.etymology || '',
-            similar_words: data.similar_words || [],
+            similar_words: Array.isArray(data.similar_words) ? data.similar_words : [],
             suggestedDifficulty: data.suggestedDifficulty || 3
           });
         });

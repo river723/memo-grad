@@ -226,7 +226,7 @@ export default function AddWordScreen() {
             analysis = analysisResult.get(word) || {
               definitions: [{
                 part_of_speech: 'unknown',
-                meaning: '待添加释义',
+                meaning: 'AI分析未覆盖此单词，请手动添加释义',
                 example: '',
                 is_core: false,
                 is_rare_sense: false
@@ -272,7 +272,7 @@ export default function AddWordScreen() {
               }
             ],
             etymology: analysis?.etymology || '',
-            similar_words: analysis?.similar_words || [],
+            similar_words: Array.isArray(analysis?.similar_words) ? analysis!.similar_words : [],
             difficulty,
             frequency: 1
           };
@@ -468,7 +468,7 @@ export default function AddWordScreen() {
             )}
 
             {/* 形近词 */}
-            {(analysisResult as AIResponse).similar_words && (analysisResult as AIResponse).similar_words!.length > 0 && (
+            {Array.isArray((analysisResult as AIResponse).similar_words) && (analysisResult as AIResponse).similar_words!.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>⚠️ 易混词提醒</Text>
                 {(analysisResult as AIResponse).similar_words!.map((similar, index) => (

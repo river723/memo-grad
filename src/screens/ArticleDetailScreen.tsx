@@ -385,7 +385,7 @@ export default function ArticleDetailScreen() {
             ) : null}
 
             {/* 相似词 */}
-            {selectedWord.similar_words && selectedWord.similar_words.length > 0 && (
+            {Array.isArray(selectedWord.similar_words) && selectedWord.similar_words.length > 0 && (
               <View style={styles.similarSection}>
                 <Text style={styles.sectionLabel}>易混词提醒</Text>
                 {selectedWord.similar_words.map((sw, index) => (

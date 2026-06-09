@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import {
   Card,
@@ -6,7 +6,6 @@ import {
   TextInput,
   Modal,
   Button as PaperButton,
-  Button,
   Chip,
   Surface
 } from 'react-native-paper';
@@ -19,33 +18,38 @@ export default function WordListScreen() {
   const navigation = useNavigation();
   const [words, setWords] = useState<Word[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [wordToDelete, setWordToDelete] = useState<Word | null>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadWords();
-    }, [])
-  );
-
-  const loadWords = async () => {
+  const loadWords = useCallback(async () => {
     try {
       const allWords = await StorageService.getWords();
       setWords(allWords);
     } catch (error) {
       console.error('Failed to load words:', error);
     }
-  };
+  }, []);
 
-  const getFilteredWords = () => {
-    let filtered = [...words];
+  useFocusEffect(
+    useCallback(() => {
+      loadWords();
+    }, [loadWords])
+  );
 
-    // 搜索过滤
-    if (searchQuery.trim()) {
-      filtered = filtered.filter(
-        w => w.word.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const filteredWords = useMemo(() => {
+    const query = debouncedSearchQuery.trim().toLowerCase();
+    const filtered = query
+      ? words.filter(w => w.word.toLowerCase().includes(query))
+      : [...words];
 
     // 按创建时间倒序排列
     return filtered.sort((a, b) => {
@@ -53,31 +57,41 @@ export default function WordListScreen() {
       const dateB = new Date(b.created_at || 0).getTime();
       return dateB - dateA;
     });
-  };
+  }, [words, debouncedSearchQuery]);
 
-  const handleDelete = (word: Word) => {
+  const handleDelete = useCallback((word: Word) => {
     setWordToDelete(word);
     setShowDeleteConfirm(true);
-  };
+  }, []);
 
-  const confirmDelete = async () => {
-    if (wordToDelete) {
-      try {
-        await StorageService.deleteWord(wordToDelete.id!);
-        await loadWords();
-        setShowDeleteConfirm(false);
-        setWordToDelete(null);
-      } catch (error) {
-        console.error('Failed to delete word:', error);
-      }
+  const cancelDelete = useCallback(() => {
+    setShowDeleteConfirm(false);
+    setWordToDelete(null);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    const id = wordToDelete?.id;
+    if (id == null) return;
+
+    try {
+      await StorageService.deleteWord(id);
+      setWords(prev => prev.filter(word => word.id !== id));
+      setShowDeleteConfirm(false);
+      setWordToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete word:', error);
     }
-  };
+  }, [wordToDelete]);
 
-  const getDifficultyStars = (difficulty: number) => {
+  const getDifficultyStars = useCallback((difficulty: number) => {
     return '★'.repeat(difficulty) + '☆'.repeat(5 - difficulty);
-  };
+  }, []);
 
-  const renderWordItem = ({ item }: { item: Word }) => (
+  const keyExtractor = useCallback((item: Word, index: number) => {
+    return String(item.id ?? `${item.word}-${item.created_at ?? index}`);
+  }, []);
+
+  const renderWordItem = useCallback(({ item }: { item: Word }) => (
     <TouchableOpacity
       onPress={() => navigation.navigate('WordDetail' as never, { wordId: item.id } as never)}
       activeOpacity={0.7}
@@ -131,7 +145,7 @@ export default function WordListScreen() {
         </View>
       </Surface>
     </TouchableOpacity>
-  );
+  ), [navigation, handleDelete, getDifficultyStars]);
 
   return (
     <View style={styles.container}>
@@ -157,20 +171,26 @@ export default function WordListScreen() {
 
       {/* 单词列表 */}
       <FlatList
-        data={getFilteredWords()}
+        data={filteredWords}
         renderItem={renderWordItem}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        keyExtractor={keyExtractor}
         style={styles.wordList}
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        windowSize={7}
+        removeClippedSubviews
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialIcons name="search-off" size={48} color="#CCC" />
             <Text style={styles.emptyText}>
-              {searchQuery
+              {debouncedSearchQuery
                 ? '没有找到匹配的单词'
                 : '还没有添加单词'}
             </Text>
             <Text style={styles.emptyHint}>
-              {searchQuery
+              {debouncedSearchQuery
                 ? '试试调整搜索条件'
                 : '点击下方按钮添加你的第一个单词吧'}
             </Text>
@@ -192,7 +212,7 @@ export default function WordListScreen() {
         visible={showDeleteConfirm}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowDeleteConfirm(false)}
+        onRequestClose={cancelDelete}
       >
         <View style={styles.modalOverlay}>
           <Surface style={styles.modalContent}>
@@ -202,7 +222,7 @@ export default function WordListScreen() {
               删除后将无法恢复。
             </Text>
             <View style={styles.modalButtons}>
-              <PaperButton onPress={() => setShowDeleteConfirm(false)}>
+              <PaperButton onPress={cancelDelete}>
                 取消
               </PaperButton>
               <PaperButton

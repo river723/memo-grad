@@ -23,7 +23,7 @@ export default function SettingsScreen() {
     soundEnabled: true,
     theme: 'light',
     fontSize: 14,
-    autoPlaySound: true,
+    autoPlaySound: false,
     showRareSense: true,
     showEtymology: true,
     articleWordCount: 10,
@@ -55,6 +55,9 @@ export default function SettingsScreen() {
   const saveSettings = async (newSettings: any) => {
     try {
       const merged = { ...settings, ...newSettings };
+      if (newSettings.soundEnabled === false) {
+        merged.autoPlaySound = false;
+      }
       await StorageService.saveSettings(merged);
       setSettings(merged);
     } catch (error) {
@@ -110,7 +113,7 @@ export default function SettingsScreen() {
               soundEnabled: true,
               theme: 'light',
               fontSize: 14,
-              autoPlaySound: true,
+              autoPlaySound: false,
               showRareSense: true,
               showEtymology: true,
               articleWordCount: 10,
@@ -139,7 +142,7 @@ export default function SettingsScreen() {
               soundEnabled: true,
               theme: 'light',
               fontSize: 14,
-              autoPlaySound: true,
+              autoPlaySound: false,
               showRareSense: true,
               showEtymology: true,
               articleWordCount: 10,
@@ -308,13 +311,18 @@ export default function SettingsScreen() {
 
           <View style={styles.toggleRow}>
             <View>
-              <Text style={styles.toggleLabel}>🔊 自动发音</Text>
-              <Text style={styles.toggleSublabel}>学新单词时自动朗读</Text>
+              <Text style={[styles.toggleLabel, !settings.soundEnabled && styles.disabledText]}>
+                🔊 自动发音
+              </Text>
+              <Text style={styles.toggleSublabel}>
+                {settings.soundEnabled ? '学新单词时自动朗读' : '需先开启发音功能'}
+              </Text>
             </View>
             <Switch
-              value={settings.autoPlaySound}
+              value={settings.soundEnabled && settings.autoPlaySound}
               onValueChange={value => saveSettings({ autoPlaySound: value })}
               color="#1976D2"
+              disabled={!settings.soundEnabled}
             />
           </View>
         </Card.Content>
@@ -600,6 +608,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 2,
+  },
+  disabledText: {
+    color: '#999',
   },
   apiInfo: {
     fontSize: 14,

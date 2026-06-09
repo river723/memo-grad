@@ -1,26 +1,59 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
-import { Text, Chip, Surface, Button } from 'react-native-paper';
+import { View, ScrollView, StyleSheet, Platform } from 'react-native';
+import { Text, Chip, Surface, Button, IconButton } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
+
+// Web 平台兼容性处理
+let Speech: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    Speech = require('expo-speech');
+  } catch (error) {
+    console.warn('expo-speech not available:', error);
+  }
+}
 
 export default function WordDetailScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation();
   const [word, setWord] = useState<Word | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   useEffect(() => {
     const loadWord = async () => {
       const id = route.params?.wordId;
       if (!id) return;
 
-      const loadedWord = await StorageService.getWordById(id);
+      const [loadedWord, settings] = await Promise.all([
+        StorageService.getWordById(id),
+        StorageService.getSettings(),
+      ]);
       setWord(loadedWord);
+      setSoundEnabled(settings.soundEnabled !== false);
     };
 
     loadWord();
   }, [route.params]);
+
+  const speakWord = (text: string) => {
+    if (!soundEnabled) return;
+
+    if (Speech && Platform.OS !== 'web') {
+      Speech.speak(text, {
+        language: 'en-US',
+        pitch: 1.0,
+        rate: 0.8,
+      });
+    } else if (Platform.OS === 'web' && 'speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.8;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   if (!word) {
     return (
@@ -34,9 +67,19 @@ export default function WordDetailScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Surface style={styles.card}>
-        <Text style={styles.wordText}>{word.word}</Text>
-        {word.pronunciation_uk && <Text style={styles.pronunciation}>UK {word.pronunciation_uk}</Text>}
-        {word.pronunciation_us && <Text style={styles.pronunciation}>US {word.pronunciation_us}</Text>}
+        <View style={styles.wordHeader}>
+          <View style={styles.wordInfo}>
+            <Text style={styles.wordText}>{word.word}</Text>
+            {word.pronunciation_uk && <Text style={styles.pronunciation}>UK {word.pronunciation_uk}</Text>}
+            {word.pronunciation_us && <Text style={styles.pronunciation}>US {word.pronunciation_us}</Text>}
+          </View>
+          <IconButton
+            icon={soundEnabled ? 'volume-high' : 'volume-off'}
+            size={28}
+            onPress={() => speakWord(word.word)}
+            disabled={!soundEnabled}
+          />
+        </View>
       </Surface>
 
       <Surface style={styles.card}>
@@ -61,7 +104,7 @@ export default function WordDetailScreen() {
         </Surface>
       ) : null}
 
-      {word.similar_words && word.similar_words.length > 0 ? (
+      {Array.isArray(word.similar_words) && word.similar_words.length > 0 ? (
         <Surface style={styles.card}>
           <Text style={styles.sectionTitle}>易混词 / 相似词</Text>
           {word.similar_words.map((item, index) => (
@@ -102,6 +145,14 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     marginBottom: 16,
+  },
+  wordHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  wordInfo: {
+    flex: 1,
   },
   wordText: {
     fontSize: 32,

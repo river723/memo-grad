@@ -11,15 +11,153 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
-import { Word } from '../types';
+import { Word, StudyRecord } from '../types';
+import { format } from 'date-fns';
+
+type TodayStats = {
+  totalWords: number;
+  todayTotal: number;
+  todayPending: number;
+  todayCompleted: number;
+  newPending: number;
+  reviewPending: number;
+  todayStudyCount: number;
+  accuracy: number;
+  wrongQuestionCount: number;
+  difficultWordIds: number[];
+  difficultWordCount: number;
+};
+
+type TodaySuggestion = {
+  title: string;
+  description: string;
+  actionLabel: string;
+  icon: string;
+  routeName: string;
+  params?: any;
+};
+
+const DEFAULT_TODAY_STATS: TodayStats = {
+  totalWords: 0,
+  todayTotal: 0,
+  todayPending: 0,
+  todayCompleted: 0,
+  newPending: 0,
+  reviewPending: 0,
+  todayStudyCount: 0,
+  accuracy: 0,
+  wrongQuestionCount: 0,
+  difficultWordIds: [],
+  difficultWordCount: 0,
+};
+
+const DEFAULT_SUGGESTION: TodaySuggestion = {
+  title: '保持学习节奏',
+  description: '今天暂无固定计划，也可以先背几个单词保持状态。',
+  actionLabel: '开始背诵',
+  icon: 'book-open-variant',
+  routeName: 'Study',
+};
+
+const getDifficultWordIds = (words: Word[], records: StudyRecord[]) => {
+  const recordsByWord = new Map<number, StudyRecord[]>();
+
+  records.forEach(record => {
+    const current = recordsByWord.get(record.word_id) || [];
+    current.push(record);
+    recordsByWord.set(record.word_id, current);
+  });
+
+  return words
+    .map(word => {
+      if (typeof word.id !== 'number') return null;
+
+      const wordRecords = recordsByWord.get(word.id) || [];
+      const totalCount = wordRecords.length;
+      const correctCount = wordRecords.filter(record => record.result === 1).length;
+      const correctRate = totalCount > 0 ? correctCount / totalCount : 0;
+
+      return { wordId: word.id, totalCount, correctRate };
+    })
+    .filter((item): item is { wordId: number; totalCount: number; correctRate: number } => {
+      return item !== null && item.totalCount > 0 && item.correctRate < 0.5;
+    })
+    .sort((a, b) => a.correctRate - b.correctRate)
+    .slice(0, 5)
+    .map(item => item.wordId);
+};
+
+const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
+  if (stats.totalWords === 0) {
+    return {
+      title: '先添加单词',
+      description: '单词本还是空的，先添加几个考研词开始吧。',
+      actionLabel: '添加单词',
+      icon: 'plus',
+      routeName: 'AddWord',
+    };
+  }
+
+  if (stats.todayPending > 0) {
+    return {
+      title: `今日还有 ${stats.todayPending} 个单词待学习`,
+      description: `其中 ${stats.newPending} 个新词、${stats.reviewPending} 个复习词，建议先完成今日计划。`,
+      actionLabel: '继续学习',
+      icon: 'book-open-variant',
+      routeName: 'Study',
+    };
+  }
+
+  if (stats.todayStudyCount >= 3 && stats.accuracy < 0.6) {
+    const hasDifficultWords = stats.difficultWordIds.length > 0;
+    return {
+      title: '今天正确率偏低',
+      description: `当前正确率约 ${Math.round(stats.accuracy * 100)}%，建议先复习错词和困难词。`,
+      actionLabel: hasDifficultWords ? '强化复习' : '继续学习',
+      icon: hasDifficultWords ? 'refresh' : 'book-open-variant',
+      routeName: 'Study',
+      params: hasDifficultWords ? { wordIds: stats.difficultWordIds } : undefined,
+    };
+  }
+
+  if (stats.wrongQuestionCount > 0) {
+    return {
+      title: `错题本有 ${stats.wrongQuestionCount} 道题待复盘`,
+      description: '趁热复盘错题，可以减少重复犯错。',
+      actionLabel: '复习错题',
+      icon: 'alert-circle-outline',
+      routeName: 'WrongQuestionReview',
+    };
+  }
+
+  if (stats.difficultWordCount > 0) {
+    return {
+      title: `有 ${stats.difficultWordCount} 个困难词待强化`,
+      description: '这些词历史正确率偏低，建议单独练一轮。',
+      actionLabel: '强化复习',
+      icon: 'refresh',
+      routeName: 'Study',
+      params: { wordIds: stats.difficultWordIds },
+    };
+  }
+
+  if (stats.todayTotal > 0 && stats.todayPending === 0) {
+    return {
+      title: '今日任务已完成',
+      description: '学习节奏不错，可以做一组考题巩固一下。',
+      actionLabel: '考题练习',
+      icon: 'pencil',
+      routeName: 'ExamSetup',
+    };
+  }
+
+  return DEFAULT_SUGGESTION;
+};
 
 export default function HomeScreen() {
-  const navigation = useNavigation();
-  const [todayStats, setTodayStats] = useState({
-    pendingWords: 0,
-    completedWords: 0,
-    accuracy: 0,
-  });
+  const navigation = useNavigation<any>();
+  const [todayStats, setTodayStats] = useState<TodayStats>(DEFAULT_TODAY_STATS);
+  const [todaySuggestion, setTodaySuggestion] = useState<TodaySuggestion>(DEFAULT_SUGGESTION);
   const [recentWords, setRecentWords] = useState<Word[]>([]);
   const [weeklyProgress, setWeeklyProgress] = useState<number[]>([]);
 
@@ -33,25 +171,44 @@ export default function HomeScreen() {
     try {
       console.log('开始加载仪表板数据...');
 
-      const today = new Date().toISOString().split('T')[0];
-      const todayPlans = await StorageService.getTodayStudyPlan();
-      const todayRecords = await StorageService.getStudyRecordsByDate(today);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const [allWords, allPlans, todayRecords, allRecords, wrongQuestions] = await Promise.all([
+        StorageService.getWords(),
+        StorageService.getStudyPlans(),
+        StorageService.getStudyRecordsByDate(today),
+        StorageService.getStudyRecords(),
+        StorageService.getWrongQuestions(),
+      ]);
 
-      const totalWords = todayPlans.length;
-      const completedWords = todayPlans.filter(p => p.completed).length;
+      const todayPlans = allPlans.filter(plan => plan.plan_date === today);
+      const todayCompleted = todayPlans.filter(plan => plan.completed).length;
+      const todayPendingPlans = todayPlans.filter(plan => !plan.completed);
+      const todayPending = todayPendingPlans.length;
+      const todayCorrectCount = todayRecords.filter(record => record.result === 1).length;
       const accuracy = todayRecords.length > 0
-        ? todayRecords.filter(r => r.result === 1).length / todayRecords.length
+        ? todayCorrectCount / todayRecords.length
         : 0;
+      const difficultWordIds = getDifficultWordIds(allWords, allRecords);
 
-      setTodayStats({
-        pendingWords: totalWords - completedWords,
-        completedWords,
+      const nextStats: TodayStats = {
+        totalWords: allWords.length,
+        todayTotal: todayPlans.length,
+        todayPending,
+        todayCompleted,
+        newPending: todayPendingPlans.filter(plan => plan.plan_type === 'new').length,
+        reviewPending: todayPendingPlans.filter(plan => plan.plan_type === 'review').length,
+        todayStudyCount: todayRecords.length,
         accuracy,
-      });
+        wrongQuestionCount: wrongQuestions.length,
+        difficultWordIds,
+        difficultWordCount: difficultWordIds.length,
+      };
+
+      setTodayStats(nextStats);
+      setTodaySuggestion(buildTodaySuggestion(nextStats));
 
       // 加载最近添加的单词
-      const allWords = await StorageService.getWords();
-      const words = allWords
+      const words = [...allWords]
         .sort((a, b) => {
           const dateA = new Date(a.created_at || 0).getTime();
           const dateB = new Date(b.created_at || 0).getTime();
@@ -68,7 +225,8 @@ export default function HomeScreen() {
       console.log('仪表板数据加载完成');
     } catch (error) {
       console.error('加载仪表板数据失败:', error);
-      setTodayStats({ pendingWords: 0, completedWords: 0, accuracy: 0 });
+      setTodayStats(DEFAULT_TODAY_STATS);
+      setTodaySuggestion(DEFAULT_SUGGESTION);
       setRecentWords([]);
       setWeeklyProgress([]);
     }
@@ -80,8 +238,17 @@ export default function HomeScreen() {
     return '#F44336';
   };
 
-  const totalPlanned = todayStats.pendingWords + todayStats.completedWords;
-  const progress = totalPlanned > 0 ? todayStats.completedWords / totalPlanned : 0;
+  const totalPlanned = todayStats.todayTotal;
+  const progress = totalPlanned > 0 ? todayStats.todayCompleted / totalPlanned : 0;
+
+  const handleSuggestionPress = () => {
+    if (todaySuggestion.params) {
+      navigation.navigate(todaySuggestion.routeName, todaySuggestion.params);
+      return;
+    }
+
+    navigation.navigate(todaySuggestion.routeName);
+  };
 
   return (
     <View style={styles.container}>
@@ -92,13 +259,13 @@ export default function HomeScreen() {
           <Card.Content>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: todayStats.pendingWords > 0 ? '#FF9800' : '#1976D2' }]}>
-                  {todayStats.pendingWords}
+                <Text style={[styles.statNumber, { color: todayStats.todayPending > 0 ? '#FF9800' : '#1976D2' }]}>
+                  {todayStats.todayPending}
                 </Text>
                 <Text style={styles.statLabel}>待学习</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{todayStats.completedWords}</Text>
+                <Text style={styles.statNumber}>{todayStats.todayCompleted}</Text>
                 <Text style={styles.statLabel}>已完成</Text>
               </View>
               <View style={styles.statItem}>
@@ -113,7 +280,7 @@ export default function HomeScreen() {
               <View style={styles.progressHeader}>
                 <Text style={styles.progressLabel}>
                   {totalPlanned > 0
-                    ? `进度 ${todayStats.completedWords}/${totalPlanned}`
+                    ? `进度 ${todayStats.todayCompleted}/${totalPlanned}`
                     : '今日暂无学习计划'}
                 </Text>
                 <Text style={styles.progressPercent}>
@@ -260,19 +427,20 @@ export default function HomeScreen() {
           </Card.Content>
         </Card>
 
-        {/* 学习提醒 */}
+        {/* 今日建议 */}
         <Card style={[styles.card, styles.lastCard]}>
           <Card.Content>
-            <Text style={styles.reminderTitle}>📚 学习提醒</Text>
-            <Text style={styles.reminderText}>
-              {todayStats.completedWords === 0
-                ? '今天还没有开始学习，快来背几个单词吧！'
-                : todayStats.accuracy === 0
-                ? '刚开始学习，坚持下去！'
-                : todayStats.accuracy < 0.6
-                ? '今天的正确率偏低，建议多复习几遍'
-                : '学习状态不错，继续保持！'}
-            </Text>
+            <Text style={styles.reminderTitle}>📚 今日建议</Text>
+            <Text style={styles.suggestionSubtitle}>{todaySuggestion.title}</Text>
+            <Text style={styles.reminderText}>{todaySuggestion.description}</Text>
+            <Button
+              mode="contained"
+              onPress={handleSuggestionPress}
+              style={styles.suggestionButton}
+              icon={todaySuggestion.icon}
+            >
+              {todaySuggestion.actionLabel}
+            </Button>
           </Card.Content>
         </Card>
       </ScrollView>
@@ -400,9 +568,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
   },
+  suggestionSubtitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    marginBottom: 6,
+  },
   reminderText: {
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
+  },
+  suggestionButton: {
+    marginTop: 12,
+    borderRadius: 8,
   },
 });

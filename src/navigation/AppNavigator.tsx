@@ -122,7 +122,7 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Stats"
           component={StatsScreen}
-          options={stackHeaderOptions('学习统计')}
+          options={{ ...stackHeaderOptions('学习统计'), headerShown: true }}
         />
         <Stack.Screen
           name="ArticleList"

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Card, Text, Button, Chip, IconButton } from 'react-native-paper';
+import StorageService from '../services/StorageService';
 import { Word } from '../types';
 
 // Web 平台兼容性处理
@@ -22,8 +23,24 @@ interface WordCardProps {
 
 export default function WordCard({ word, onEdit, onDelete, showActions = true }: WordCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const settings = await StorageService.getSettings();
+        setSoundEnabled(settings.soundEnabled !== false);
+      } catch (error) {
+        console.error('Failed to load speech settings:', error);
+      }
+    };
+
+    loadSettings();
+  }, []);
 
   const speakWord = (text: string, lang: 'en-GB' | 'en-US' = 'en-US') => {
+    if (!soundEnabled) return;
+
     if (Speech && Platform.OS !== 'web') {
       Speech.speak(text, {
         language: lang,
@@ -76,9 +93,10 @@ export default function WordCard({ word, onEdit, onDelete, showActions = true }:
 
           <View style={styles.actions}>
             <IconButton
-              icon="volume-high"
+              icon={soundEnabled ? 'volume-high' : 'volume-off'}
               size={20}
               onPress={() => speakWord(word.word)}
+              disabled={!soundEnabled}
             />
             {showActions && (
               <>
@@ -153,7 +171,7 @@ export default function WordCard({ word, onEdit, onDelete, showActions = true }:
         )}
 
         {/* 形近词 */}
-        {word.similar_words && word.similar_words.length > 0 && (
+        {Array.isArray(word.similar_words) && word.similar_words.length > 0 && (
           <View style={styles.similarWords}>
             <Text style={styles.similarWordsLabel}>易混词:</Text>
             {word.similar_words.map((similar, index) => (

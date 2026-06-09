@@ -4,13 +4,16 @@ import {
   Card,
   Text,
   Surface,
-  Chip
+  Chip,
+  Button
 } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word, StudyRecord } from '../types';
 import { format } from 'date-fns';
 
 export default function StatsScreen() {
+  const navigation = useNavigation<any>();
   const [stats, setStats] = useState({
     totalWords: 0,
     todayStudyCount: 0,
@@ -24,6 +27,16 @@ export default function StatsScreen() {
   useEffect(() => {
     loadStats();
   }, []);
+
+  const handleReinforceReview = () => {
+    const wordIds = stats.difficultWords
+      .map(word => word.id)
+      .filter((id): id is number => typeof id === 'number');
+
+    if (wordIds.length === 0) return;
+
+    navigation.navigate('Study', { wordIds });
+  };
 
   const loadStats = async () => {
     try {
@@ -171,14 +184,24 @@ export default function StatsScreen() {
         <Card.Content>
           <Text style={styles.sectionTitle}>⚠️ 困难单词</Text>
           {stats.difficultWords.length > 0 ? (
-            stats.difficultWords.slice(0, 5).map((word, index) => (
-              <Surface key={index} style={styles.difficultWordItem}>
-                <Text style={styles.difficultWordText}>{word.word}</Text>
-                <Chip mode="flat" compact style={styles.difficultChip}>
-                  需加强
-                </Chip>
-              </Surface>
-            ))
+            <>
+              {stats.difficultWords.slice(0, 5).map((word, index) => (
+                <Surface key={index} style={styles.difficultWordItem}>
+                  <Text style={styles.difficultWordText}>{word.word}</Text>
+                  <Chip mode="flat" compact style={styles.difficultChip}>
+                    需加强
+                  </Chip>
+                </Surface>
+              ))}
+              <Button
+                mode="contained"
+                onPress={handleReinforceReview}
+                style={styles.reinforceButton}
+                icon="refresh"
+              >
+                强化复习
+              </Button>
+            </>
           ) : (
             <Text style={styles.noDataText}>暂无困难单词，继续加油！</Text>
           )}
@@ -300,6 +323,10 @@ const styles = StyleSheet.create({
   },
   difficultChip: {
     backgroundColor: '#FFE0B2',
+  },
+  reinforceButton: {
+    marginTop: 8,
+    borderRadius: 8,
   },
   noDataText: {
     textAlign: 'center',

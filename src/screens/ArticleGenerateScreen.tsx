@@ -57,7 +57,7 @@ const THEMES = [
   { key: 'life', label: '生活', icon: 'home' },
   { key: 'history', label: '历史', icon: 'history' },
   { key: 'nature', label: '自然', icon: 'nature' },
-  { key: 'science', label: '科学', icon: 'science' },
+  { key: 'science', label: '科学', icon: 'flask' },
 ];
 
 export default function ArticleGenerateScreen() {
@@ -73,6 +73,7 @@ export default function ArticleGenerateScreen() {
   const [articleLength, setArticleLength] = useState(200);
   const [apiKey, setApiKey] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const [generatedArticle, setGeneratedArticle] = useState<{
     title: string;
     content: string;
@@ -178,12 +179,20 @@ export default function ArticleGenerateScreen() {
   };
 
   const handleGenerate = async () => {
+    setGenerateError(null);
+
     if (selectedWords.length < 5) {
-      Alert.alert('生词不足', '至少需要 5 个生词才能生成文章');
+      const msg = `至少需要 5 个生词才能生成文章，当前仅 ${selectedWords.length} 个`;
+      console.log('[ArticleGen]', msg);
+      setGenerateError(msg);
+      Alert.alert('生词不足', msg);
       return;
     }
     if (!apiKey) {
-      Alert.alert('未配置 API', '请在设置中配置 DeepSeek API 密钥');
+      const msg = '请先在设置中配置 DeepSeek API 密钥';
+      console.log('[ArticleGen]', msg);
+      setGenerateError(msg);
+      Alert.alert('未配置 API', msg);
       return;
     }
 
@@ -199,7 +208,9 @@ export default function ArticleGenerateScreen() {
       );
       setGeneratedArticle(result);
     } catch (error: any) {
-      Alert.alert('生成失败', error.message || '文章生成失败，请重试');
+      const msg = error.message || '文章生成失败，请重试';
+      setGenerateError(msg);
+      Alert.alert('生成失败', msg);
     } finally {
       setIsGenerating(false);
     }
@@ -232,23 +243,89 @@ export default function ArticleGenerateScreen() {
     w.word.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const canGenerate = selectedWords.length >= 5;
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* 设置提示 */}
+      {/* 参数设置 */}
       <Surface style={styles.settingsBar}>
-        <Text style={styles.settingsText}>
-          每篇 {articleWordCount} 个生词 · 目标 {articleLength} 词
-        </Text>
-        <Button
-          mode="text"
-          compact
-          onPress={() => navigation.navigate('设置' as never)}
-          labelStyle={styles.settingsLink}
-        >
-          调整
-        </Button>
+        <View style={styles.stepperRow}>
+          <Text style={styles.stepperLabel}>每篇生词</Text>
+          <View style={styles.countStepper}>
+            <Button
+              mode="text"
+              compact
+              onPress={() => {
+                const newCount = Math.max(5, articleWordCount - 1);
+                if (newCount !== articleWordCount) {
+                  setArticleWordCount(newCount);
+                  if (selectMode === 'smart') {
+                    setSelectedWords(
+                      getRecommendedWords(allWords, coverage, wordAccuracy, newCount)
+                    );
+                  }
+                }
+              }}
+              disabled={articleWordCount <= 5}
+              labelStyle={styles.countStepperBtn}
+            >
+              −
+            </Button>
+            <Text style={styles.countText}>{articleWordCount} 个</Text>
+            <Button
+              mode="text"
+              compact
+              onPress={() => {
+                const newCount = Math.min(30, articleWordCount + 1);
+                if (newCount !== articleWordCount) {
+                  setArticleWordCount(newCount);
+                  if (selectMode === 'smart') {
+                    setSelectedWords(
+                      getRecommendedWords(allWords, coverage, wordAccuracy, newCount)
+                    );
+                  }
+                }
+              }}
+              disabled={articleWordCount >= 30}
+              labelStyle={styles.countStepperBtn}
+            >
+              +
+            </Button>
+          </View>
+        </View>
+        <View style={styles.stepperDivider} />
+        <View style={styles.stepperRow}>
+          <Text style={styles.stepperLabel}>目标词数</Text>
+          <View style={styles.countStepper}>
+            <Button
+              mode="text"
+              compact
+              onPress={() => {
+                const newCount = Math.max(100, articleLength - 50);
+                if (newCount !== articleLength) {
+                  setArticleLength(newCount);
+                }
+              }}
+              disabled={articleLength <= 100}
+              labelStyle={styles.countStepperBtn}
+            >
+              −
+            </Button>
+            <Text style={styles.countText}>{articleLength} 词</Text>
+            <Button
+              mode="text"
+              compact
+              onPress={() => {
+                const newCount = Math.min(1000, articleLength + 50);
+                if (newCount !== articleLength) {
+                  setArticleLength(newCount);
+                }
+              }}
+              disabled={articleLength >= 1000}
+              labelStyle={styles.countStepperBtn}
+            >
+              +
+            </Button>
+          </View>
+        </View>
       </Surface>
 
       {/* 选词模式切换 */}
@@ -396,15 +473,33 @@ export default function ArticleGenerateScreen() {
         </Card.Content>
       </Card>
 
+      {/* 状态提示 */}
+      {!generatedArticle && !isGenerating && (
+        <View style={styles.statusArea}>
+          {selectedWords.length < 5 ? (
+            <Text style={styles.statusWarn}>
+              ⚠ 已选 {selectedWords.length}/5 个生词（不足，请切换手动模式选词或降低生词数）
+            </Text>
+          ) : !apiKey ? (
+            <Text style={styles.statusWarn}>
+              ⚠ 未配置 API 密钥，请前往设置页配置
+            </Text>
+          ) : null}
+          {generateError && (
+            <Text style={styles.statusError}>{generateError}</Text>
+          )}
+        </View>
+      )}
+
       {/* 生成按钮 */}
       {!generatedArticle && (
         <Button
           mode="contained"
           onPress={handleGenerate}
-          style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
+          style={styles.generateButton}
           loading={isGenerating}
-          disabled={!canGenerate || isGenerating}
-          icon="auto-awesome"
+          disabled={isGenerating}
+          icon="auto-fix"
         >
           {isGenerating ? '正在生成...' : '生成文章'}
         </Button>
@@ -488,9 +583,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   settingsBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
@@ -498,12 +590,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#E3F2FD',
     elevation: 1,
   },
-  settingsText: {
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  stepperLabel: {
     fontSize: 13,
     color: '#1976D2',
   },
-  settingsLink: {
-    fontSize: 12,
+  stepperDivider: {
+    height: 1,
+    backgroundColor: '#BBDEFB',
+    marginVertical: 6,
+  },
+  countStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  countStepperBtn: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  countText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    minWidth: 44,
+    textAlign: 'center',
   },
   card: {
     marginBottom: 12,
@@ -595,9 +711,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
   },
-  generateButtonDisabled: {
-    opacity: 0.5,
-  },
   loadingArea: {
     alignItems: 'center',
     paddingVertical: 32,
@@ -610,6 +723,22 @@ const styles = StyleSheet.create({
   loadingHint: {
     fontSize: 12,
     color: '#999',
+    marginTop: 4,
+  },
+  statusArea: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  statusWarn: {
+    fontSize: 13,
+    color: '#FF9800',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  statusError: {
+    fontSize: 13,
+    color: '#F44336',
+    textAlign: 'center',
     marginTop: 4,
   },
   previewCard: {

@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx ts-node *)",
-      "Bash(eas init *)"
+      "Bash(eas init *)",
+      "Bash(npm run *)"
     ]
   }
 }

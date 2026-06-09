@@ -66,6 +66,7 @@ class StorageService {
     const newWord: Word = {
       ...word,
       id: newId,
+      similar_words: Array.isArray(word.similar_words) ? word.similar_words : [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -358,6 +359,7 @@ class StorageService {
         dailyNewWords: 10,
         reviewInterval: [1, 2, 4, 7, 15],
         soundEnabled: true,
+        autoPlaySound: false,
         theme: 'light',
         apiKey: '',
         articleWordCount: 10,

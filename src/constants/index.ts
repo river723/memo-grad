@@ -11,7 +11,9 @@ export const API_CONFIG = {
   BASE_URL: 'https://api.deepseek.com/v1',
   DEFAULT_MODEL: 'deepseek-v4-flash',
   MAX_RETRIES: 3,
-  TIMEOUT: 30000
+  TIMEOUT: 30000,
+  BATCH_SIZE: 5,
+  BATCH_MAX_TOKENS: 8000
 };
 
 export const DB_CONFIG = {

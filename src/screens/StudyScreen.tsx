@@ -10,7 +10,7 @@ import {
   SegmentedButtons,
   Modal
 } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word, StudyRecord, StudyMode } from '../types';
 import { REVIEW_INTERVALS } from '../constants';
@@ -28,6 +28,11 @@ if (Platform.OS !== 'web') {
 
 export default function StudyScreen() {
   const navigation = useNavigation();
+  const route = useRoute<any>();
+  const customWordIds = Array.isArray(route.params?.wordIds)
+    ? route.params.wordIds.filter((id: unknown): id is number => typeof id === 'number')
+    : [];
+  const customWordIdKey = customWordIds.join(',');
   const [currentMode, setCurrentMode] = useState<'flashcard' | 'listening' | 'quiz'>('flashcard');
   const [words, setWords] = useState<Word[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -47,17 +52,22 @@ export default function StudyScreen() {
   const [listenAnswer, setListenAnswer] = useState('');
   const [wordTypeCounts, setWordTypeCounts] = useState({ newCount: 0, reviewCount: 0 });
   const [allStudiedToday, setAllStudiedToday] = useState(false);
+  const [isCustomReview, setIsCustomReview] = useState(false);
   const [isContinueSession, setIsContinueSession] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showCompletion, setShowCompletion] = useState(false);
   const [trulyCompleted, setTrulyCompleted] = useState(0);
+  const [speechSettings, setSpeechSettings] = useState({
+    soundEnabled: true,
+    autoPlaySound: false,
+  });
   // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
   const retryMapRef = useRef<Map<number, number>>(new Map());
   const pendingIndexRef = useRef<number>(0);
 
   useEffect(() => {
     loadStudyWords();
-  }, []);
+  }, [customWordIdKey]);
 
   // 监听浮层关闭 + 队列为空 → 触发完成卡片
   useEffect(() => {
@@ -80,6 +90,10 @@ export default function StudyScreen() {
       const today = format(new Date(), 'yyyy-MM-dd');
 
       const settings = await StorageService.getSettings();
+      setSpeechSettings({
+        soundEnabled: settings.soundEnabled !== false,
+        autoPlaySound: settings.autoPlaySound === true,
+      });
       const dailyLimit = typeof settings.dailyNewWords === 'number'
         ? settings.dailyNewWords
         : 10;
@@ -87,6 +101,31 @@ export default function StudyScreen() {
       let studyWords: Word[] = [];
       let newWordList: Word[] = [];
       let reviewWordList: Word[] = [];
+
+      if (customWordIds.length > 0) {
+        const customIdSet = new Set(customWordIds);
+        studyWords = allWords.filter(w => typeof w.id === 'number' && customIdSet.has(w.id));
+
+        setWords(studyWords);
+        setWordTypeCounts({ newCount: 0, reviewCount: studyWords.length });
+        setStudyStats({
+          total: studyWords.length,
+          completed: 0,
+          correct: 0,
+          accuracy: 0
+        });
+        setCurrentIndex(0);
+        setIsFlipped(false);
+        setAllStudiedToday(false);
+        setIsCustomReview(true);
+        setIsContinueSession(false);
+        setShowCompletion(false);
+        retryMapRef.current = new Map();
+        setTrulyCompleted(0);
+        return;
+      }
+
+      setIsCustomReview(false);
 
       if (todayPlans.length > 0) {
         const wordIds = todayPlans.map(p => p.word_id).filter(id => id > 0);
@@ -177,8 +216,9 @@ export default function StudyScreen() {
   const finishWord = async (word: Word) => {
     try {
       const allPlans = await StorageService.getStudyPlans();
+      const today = format(new Date(), 'yyyy-MM-dd');
       const matchingPlan = allPlans.find(
-        p => p.word_id === word.id && !p.completed
+        p => p.word_id === word.id && p.plan_date === today && !p.completed
       );
       if (matchingPlan?.id) {
         await StorageService.completeStudyPlan(matchingPlan.id);
@@ -253,6 +293,8 @@ export default function StudyScreen() {
       }
 
       // 3. 更新队列 + 计算 nextIndex
+      // 先恢复到卡片正面，避免队列更新后短暂显示下一个单词的释义面
+      setIsFlipped(false);
       const wasLast = currentIndex >= words.length - 1;
       const nextIndex = wasLast ? 0 : currentIndex;
 
@@ -289,6 +331,8 @@ export default function StudyScreen() {
   };
 
   const speakWord = (word: string) => {
+    if (!speechSettings.soundEnabled) return;
+
     if (Speech && Platform.OS !== 'web') {
       Speech.speak(word, {
         language: 'en-US',
@@ -334,7 +378,7 @@ export default function StudyScreen() {
 
   const startListeningMode = () => {
     const currentWord = getCurrentWord();
-    if (!currentWord) return;
+    if (!currentWord || !speechSettings.soundEnabled) return;
 
     setIsListening(true);
     speakWord(currentWord.word);
@@ -343,6 +387,20 @@ export default function StudyScreen() {
       setIsListening(false);
     }, 10000);
   };
+
+  useEffect(() => {
+    const currentWord = getCurrentWord();
+    if (
+      currentWord &&
+      currentMode === 'flashcard' &&
+      !showResult &&
+      !showCompletion &&
+      speechSettings.soundEnabled &&
+      speechSettings.autoPlaySound
+    ) {
+      speakWord(currentWord.word);
+    }
+  }, [currentIndex, words, currentMode, showResult, showCompletion, speechSettings]);
 
   const handleListenSubmit = () => {
     const currentWord = getCurrentWord();
@@ -377,9 +435,10 @@ export default function StudyScreen() {
                   mode="outlined"
                   onPress={() => speakWord(currentWord.word)}
                   style={styles.soundButton}
-                  icon="volume-high"
+                  icon={speechSettings.soundEnabled ? 'volume-high' : 'volume-off'}
+                  disabled={!speechSettings.soundEnabled}
                 >
-                  发音
+                  {speechSettings.soundEnabled ? '发音' : '发音已关闭'}
                 </Button>
                 <Text style={styles.flipHint}>点击翻转</Text>
               </View>
@@ -391,8 +450,9 @@ export default function StudyScreen() {
                   <Button
                     mode="text"
                     onPress={() => speakWord(currentWord.word)}
-                    icon="volume-high"
+                    icon={speechSettings.soundEnabled ? 'volume-high' : 'volume-off'}
                     compact
+                    disabled={!speechSettings.soundEnabled}
                   >
                     {' '}
                   </Button>
@@ -475,17 +535,21 @@ export default function StudyScreen() {
                 <Text style={styles.soundEmoji}>{isListening ? '🔊' : '🎧'}</Text>
               </Surface>
               <Text style={styles.listeningHint}>
-                {isListening ? '播放中...' : '点击听取单词发音'}
+                {!speechSettings.soundEnabled
+                  ? '发音功能已关闭，请先到设置中开启'
+                  : isListening
+                  ? '播放中...'
+                  : '点击听取单词发音'}
               </Text>
               <Button
                 mode="contained"
                 onPress={startListeningMode}
                 loading={isListening}
-                disabled={isListening}
+                disabled={isListening || !speechSettings.soundEnabled}
                 style={styles.playButton}
-                icon="play"
+                icon={speechSettings.soundEnabled ? 'play' : 'volume-off'}
               >
-                播放
+                {speechSettings.soundEnabled ? '播放' : '发音已关闭'}
               </Button>
 
               {isListening && (
@@ -572,12 +636,19 @@ export default function StudyScreen() {
     );
   };
 
-  if (words.length === 0) {
+  if (words.length === 0 && studyStats.completed === 0) {
     return (
       <View style={styles.container}>
         <Card style={styles.emptyCard}>
           <Card.Content style={styles.emptyContent}>
-            {allStudiedToday ? (
+            {isCustomReview ? (
+              <>
+                <Text style={styles.emptyTitle}>暂无可复习单词</Text>
+                <Text style={styles.emptyText}>
+                  这些困难单词可能已被删除，请返回统计页重新选择。
+                </Text>
+              </>
+            ) : allStudiedToday ? (
               <>
                 <Text style={styles.emptyTitle}>今日任务已完成！</Text>
                 <Text style={styles.emptyText}>
@@ -592,14 +663,16 @@ export default function StudyScreen() {
                 </Text>
               </>
             )}
-            <Button
-              mode="contained"
-              onPress={() => navigation.navigate('AddWord' as never)}
-              style={styles.addWordBtn}
-            >
-              添加单词
-            </Button>
-            {allStudiedToday && (
+            {!isCustomReview && (
+              <Button
+                mode="contained"
+                onPress={() => navigation.navigate('AddWord' as never)}
+                style={styles.addWordBtn}
+              >
+                添加单词
+              </Button>
+            )}
+            {(isCustomReview || allStudiedToday) && (
               <Button
                 mode="outlined"
                 onPress={() => navigation.goBack()}
@@ -677,7 +750,7 @@ export default function StudyScreen() {
                 {studyStats.accuracy >= 80 ? '\u{1F389}' : '\u{1F4AA}'}
               </Text>
               <Text style={styles.completionTitle}>
-                {isContinueSession ? '本轮完成！' : '今日目标达成！'}
+                {isCustomReview ? '强化复习完成！' : isContinueSession ? '本轮完成！' : '今日目标达成！'}
               </Text>
 
               <View style={styles.completionStats}>
@@ -716,7 +789,7 @@ export default function StudyScreen() {
                   style={styles.completionPrimaryBtn}
                   icon="refresh"
                 >
-                  再来一组
+                  {isCustomReview ? '再练一遍' : '再来一组'}
                 </Button>
                 <Button
                   mode="outlined"
