@@ -15,7 +15,7 @@
 
 ### 2. 核心服务 ✅
 - ✅ StorageService - 本地数据存储（AsyncStorage）
-- ✅ AIService - AI服务集成（OpenRouter API）
+- ✅ AIService - AI服务集成（DeepSeek API）
 - ✅ StudyPlanService - 学习计划算法（艾宾浩斯记忆曲线）
 
 ### 3. 数据模型 ✅
@@ -37,10 +37,9 @@
 3. 克隆项目并安装依赖: `npm install`
 
 ### 配置API密钥
-创建 `.env` 文件：
-```
-OPENROUTER_API_KEY=your_api_key_here
-```
+App 启动后进入“设置 → AI API设置”，填写 DeepSeek API Key，点击“测试连接”确认可用，再点击“保存 AI 设置”。
+
+> API Key 仅保存在本机，不需要写入 `.env` 文件。
 
 ### 启动开发服务器
 ```bash
@@ -297,8 +296,8 @@ const theme = {
 - [React Native Paper](https://callstack.github.io/react-native-paper/)
 
 ### AI集成
-- [OpenRouter API文档](https://openrouter.ai/docs)
-- [Anthropic Claude API](https://docs.anthropic.com/)
+- [DeepSeek 开放平台](https://platform.deepseek.com/)
+- [DeepSeek API 文档](https://api-docs.deepseek.com/)
 
 ### 学习算法
 - [艾宾浩斯遗忘曲线](https://zh.wikipedia.org/wiki/%E9%81%97%E5%BF%98%E6%9B%B2%E7%BA%BF)

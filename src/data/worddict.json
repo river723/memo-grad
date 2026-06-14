@@ -1,0 +1,1344 @@
+{
+  "results": {
+    "abandon": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "抛弃；放弃；遗弃",
+          "example": "Many farmers were forced to abandon their land due to the prolonged drought.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "n.",
+          "meaning": "放纵；放任（熟词僻义）",
+          "example": "She danced with reckless abandon at the festival.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "ab-（离开）+ bandon（控制），原意「不再控制」，引申为「放弃」",
+      "similar_words": [
+        {
+          "word": "abundant",
+          "relation": "spelling",
+          "description": "abundant 意为「丰富的」，与 abandon 拼写相近但词义无关"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "abdomen": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "腹部；下腹",
+          "example": "The patient complained of a sharp pain in the lower abdomen.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自拉丁语 abdomen，意为「腹部」",
+      "similar_words": [
+        {
+          "word": "abdominal",
+          "relation": "root",
+          "description": "abdominal 是其形容词形式，意为「腹部的」"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "abide": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "遵守（abide by）；忍受",
+          "example": "All members must abide by the rules of the organization.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "停留；居住（古义/僻义）",
+          "example": "He abided in the village for many years.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "古英语 abidan，a-（强调）+ bidan（等待、停留）",
+      "similar_words": [
+        {
+          "word": "abode",
+          "relation": "root",
+          "description": "abode 为 abide 的过去式/过去分词，也可作名词「住所」"
+        },
+        {
+          "word": "aside",
+          "relation": "spelling",
+          "description": "aside 意为「在一旁」，与 abide 拼写易混"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "ability": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "能力；才能",
+          "example": "His ability to solve complex problems impressed the interview panel.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自拉丁语 habilitas（适合性），able 的名词形式",
+      "similar_words": [
+        {
+          "word": "agility",
+          "relation": "spelling",
+          "description": "agility 意为「敏捷」，与 ability 拼写相近"
+        }
+      ],
+      "suggestedDifficulty": 1
+    },
+    "abnormal": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "反常的；不正常的",
+          "example": "Scientists have detected abnormal climate patterns in recent decades.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ab-（偏离）+ normal（正常的）",
+      "similar_words": [
+        {
+          "word": "subnormal",
+          "relation": "root",
+          "description": "subnormal 意为「低于正常水平的」，前缀不同含义不同"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "aboard": {
+      "definitions": [
+        {
+          "part_of_speech": "adv./prep.",
+          "meaning": "在（船、飞机、火车等）上；上（船、飞机等）",
+          "example": "All passengers aboard the flight were evacuated safely.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "a-（在……上）+ board（船舷、甲板）",
+      "similar_words": [
+        {
+          "word": "abroad",
+          "relation": "spelling",
+          "description": "abroad 意为「在国外」，与 aboard 拼写极易混淆，需特别注意"
+        },
+        {
+          "word": "broad",
+          "relation": "spelling",
+          "description": "broad 意为「宽广的」，与 aboard 词形相似"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "abolish": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "废除（法律、制度等）；取消",
+          "example": "The government decided to abolish the outdated tax system.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自拉丁语 abolere（消灭），ab-（离开）+ olere（生长）",
+      "similar_words": [
+        {
+          "word": "demolish",
+          "relation": "meaning",
+          "description": "demolish 意为「拆除、推翻」，含义相近但 abolish 多用于抽象事物"
+        },
+        {
+          "word": "polish",
+          "relation": "spelling",
+          "description": "polish 意为「擦亮」，与 abolish 词尾相似"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "abound": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "大量存在；充满（abound in/with）",
+          "example": "Opportunities abound in this rapidly developing region.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自拉丁语 abundare（溢出），ab-（离开）+ undare（如波浪般涌出）",
+      "similar_words": [
+        {
+          "word": "abundant",
+          "relation": "root",
+          "description": "abundant 是 abound 的形容词形式，意为「丰富的」"
+        },
+        {
+          "word": "around",
+          "relation": "spelling",
+          "description": "around 意为「在周围」，与 abound 拼写相近"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "abrupt": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "突然的；意外的",
+          "example": "The abrupt change in policy caught investors off guard.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "adj.",
+          "meaning": "（言行）唐突的，鲁莽的",
+          "example": "His abrupt manner offended many of his colleagues.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "源自拉丁语 abruptus，ab-（离开）+ rumpere（打破），意为「突然断开」",
+      "similar_words": [
+        {
+          "word": "corrupt",
+          "relation": "root",
+          "description": "corrupt 意为「腐败的」，同源于 rupt（破裂）"
+        },
+        {
+          "word": "erupt",
+          "relation": "root",
+          "description": "erupt 意为「爆发」，同根词"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "absence": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "缺席；不在；缺乏",
+          "example": "In the absence of clear evidence, the jury found him not guilty.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ab-（离开）+ esse（存在），即「不在场」",
+      "similar_words": [
+        {
+          "word": "essence",
+          "relation": "spelling",
+          "description": "essence 意为「本质」，与 absence 词尾相同"
+        },
+        {
+          "word": "presence",
+          "relation": "meaning",
+          "description": "presence 是 absence 的反义词，意为「出席、存在」"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "absent": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "缺席的；不在的",
+          "example": "Several key witnesses were absent from the hearing.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "adj.",
+          "meaning": "心不在焉的（absent-minded）",
+          "example": "He gave an absent nod, his thoughts clearly elsewhere.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "ab-（离开）+ -sent（存在），即「不在」",
+      "similar_words": [
+        {
+          "word": "absence",
+          "relation": "root",
+          "description": "absence 是 absent 的名词形式"
+        }
+      ],
+      "suggestedDifficulty": 1
+    },
+    "absolute": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "绝对的；完全的；无条件的",
+          "example": "The dictator demanded absolute obedience from his subjects.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自拉丁语 absolutus（解开的），ab-（离开）+ solvere（解开），引申为「无限制的」",
+      "similar_words": [
+        {
+          "word": "obsolete",
+          "relation": "spelling",
+          "description": "obsolete 意为「过时的」，与 absolute 词形相近"
+        },
+        {
+          "word": "resolute",
+          "relation": "spelling",
+          "description": "resolute 意为「坚决的」，词尾相同"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "absorb": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "吸收（液体、热、光等）",
+          "example": "Plants absorb carbon dioxide from the atmosphere through photosynthesis.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "使全神贯注；吸引（注意力）",
+          "example": "She was completely absorbed in the novel and ignored the noise around her.",
+          "is_core": true,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "ab-（离开）+ sorbere（吞咽），意为「吞下、吸入」",
+      "similar_words": [
+        {
+          "word": "adsorb",
+          "relation": "spelling",
+          "description": "adsorb 意为「吸附（表面吸附）」，与 absorb 仅一字之差但物理含义不同"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "abstract": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "抽象的；理论上的",
+          "example": "Philosophers often deal with abstract concepts that are difficult to define.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "n./v.",
+          "meaning": "摘要；提取；抽取（熟词僻义）",
+          "example": "The author was asked to write an abstract of the research paper.",
+          "is_core": true,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "abs-（离开）+ tract（拉），意为「抽离出来」",
+      "similar_words": [
+        {
+          "word": "attract",
+          "relation": "root",
+          "description": "attract 同根词，意为「吸引」"
+        },
+        {
+          "word": "extract",
+          "relation": "root",
+          "description": "extract 同根词，意为「提取」"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "absurd": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "荒谬的；荒唐的；可笑的",
+          "example": "It is absurd to expect immediate results from such a long-term project.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自拉丁语 absurdus（不和谐的），ab-（强调）+ surdus（聋的、听不见的）",
+      "similar_words": [
+        {
+          "word": "obscure",
+          "relation": "meaning",
+          "description": "obscure 意为「模糊的」，含义有别但常一同考查"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "abundance": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "大量；丰富",
+          "example": "The region is blessed with an abundance of natural resources.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自 abound（大量存在）的名词形式",
+      "similar_words": [
+        {
+          "word": "abandonment",
+          "relation": "spelling",
+          "description": "abandonment 意为「放弃」，词形相近但含义无关"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "abundant": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "大量的；丰富的；充裕的",
+          "example": "The country has abundant supplies of oil and natural gas.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自拉丁语 abundans（溢出的），同 abound",
+      "similar_words": [
+        {
+          "word": "redundant",
+          "relation": "spelling",
+          "description": "redundant 意为「多余的」，词尾相同但含义偏负面"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "abuse": {
+      "definitions": [
+        {
+          "part_of_speech": "v./n.",
+          "meaning": "滥用；虐待",
+          "example": "Officials who abuse their power should be held accountable.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "n.",
+          "meaning": "辱骂；恶语（熟词僻义）",
+          "example": "The referee was subjected to verbal abuse from angry fans.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "ab-（偏离）+ use（使用），即「错误使用」",
+      "similar_words": [
+        {
+          "word": "misuse",
+          "relation": "meaning",
+          "description": "misuse 意为「误用」，语气较 abuse 轻"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "academic": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "学术的；学院的",
+          "example": "His academic achievements earned him a scholarship to a prestigious university.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "adj.",
+          "meaning": "纯理论的；不切实际的（熟词僻义）",
+          "example": "Whether the plan will work is now an academic question, since funding has been withdrawn.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "源自希腊 Akademia（柏拉图讲学之地）",
+      "similar_words": [
+        {
+          "word": "academy",
+          "relation": "root",
+          "description": "academy 是其名词形式，意为「学院」"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "academy": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "学院；研究院；专科院校",
+          "example": "She was admitted to a prestigious military academy after graduation.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自希腊 Akademia",
+      "similar_words": [
+        {
+          "word": "academic",
+          "relation": "root",
+          "description": "academic 是其形容词形式"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accelerate": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "加速；促进",
+          "example": "The new policy is expected to accelerate economic growth in rural areas.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（加强）+ celer（快的，参 celerity）+ -ate",
+      "similar_words": [
+        {
+          "word": "decelerate",
+          "relation": "meaning",
+          "description": "decelerate 是反义词，意为「减速」"
+        },
+        {
+          "word": "exhilarate",
+          "relation": "spelling",
+          "description": "exhilarate 意为「使兴奋」，词形相近"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "accent": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "口音；腔调",
+          "example": "She speaks English with a strong French accent.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "n./v.",
+          "meaning": "重音；强调（熟词僻义）",
+          "example": "The speaker placed special accent on the importance of innovation.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "源自拉丁语 accentus，ac-（向）+ canere（唱）",
+      "similar_words": [
+        {
+          "word": "ascent",
+          "relation": "spelling",
+          "description": "ascent 意为「上升」，与 accent 拼写极易混淆"
+        },
+        {
+          "word": "assent",
+          "relation": "spelling",
+          "description": "assent 意为「同意」，发音和拼写相近"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accept": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "接受；承认；认可",
+          "example": "She refused to accept the verdict and decided to appeal.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ cept（拿、取），即「接过来」",
+      "similar_words": [
+        {
+          "word": "except",
+          "relation": "spelling",
+          "description": "except 意为「除……之外」，与 accept 极易混淆，注意词义对立"
+        },
+        {
+          "word": "expect",
+          "relation": "spelling",
+          "description": "expect 意为「期待」，词形相近"
+        }
+      ],
+      "suggestedDifficulty": 1
+    },
+    "acceptance": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "接受；认可；赞同",
+          "example": "Public acceptance of the new technology grew steadily over the decade.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "accept + -ance（名词后缀）",
+      "similar_words": [
+        {
+          "word": "acceptation",
+          "relation": "spelling",
+          "description": "acceptation 是较少见的名词形式，意为「（词的）通常含义」"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "access": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "通道；进入（或使用）的权利、机会",
+          "example": "Students should have free access to the university library.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "访问（数据）；使用；接近",
+          "example": "Users can access the database remotely with a secure password.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ cess（走），即「走向、接近」",
+      "similar_words": [
+        {
+          "word": "assess",
+          "relation": "spelling",
+          "description": "assess 意为「评估」，与 access 拼写易混"
+        },
+        {
+          "word": "excess",
+          "relation": "spelling",
+          "description": "excess 意为「过量」，词形相近"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accessory": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "配件；附件；饰品",
+          "example": "Fashion accessories such as scarves and belts can transform an outfit.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "n.",
+          "meaning": "（犯罪的）从犯，同谋（熟词僻义）",
+          "example": "He was charged as an accessory to the robbery.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "源自 access + -ory，「附加于主体之上的」",
+      "similar_words": [
+        {
+          "word": "accessary",
+          "relation": "spelling",
+          "description": "accessary 是 accessory 的旧拼写，多用于法律语境"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "accident": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "事故；意外事件",
+          "example": "The traffic accident on the highway caused a major delay.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "n.",
+          "meaning": "偶然；偶然性（by accident）",
+          "example": "I met my old friend by accident at the airport.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ cid（落下）+ -ent，「落到身上的事」",
+      "similar_words": [
+        {
+          "word": "incident",
+          "relation": "meaning",
+          "description": "incident 意为「事件」，多指有意义的事件，常与 accident 区分"
+        },
+        {
+          "word": "occident",
+          "relation": "spelling",
+          "description": "occident 意为「西方」，词形相近"
+        }
+      ],
+      "suggestedDifficulty": 1
+    },
+    "accidental": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "意外的；偶然的",
+          "example": "The discovery of penicillin was largely accidental.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "accident + -al",
+      "similar_words": [
+        {
+          "word": "incidental",
+          "relation": "meaning",
+          "description": "incidental 意为「附带的」，含义有别"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "acclaim": {
+      "definitions": [
+        {
+          "part_of_speech": "v./n.",
+          "meaning": "称赞；欢呼；赞誉",
+          "example": "The novel was widely acclaimed for its profound social insights.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ claim（呼喊），即「向某人欢呼」",
+      "similar_words": [
+        {
+          "word": "claim",
+          "relation": "root",
+          "description": "claim 意为「声称、要求」，是其词根"
+        },
+        {
+          "word": "exclaim",
+          "relation": "root",
+          "description": "exclaim 意为「惊呼」，同根词"
+        },
+        {
+          "word": "proclaim",
+          "relation": "root",
+          "description": "proclaim 意为「宣告」，同根词"
+        }
+      ],
+      "suggestedDifficulty": 4
+    },
+    "accommodate": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "容纳；为……提供住宿",
+          "example": "The new hotel can accommodate up to 500 guests at a time.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "适应；迁就；满足（需求）（熟词僻义）",
+          "example": "Companies must accommodate the changing demands of consumers to survive.",
+          "is_core": true,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "ac-（向）+ commod（合适的，参 commodity）+ -ate",
+      "similar_words": [
+        {
+          "word": "commodity",
+          "relation": "root",
+          "description": "commodity 意为「商品」，同根词"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "accommodation": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "住所；住宿（条件）",
+          "example": "The university provides accommodation for first-year students on campus.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "n.",
+          "meaning": "迁就；调和；妥协（熟词僻义）",
+          "example": "An accommodation was reached between the two parties after long negotiations.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "accommodate + -ion",
+      "similar_words": [
+        {
+          "word": "accommodate",
+          "relation": "root",
+          "description": "动词形式"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "accompany": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "陪伴；伴随；伴奏",
+          "example": "Heavy rain was accompanied by strong winds throughout the night.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ company（同伴），即「陪伴某人」",
+      "similar_words": [
+        {
+          "word": "company",
+          "relation": "root",
+          "description": "company 意为「公司、陪伴」，是其词根"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accomplish": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "完成；实现；达到（目标）",
+          "example": "She accomplished what most people thought was impossible within just one year.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ complish（完成，源自 complete）",
+      "similar_words": [
+        {
+          "word": "complete",
+          "relation": "root",
+          "description": "complete 意为「完成」，同根词"
+        },
+        {
+          "word": "complement",
+          "relation": "spelling",
+          "description": "complement 意为「补充」，词形相近"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accord": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "一致；协议（of one's own accord 主动地）",
+          "example": "The two countries reached an accord on trade and security issues.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "给予；授予；与……一致（熟词僻义）",
+          "example": "The committee accorded him the honor of opening the conference.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "ac-（向）+ cord（心），即「同心、一致」",
+      "similar_words": [
+        {
+          "word": "according",
+          "relation": "root",
+          "description": "according 意为「依据」，同根词"
+        },
+        {
+          "word": "record",
+          "relation": "spelling",
+          "description": "record 意为「记录」，词形相近"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "accordance": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "一致；遵照（in accordance with 依据，按照）",
+          "example": "All employees must act in accordance with company regulations.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "accord + -ance",
+      "similar_words": [
+        {
+          "word": "accord",
+          "relation": "root",
+          "description": "accord 是其词根，意为「一致」"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "accordingly": {
+      "definitions": [
+        {
+          "part_of_speech": "adv.",
+          "meaning": "因此；相应地；据此",
+          "example": "The weather forecast predicts heavy rain, so dress accordingly.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "according + -ly",
+      "similar_words": [
+        {
+          "word": "according to",
+          "relation": "root",
+          "description": "according to 意为「根据」，是常用短语"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "account": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "账户；账目；记述",
+          "example": "She gave a detailed account of the events that led to the accident.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "解释；说明；（在数量、比例上）占（account for）（熟词僻义）",
+          "example": "Renewable energy now accounts for nearly 30 percent of the nation's electricity supply.",
+          "is_core": true,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "ac-（向）+ count（计算），即「报账、清算」",
+      "similar_words": [
+        {
+          "word": "accountant",
+          "relation": "root",
+          "description": "accountant 意为「会计」"
+        },
+        {
+          "word": "count",
+          "relation": "root",
+          "description": "count 意为「计数」，是词根"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accountant": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "会计；会计师",
+          "example": "The accountant prepared the company's annual financial report.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "account + -ant（表人）",
+      "similar_words": [
+        {
+          "word": "account",
+          "relation": "root",
+          "description": "account 是其词根"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accumulate": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "积累；积聚；堆积",
+          "example": "Over the years he managed to accumulate a vast collection of rare books.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ cumul（堆，参 cumulus 积云）+ -ate",
+      "similar_words": [
+        {
+          "word": "cumulative",
+          "relation": "root",
+          "description": "cumulative 意为「累积的」，同根词"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "accuracy": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "准确性；精确度",
+          "example": "Scientists are constantly improving the accuracy of weather forecasts.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自拉丁语 accuratus（精心制作的），ac-（向）+ cura（关心、细心）",
+      "similar_words": [
+        {
+          "word": "accurate",
+          "relation": "root",
+          "description": "accurate 是其形容词形式"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accurate": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "准确的；精确的；正确的",
+          "example": "The accurate measurement of temperature is crucial in chemical experiments.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ cura（细心）+ -ate",
+      "similar_words": [
+        {
+          "word": "accurate",
+          "relation": "spelling",
+          "description": "注意 accurate（精确）与 adequate（足够）拼写相近"
+        },
+        {
+          "word": "adequate",
+          "relation": "spelling",
+          "description": "adequate 意为「足够的」，常被混淆"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accuse": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "指控；控告；指责（accuse sb. of sth.）",
+          "example": "He was accused of leaking confidential information to the press.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ cause（理由），即「向某人提出指控理由」",
+      "similar_words": [
+        {
+          "word": "excuse",
+          "relation": "spelling",
+          "description": "excuse 意为「原谅、借口」，与 accuse 词形相近但含义相反"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "accustom": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "使习惯于（accustom sb. to）",
+          "example": "It took him a long time to accustom himself to the cold climate of the north.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ custom（习惯）",
+      "similar_words": [
+        {
+          "word": "custom",
+          "relation": "root",
+          "description": "custom 意为「习俗、习惯」，是词根"
+        },
+        {
+          "word": "customer",
+          "relation": "root",
+          "description": "customer 意为「顾客」，同根词"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "accustomed": {
+      "definitions": [
+        {
+          "part_of_speech": "adj.",
+          "meaning": "习惯了的；通常的（be accustomed to doing）",
+          "example": "She was accustomed to working long hours under pressure.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "accustom + -ed",
+      "similar_words": [
+        {
+          "word": "customary",
+          "relation": "meaning",
+          "description": "customary 意为「习惯上的、惯例的」，含义相近"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "ache": {
+      "definitions": [
+        {
+          "part_of_speech": "v./n.",
+          "meaning": "（持续地）疼痛；隐痛",
+          "example": "After the long hike, his legs ached terribly the next morning.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "渴望；极想（ache for/to do）（熟词僻义）",
+          "example": "The lonely traveler ached to see his family again.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "古英语 acan，意为「疼痛」",
+      "similar_words": [
+        {
+          "word": "ache",
+          "relation": "spelling",
+          "description": "注意 headache、stomachache 等复合词"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "achieve": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "实现；取得；达到（成就）",
+          "example": "Through hard work and perseverance, she achieved remarkable success in her career.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "源自古法语 achever（完成）",
+      "similar_words": [
+        {
+          "word": "achievement",
+          "relation": "root",
+          "description": "achievement 是其名词形式，意为「成就」"
+        },
+        {
+          "word": "archive",
+          "relation": "spelling",
+          "description": "archive 意为「档案」，与 achieve 拼写相近"
+        }
+      ],
+      "suggestedDifficulty": 1
+    },
+    "acid": {
+      "definitions": [
+        {
+          "part_of_speech": "n./adj.",
+          "meaning": "酸；酸的；酸性的",
+          "example": "Acid rain has caused significant damage to forests across Europe.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "adj.",
+          "meaning": "尖刻的；讽刺的（熟词僻义）",
+          "example": "Her acid remarks made everyone at the table uncomfortable.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "源自拉丁语 acidus（酸的，尖锐的）",
+      "similar_words": [
+        {
+          "word": "acidic",
+          "relation": "root",
+          "description": "acidic 是其形容词形式，意为「酸性的」"
+        },
+        {
+          "word": "arid",
+          "relation": "spelling",
+          "description": "arid 意为「干旱的」，与 acid 拼写相近"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "acknowledge": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "承认；认可；致谢",
+          "example": "The government finally acknowledged the seriousness of the environmental crisis.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "（对收到的信件、礼物等）告知收悉（熟词僻义）",
+          "example": "Please acknowledge receipt of this letter at your earliest convenience.",
+          "is_core": false,
+          "is_rare_sense": true
+        }
+      ],
+      "etymology": "ac-（向）+ knowledge（知道），即「承认知道」",
+      "similar_words": [
+        {
+          "word": "knowledge",
+          "relation": "root",
+          "description": "knowledge 意为「知识」，是词根"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "acquaint": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "使熟悉；使了解（acquaint sb. with sth.）",
+          "example": "New employees should acquaint themselves with the company's regulations.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ quaint（认识，源自 cognoscere）",
+      "similar_words": [
+        {
+          "word": "acquaintance",
+          "relation": "root",
+          "description": "acquaintance 是其名词形式，意为「熟人；相识」"
+        },
+        {
+          "word": "quaint",
+          "relation": "spelling",
+          "description": "quaint 意为「古雅的、奇特有趣的」，词形相近但含义不同"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "acquaintance": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "熟人；相识；了解；认识",
+          "example": "He has a wide circle of acquaintances in the academic community.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "acquaint + -ance",
+      "similar_words": [
+        {
+          "word": "acquaint",
+          "relation": "root",
+          "description": "动词形式"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "acquire": {
+      "definitions": [
+        {
+          "part_of_speech": "v.",
+          "meaning": "获得；取得；学到（知识、技能）",
+          "example": "Children acquire language skills naturally through daily interaction.",
+          "is_core": true,
+          "is_rare_sense": false
+        },
+        {
+          "part_of_speech": "v.",
+          "meaning": "购得（公司、资产等）（商业用语）",
+          "example": "The corporation acquired three smaller firms last year.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "ac-（向）+ quire（寻求，参 require）",
+      "similar_words": [
+        {
+          "word": "require",
+          "relation": "root",
+          "description": "require 意为「要求」，同根词"
+        },
+        {
+          "word": "inquire",
+          "relation": "root",
+          "description": "inquire 意为「询问」，同根词"
+        }
+      ],
+      "suggestedDifficulty": 2
+    },
+    "acquisition": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "获得；取得（物）；收购",
+          "example": "Language acquisition in early childhood is a complex cognitive process.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "acquire 的名词形式",
+      "similar_words": [
+        {
+          "word": "inquisition",
+          "relation": "spelling",
+          "description": "inquisition 意为「审讯、调查」，词形相近"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "acre": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "英亩（土地面积单位，约 4047 平方米）",
+          "example": "The farmer owns over 200 acres of fertile land in the valley.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "古英语 æcer，意为「田地」",
+      "similar_words": [
+        {
+          "word": "acrid",
+          "relation": "spelling",
+          "description": "acrid 意为「刺鼻的、辛辣的」，与 acre 拼写相近"
+        }
+      ],
+      "suggestedDifficulty": 3
+    },
+    "acrobat": {
+      "definitions": [
+        {
+          "part_of_speech": "n.",
+          "meaning": "杂技演员；特技演员",
+          "example": "The acrobat performed a series of daring stunts on the high wire.",
+          "is_core": true,
+          "is_rare_sense": false
+        }
+      ],
+      "etymology": "希腊语 akro-（高、顶端）+ bat-（行走），即「在高处行走的人」",
+      "similar_words": [
+        {
+          "word": "aristocrat",
+          "relation": "spelling",
+          "description": "aristocrat 意为「贵族」，词形相近但含义无关"
+        }
+      ],
+      "suggestedDifficulty": 4
+    }
+  }
+}

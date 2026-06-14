@@ -94,7 +94,6 @@ export default function ArticleDetailScreen() {
   const [segments, setSegments] = useState<TextSegment[]>([]);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
   const [showWordModal, setShowWordModal] = useState(false);
-  const [apiKey, setApiKey] = useState('');
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
 
@@ -129,9 +128,8 @@ export default function ArticleDetailScreen() {
       const segs = parseArticleContent(art.content, art.words, wMap);
       setSegments(segs);
 
-      // 加载设置
-      const settings = await StorageService.getSettings();
-      setApiKey(settings.apiKey || '');
+      // 加载设置，触发旧数据迁移
+      await StorageService.getSettings();
 
       // 更新已读次数
       await StorageService.updateArticle(articleId, {
@@ -165,15 +163,19 @@ export default function ArticleDetailScreen() {
   };
 
   const handleRegenerate = async () => {
-    if (!article || !apiKey) {
-      Alert.alert('无法生成', '请先配置 API 密钥');
+    if (!article) {
+      return;
+    }
+
+    const settings = await StorageService.getSettings();
+    if (!settings.apiKey || !settings.aiModel) {
+      Alert.alert('无法生成', '请先在设置中配置 AI API');
       return;
     }
 
     setIsRegenerating(true);
     try {
-      const settings = await StorageService.getSettings();
-      const aiService = new AIService(apiKey);
+      const aiService = AIService.fromSettings(settings);
       const result = await aiService.generateFunArticle(
         article.words,
         article.theme,

@@ -6,10 +6,20 @@ export const STUDY_MODES = {
 
 export const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30]; // 艾宾浩斯复习间隔（天）
 
+export const AI_PROVIDERS = {
+  deepseek: {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    defaultModel: 'deepseek-v4-flash',
+    keyPlaceholder: '输入 DeepSeek API 密钥',
+    modelPlaceholder: 'deepseek-v4-flash',
+    getKeyUrl: 'https://platform.deepseek.com/',
+    helpText: '适合直接使用 DeepSeek 官方 API。'
+  }
+} as const;
+
 export const API_CONFIG = {
-  // 使用DeepSeek API端点
-  BASE_URL: 'https://api.deepseek.com/v1',
-  DEFAULT_MODEL: 'deepseek-v4-flash',
   MAX_RETRIES: 3,
   TIMEOUT: 30000,
   BATCH_SIZE: 5,

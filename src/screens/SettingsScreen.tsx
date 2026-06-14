@@ -13,11 +13,12 @@ import {
   Modal
 } from 'react-native-paper';
 import StorageService from '../services/StorageService';
-import { UI_CONFIG } from '../constants';
-import { format } from 'date-fns';
+import AIService from '../services/AIService';
+import { AI_PROVIDERS, UI_CONFIG } from '../constants';
+import { AppSettings } from '../types';
 
 export default function SettingsScreen() {
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<AppSettings>({
     dailyNewWords: 10,
     reviewInterval: [1, 2, 4, 7, 15],
     soundEnabled: true,
@@ -29,9 +30,15 @@ export default function SettingsScreen() {
     articleWordCount: 10,
     articleLength: 200,
     examQuestionCount: 10,
+    aiProvider: 'deepseek',
+    aiModel: AI_PROVIDERS.deepseek.defaultModel,
+    apiKey: '',
   });
   const [apiKey, setApiKey] = useState('');
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
+  const [isTestingApi, setIsTestingApi] = useState(false);
+  const [apiTestMessage, setApiTestMessage] = useState('');
+  const [apiTestOk, setApiTestOk] = useState<boolean | null>(null);
   const [dataExport, setDataExport] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
 
@@ -43,10 +50,8 @@ export default function SettingsScreen() {
     try {
       const savedSettings = await StorageService.getSettings();
       setSettings(prev => ({ ...prev, ...savedSettings }));
-      // 加载保存的API key
-      if (savedSettings.apiKey) {
-        setApiKey(savedSettings.apiKey);
-      }
+      // 加载保存的 DeepSeek API 设置
+      setApiKey(savedSettings.apiKey || '');
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -54,14 +59,62 @@ export default function SettingsScreen() {
 
   const saveSettings = async (newSettings: any) => {
     try {
-      const merged = { ...settings, ...newSettings };
+      const updates = { ...newSettings };
       if (newSettings.soundEnabled === false) {
-        merged.autoPlaySound = false;
+        updates.autoPlaySound = false;
       }
-      await StorageService.saveSettings(merged);
-      setSettings(merged);
+      await StorageService.saveSettings(updates);
+      const latestSettings = await StorageService.getSettings();
+      setSettings(latestSettings);
     } catch (error) {
       console.error('Failed to save settings:', error);
+    }
+  };
+
+  const handleSaveAISettings = async () => {
+    if (!apiKey.trim()) {
+      Alert.alert('未填写 API Key', '请先填写 DeepSeek API Key');
+      return;
+    }
+    await saveSettings({
+      apiKey: apiKey.trim(),
+      aiProvider: 'deepseek',
+      aiModel: AI_PROVIDERS.deepseek.defaultModel,
+    });
+    Alert.alert('保存成功', 'DeepSeek API 设置已保存');
+  };
+
+  const handleTestAISettings = async () => {
+    if (!apiKey.trim()) {
+      const message = '请先填写 DeepSeek API Key';
+      setApiTestOk(false);
+      setApiTestMessage(message);
+      Alert.alert('配置不完整', message);
+      return;
+    }
+    setIsTestingApi(true);
+    setApiTestOk(null);
+    setApiTestMessage('正在测试连接，请稍候...');
+    try {
+      const aiService = new AIService({
+        provider: 'deepseek',
+        apiKey: apiKey.trim(),
+        model: AI_PROVIDERS.deepseek.defaultModel,
+      });
+      const ok = await aiService.testApiKey();
+      const message = ok
+        ? `${aiService.getProviderName()} API 可用`
+        : '连接失败，请检查 API Key、模型 ID 或网络连接';
+      setApiTestOk(ok);
+      setApiTestMessage(message);
+      Alert.alert(ok ? '连接成功' : '连接失败', message);
+    } catch (error: any) {
+      const message = error.message || '请检查 API 设置';
+      setApiTestOk(false);
+      setApiTestMessage(message);
+      Alert.alert('连接失败', message);
+    } finally {
+      setIsTestingApi(false);
     }
   };
 
@@ -119,7 +172,11 @@ export default function SettingsScreen() {
               articleWordCount: 10,
               articleLength: 200,
               examQuestionCount: 10,
+              aiProvider: 'deepseek',
+              aiModel: AI_PROVIDERS.deepseek.defaultModel,
+              apiKey: '',
             });
+            setApiKey('');
             Alert.alert('已清除', '所有数据已清除');
           }
         }
@@ -148,6 +205,8 @@ export default function SettingsScreen() {
               articleWordCount: 10,
               articleLength: 200,
               examQuestionCount: 10,
+              aiProvider: 'deepseek',
+              aiModel: AI_PROVIDERS.deepseek.defaultModel,
             });
           }
         }
@@ -180,6 +239,8 @@ export default function SettingsScreen() {
       style={styles.settingItem}
     />
   );
+
+  const currentProvider = AI_PROVIDERS.deepseek;
 
   return (
     <ScrollView style={styles.container}>
@@ -435,12 +496,14 @@ export default function SettingsScreen() {
         <Card.Title title="🤖 AI API设置" titleStyle={styles.cardTitle} />
         <Card.Content>
           <Text style={styles.apiInfo}>
-            配置DeepSeek API密钥以使用AI智能分析功能
+            配置 DeepSeek API Key，用于单词分析、文章生成和 AI 出题。
           </Text>
+          <Text style={styles.apiTip}>{currentProvider.helpText}</Text>
           <View style={styles.apiKeyContainer}>
             <TextInput
               mode="outlined"
-              placeholder="输入API密钥"
+              label={`${currentProvider.name} API Key`}
+              placeholder={currentProvider.keyPlaceholder}
               value={apiKey}
               onChangeText={setApiKey}
               secureTextEntry={!isEditingApiKey}
@@ -453,15 +516,36 @@ export default function SettingsScreen() {
               }
             />
           </View>
-          <Button
-            mode="contained"
-            onPress={() => saveSettings({ apiKey: apiKey })}
-            style={styles.saveApiBtn}
-          >
-            保存API密钥
-          </Button>
+          <View style={styles.apiActions}>
+            <Button
+              mode="outlined"
+              onPress={handleTestAISettings}
+              loading={isTestingApi}
+              disabled={isTestingApi}
+              style={styles.apiActionBtn}
+            >
+              {isTestingApi ? '测试中...' : '测试连接'}
+            </Button>
+            <Button
+              mode="contained"
+              onPress={handleSaveAISettings}
+              style={styles.apiActionBtn}
+            >
+              保存 AI 设置
+            </Button>
+          </View>
+          {apiTestMessage ? (
+            <Text style={[
+              styles.apiTestMessage,
+              apiTestOk === true && styles.apiTestSuccess,
+              apiTestOk === false && styles.apiTestError
+            ]}>
+              {apiTestMessage}
+            </Text>
+          ) : null}
           <View style={styles.apiTips}>
-            <Text style={styles.apiTip}>🔗 前往 <Text style={styles.apiLink} onPress={() => Linking.openURL('https://platform.deepseek.com/')}>platform.deepseek.com</Text> 获取API密钥</Text>
+            <Text style={styles.apiTip}>🔗 前往 <Text style={styles.apiLink} onPress={() => Linking.openURL(currentProvider.getKeyUrl)}>{currentProvider.name}</Text> 获取 API Key</Text>
+            <Text style={styles.apiTip}>🔒 API Key 仅保存在本机，导出数据时不会包含真实密钥。</Text>
           </View>
         </Card.Content>
       </Card>
@@ -625,6 +709,26 @@ const styles = StyleSheet.create({
   },
   saveApiBtn: {
     marginTop: 8,
+  },
+  apiActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  apiActionBtn: {
+    flex: 1,
+  },
+  apiTestMessage: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 10,
+    lineHeight: 20,
+  },
+  apiTestSuccess: {
+    color: '#2E7D32',
+  },
+  apiTestError: {
+    color: '#D32F2F',
   },
   apiTips: {
     marginTop: 8,

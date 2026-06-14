@@ -11,7 +11,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
-import { Word, StudyRecord } from '../types';
+import { Word, StudyRecord, WeeklyStudyTrend } from '../types';
 import { format } from 'date-fns';
 
 type TodayStats = {
@@ -159,7 +159,7 @@ export default function HomeScreen() {
   const [todayStats, setTodayStats] = useState<TodayStats>(DEFAULT_TODAY_STATS);
   const [todaySuggestion, setTodaySuggestion] = useState<TodaySuggestion>(DEFAULT_SUGGESTION);
   const [recentWords, setRecentWords] = useState<Word[]>([]);
-  const [weeklyProgress, setWeeklyProgress] = useState<number[]>([]);
+  const [weeklyTrend, setWeeklyTrend] = useState<WeeklyStudyTrend[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -217,10 +217,10 @@ export default function HomeScreen() {
         .slice(0, 5);
       setRecentWords(words);
 
-      // 加载一周进度
+      // 加载一周趋势
       const studyPlanService = new StudyPlanService();
       const stats = await studyPlanService.calculateStudyStats();
-      setWeeklyProgress(stats.weeklyProgress || []);
+      setWeeklyTrend(stats.weeklyTrend || []);
 
       console.log('仪表板数据加载完成');
     } catch (error) {
@@ -228,7 +228,7 @@ export default function HomeScreen() {
       setTodayStats(DEFAULT_TODAY_STATS);
       setTodaySuggestion(DEFAULT_SUGGESTION);
       setRecentWords([]);
-      setWeeklyProgress([]);
+      setWeeklyTrend([]);
     }
   };
 
@@ -249,6 +249,15 @@ export default function HomeScreen() {
 
     navigation.navigate(todaySuggestion.routeName);
   };
+
+  const weeklyStudyCount = weeklyTrend.reduce((sum, day) => sum + day.studyCount, 0);
+  const weeklyStudiedWordCount = weeklyTrend.reduce((sum, day) => sum + day.studiedWordCount, 0);
+  const weeklyCorrectCount = weeklyTrend.reduce((sum, day) => sum + day.correctCount, 0);
+  const weeklyPlannedCount = weeklyTrend.reduce((sum, day) => sum + day.plannedCount, 0);
+  const weeklyCompletedCount = weeklyTrend.reduce((sum, day) => sum + day.completedCount, 0);
+  const weeklyAccuracy = weeklyStudyCount > 0 ? weeklyCorrectCount / weeklyStudyCount : null;
+  const weeklyCompletionRate = weeklyPlannedCount > 0 ? weeklyCompletedCount / weeklyPlannedCount : null;
+  const maxStudyCount = Math.max(...weeklyTrend.map(day => day.studyCount), 1);
 
   return (
     <View style={styles.container}>
@@ -374,29 +383,57 @@ export default function HomeScreen() {
         <Card style={styles.card}>
           <Card.Title title="一周学习趋势" titleStyle={styles.cardTitle} />
           <Card.Content>
+            <View style={styles.trendSummary}>
+              <View style={styles.trendMetric}>
+                <Text style={styles.trendMetricValue}>{weeklyStudiedWordCount}</Text>
+                <Text style={styles.trendMetricLabel}>学习单词</Text>
+              </View>
+              <View style={styles.trendMetric}>
+                <Text style={[styles.trendMetricValue, { color: weeklyAccuracy === null ? '#9E9E9E' : getProgressColor(weeklyAccuracy) }]}>
+                  {weeklyAccuracy === null ? '--' : `${Math.round(weeklyAccuracy * 100)}%`}
+                </Text>
+                <Text style={styles.trendMetricLabel}>平均正确率</Text>
+              </View>
+              <View style={styles.trendMetric}>
+                <Text style={[styles.trendMetricValue, { color: weeklyCompletionRate === null ? '#9E9E9E' : getProgressColor(weeklyCompletionRate) }]}>
+                  {weeklyCompletionRate === null ? '--' : `${Math.round(weeklyCompletionRate * 100)}%`}
+                </Text>
+                <Text style={styles.trendMetricLabel}>计划完成</Text>
+              </View>
+            </View>
+
             <View style={styles.weeklyChart}>
-              {weeklyProgress.map((progress, index) => {
-                const date = new Date();
-                date.setDate(date.getDate() - (6 - index));
-                const dayLabel = date.toLocaleDateString('zh-CN', { weekday: 'short' });
+              {weeklyTrend.map(day => {
+                const accuracyColor = day.accuracy === null ? '#BDBDBD' : getProgressColor(day.accuracy);
+                const studyRatio = day.studyCount > 0 ? day.studyCount / maxStudyCount : 0;
+                const completionText = day.completionRate === null
+                  ? '无计划'
+                  : `完${Math.round(day.completionRate * 100)}%`;
 
                 return (
-                  <View key={index} style={styles.chartItem}>
+                  <View key={day.date} style={styles.chartItem}>
                     <Surface
                       style={[
                         styles.chartBar,
                         {
-                          height: Math.max(progress * 60, 4),
-                          backgroundColor: getProgressColor(progress),
+                          height: Math.max(studyRatio * 60, 4),
+                          backgroundColor: accuracyColor,
                         },
                       ]}
-                    />
-                    <Text style={styles.chartLabel}>{dayLabel}</Text>
-                    <Text style={styles.chartValue}>{Math.round(progress * 100)}%</Text>
+                    >
+                      <View />
+                    </Surface>
+                    <Text style={styles.chartLabel}>{day.dayLabel}</Text>
+                    <Text style={styles.chartValue}>{day.studyCount}次</Text>
+                    <Text style={[styles.chartSubValue, { color: accuracyColor }]}>
+                      {day.accuracy === null ? '--' : `${Math.round(day.accuracy * 100)}%`}
+                    </Text>
+                    <Text style={styles.chartPlanValue}>{completionText}</Text>
                   </View>
                 );
               })}
             </View>
+            <Text style={styles.trendHint}>柱高代表学习量，颜色代表正确率，底部显示计划完成率。</Text>
           </Card.Content>
         </Card>
 
@@ -531,15 +568,39 @@ const styles = StyleSheet.create({
     borderTopColor: '#E0E0E0',
     paddingTop: 8,
   },
+  trendSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  trendMetric: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    marginHorizontal: 3,
+  },
+  trendMetricValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1976D2',
+  },
+  trendMetricLabel: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 3,
+  },
   weeklyChart: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'flex-end',
-    height: 100,
-    paddingTop: 20,
+    minHeight: 130,
+    paddingTop: 8,
   },
   chartItem: {
     alignItems: 'center',
+    flex: 1,
   },
   chartBar: {
     width: 20,
@@ -554,6 +615,22 @@ const styles = StyleSheet.create({
   chartValue: {
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  chartSubValue: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  chartPlanValue: {
+    fontSize: 9,
+    color: '#777',
+    marginTop: 2,
+  },
+  trendHint: {
+    fontSize: 11,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 8,
   },
   recentWords: {
     flexDirection: 'row',

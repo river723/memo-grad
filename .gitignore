@@ -171,3 +171,6 @@ temp/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Large asset files (exceed GitHub 100MB limit)
+assets/east6500.pdf

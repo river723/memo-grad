@@ -85,7 +85,7 @@ src/
 - React Native Paper (UI组件库)
 - React Navigation (路由)
 - AsyncStorage (本地存储)
-- OpenRouter API (AI服务)
+- DeepSeek API (AI服务)
 
 ## 📱 使用场景
 

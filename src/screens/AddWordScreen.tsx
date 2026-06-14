@@ -7,12 +7,16 @@ import {
   Text,
   Chip,
   ActivityIndicator,
-  Surface
+  Surface,
+  Dialog,
+  Portal
 } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
-import { Word, AIResponse } from '../types';
+import { Word, AIResponse, AppSettings } from '../types';
+import { mergeAIResultIntoWord } from '../utils/wordUtils';
 
 export default function AddWordScreen() {
   const navigation = useNavigation();
@@ -22,7 +26,15 @@ export default function AddWordScreen() {
   const [pronunciation, setPronunciation] = useState('');
   const [customDefinitions, setCustomDefinitions] = useState('');
   const [parsedWords, setParsedWords] = useState<string[]>([]);
-  const [apiKey, setApiKey] = useState('');
+  const [aiSettings, setAiSettings] = useState<AppSettings | null>(null);
+
+  // 覆盖确认 Dialog 状态
+  const [overwriteDialog, setOverwriteDialog] = useState<{
+    visible: boolean;
+    word: string;
+    existing: Word | null;
+    analysis: AIResponse | null;
+  }>({ visible: false, word: '', existing: null, analysis: null });
 
   // 组件挂载时加载API密钥（仅执行一次）
   useEffect(() => {
@@ -31,17 +43,15 @@ export default function AddWordScreen() {
 
   const loadApiKey = async () => {
     try {
-      console.log('开始加载API密钥...');
+      console.log('开始加载 AI API 设置...');
       const settings = await StorageService.getSettings();
       console.log('获取到的设置:', settings);
-      const loadedApiKey = settings?.apiKey || '';
-      console.log('加载的API密钥长度:', loadedApiKey.length);
-      setApiKey(loadedApiKey);
+      setAiSettings(settings);
 
       // 测试API密钥有效性
-      if (loadedApiKey) {
+      if (settings.apiKey && settings.aiModel) {
         console.log('开始测试API密钥...');
-        const testResult = await testApiKeyValidity(loadedApiKey);
+        const testResult = await testApiKeyValidity(settings);
         console.log('API密钥测试结果:', testResult);
       }
     } catch (error) {
@@ -49,11 +59,9 @@ export default function AddWordScreen() {
     }
   };
 
-  const testApiKeyValidity = async (key: string): Promise<boolean> => {
+  const testApiKeyValidity = async (settings: AppSettings): Promise<boolean> => {
     try {
-      // 通过测试AI分析功能来验证API密钥
-      // 使用一个简单的单词测试，如果有响应则认为密钥有效
-      const aiService = new AIService(key);
+      const aiService = AIService.fromSettings(settings);
       console.log('开始测试API密钥有效性...');
 
       // 测试网络连接
@@ -115,14 +123,15 @@ export default function AddWordScreen() {
 
     setIsAnalyzing(true);
     try {
-      // 检查是否有API key
-      if (!apiKey) {
-        Alert.alert('错误', '请先设置API密钥');
+      const latestSettings = await StorageService.getSettings();
+      setAiSettings(latestSettings);
+      if (!latestSettings.apiKey || !latestSettings.aiModel) {
+        Alert.alert('错误', '请先在设置中配置 AI API');
         return;
       }
-      console.log('使用API密钥:', apiKey.substring(0, 10) + '...');
+      console.log('使用AI服务商:', latestSettings.aiProvider, '模型:', latestSettings.aiModel);
 
-      const aiService = new AIService(apiKey);
+      const aiService = AIService.fromSettings(latestSettings);
 
       if (words.length === 1) {
         // 单个单词：使用单个分析接口获得更详细的信息
@@ -137,7 +146,7 @@ export default function AddWordScreen() {
         console.log('批量分析结果:', results);
         setAnalysisResult(results);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI分析失败:', error);
       console.error('错误详情:', error.message, error.response?.data);
       Alert.alert('错误', 'AI分析失败，请检查网络连接或API密钥');
@@ -185,6 +194,79 @@ export default function AddWordScreen() {
     return parsedWords.length === 1 && customDefinitions.trim().length > 0;
   };
 
+  // 把当前 state 转成可保存的 AIResponse（按单词取值）
+  const buildAnalysisFor = (word: string): AIResponse => {
+    if (analysisResult instanceof Map) {
+      return analysisResult.get(word) || {
+        definitions: [{
+          part_of_speech: 'unknown',
+          meaning: 'AI分析未覆盖此单词，请手动添加释义',
+          example: '',
+          is_core: false,
+          is_rare_sense: false
+        }],
+        etymology: '',
+        similar_words: [],
+        suggestedDifficulty: 3
+      };
+    }
+    if (analysisResult) {
+      return analysisResult as AIResponse;
+    }
+    // 仅手动释义路径（单个单词 + 无 AI 分析）
+    return {
+      definitions: [{
+        part_of_speech: 'unknown',
+        meaning: customDefinitions.trim(),
+        example: '',
+        is_core: false,
+        is_rare_sense: false
+      }],
+      etymology: '',
+      similar_words: [],
+      suggestedDifficulty: 3
+    };
+  };
+
+  // 清空表单 state
+  const resetForm = () => {
+    setInput('');
+    setParsedWords([]);
+    setAnalysisResult(null);
+    setPronunciation('');
+    setCustomDefinitions('');
+  };
+
+  // 覆盖既有单词
+  const overwriteExisting = async (existing: Word, analysis: AIResponse) => {
+    try {
+      const merged = mergeAIResultIntoWord(existing, analysis);
+      const updates: Partial<Word> = {
+        ...merged,
+        similar_words: Array.isArray(merged.similar_words) ? merged.similar_words : [],
+        ...(pronunciation
+          ? { pronunciation_uk: pronunciation, pronunciation_us: pronunciation }
+          : {}),
+      };
+      await StorageService.updateWord(existing.id!, updates);
+      console.log(`✏️ 单词 ${existing.word} 覆盖成功`);
+
+      const wordText = existing.word;
+      resetForm();
+      Alert.alert(
+        '覆盖成功 ✏️',
+        `已用最新内容覆盖单词「${wordText}」`,
+        [
+          { text: '继续添加' },
+          { text: '返回首页', onPress: () => navigation.goBack() }
+        ]
+      );
+    } catch (error: any) {
+      console.error('❌ 覆盖异常:', error);
+      Alert.alert('错误', `覆盖失败，请重试: ${error.message}`);
+    }
+  };
+
   // 保存单词
   const saveWords = async () => {
     console.log('🔵 saveWords 被调用');
@@ -199,6 +281,23 @@ export default function AddWordScreen() {
       return;
     }
 
+    // 单个单词：若已存在，弹覆盖确认
+    if (parsedWords.length === 1) {
+      const word = parsedWords[0];
+      const existingWords = await StorageService.getWords();
+      console.log('🔍 [Overwrite] 单个单词重复检查 - 输入:', word, '词本总数:', existingWords.length);
+      const existing = existingWords.find(
+        w => (w.word || '').trim().toLowerCase() === word.trim().toLowerCase()
+      );
+      console.log('🔍 [Overwrite] 命中已有单词:', existing ? `${existing.word} (id=${existing.id})` : '(无)');
+      if (existing) {
+        const analysis = buildAnalysisFor(word);
+        console.log('🔔 [Overwrite] 打开覆盖确认 Dialog');
+        setOverwriteDialog({ visible: true, word, existing, analysis });
+        return;
+      }
+    }
+
     console.log('✅ 开始保存流程');
     try {
       let successCount = 0;
@@ -211,8 +310,8 @@ export default function AddWordScreen() {
 
       for (const word of parsedWords) {
         console.log(`📝 处理单词: ${word}`);
-        
-        // 检查单词是否已存在
+
+        // 检查单词是否已存在（批量场景静默跳过）
         if (existingWordSet.has(word.toLowerCase())) {
           console.log(`⏭️ 单词 ${word} 已存在，跳过`);
           duplicateCount++;
@@ -220,42 +319,7 @@ export default function AddWordScreen() {
         }
 
         try {
-          let analysis: AIResponse;
-          
-          if (analysisResult instanceof Map) {
-            analysis = analysisResult.get(word) || {
-              definitions: [{
-                part_of_speech: 'unknown',
-                meaning: 'AI分析未覆盖此单词，请手动添加释义',
-                example: '',
-                is_core: false,
-                is_rare_sense: false
-              }],
-              etymology: '',
-              similar_words: [],
-              suggestedDifficulty: 3
-            };
-          } else {
-            if (customDefinitions.trim().length > 0) {
-              analysis = {
-                definitions: [
-                  {
-                    part_of_speech: 'unknown',
-                    meaning: customDefinitions.trim(),
-                    example: '',
-                    is_core: false,
-                    is_rare_sense: false
-                  }
-                ],
-                etymology: '',
-                similar_words: [],
-                suggestedDifficulty: 3
-              };
-            } else {
-              analysis = analysisResult as AIResponse;
-            }
-          }
-
+          const analysis = buildAnalysisFor(word);
           const difficulty = analysis.suggestedDifficulty || 3;
 
           const wordData: Omit<Word, 'id'> = {
@@ -288,31 +352,19 @@ export default function AddWordScreen() {
 
       console.log(`📊 保存统计: 成功${successCount}个，失败${failCount}个，重复${duplicateCount}个`);
       const message = `成功保存 ${successCount} 个单词${failCount > 0 ? `，失败 ${failCount} 个` : ''}${duplicateCount > 0 ? `，已有 ${duplicateCount} 个` : ''}`;
-      
+
       // 立即清空数据，让用户看到单词数变为0
-      setInput('');
-      setParsedWords([]);
-      setAnalysisResult(null);
-      setPronunciation('');
-      setCustomDefinitions('');
-      
+      resetForm();
+
       Alert.alert(
         '保存成功 ✅',
         message,
         [
-          {
-            text: '继续添加',
-            onPress: () => {
-              // 数据已清空，无需再清空
-            }
-          },
-          {
-            text: '返回首页',
-            onPress: () => navigation.goBack()
-          }
+          { text: '继续添加' },
+          { text: '返回首页', onPress: () => navigation.goBack() }
         ]
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 保存异常:', error);
       Alert.alert('错误', `保存失败，请重试: ${error.message}`);
     }
@@ -353,7 +405,29 @@ export default function AddWordScreen() {
   const wordCount = parsedWords.length;
 
   return (
+    <>
     <ScrollView style={styles.container}>
+      {/* 入口：从本地词库选词 */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.pickerEntryRow}>
+            <MaterialIcons name="library-books" size={36} color="#1976D2" />
+            <View style={styles.pickerEntryText}>
+              <Text style={styles.pickerEntryTitle}>从本地词库选词</Text>
+              <Text style={styles.pickerEntryHint}>4801 个考研词，勾选即加入</Text>
+            </View>
+            <Button
+              mode="contained"
+              compact
+              icon="book-search"
+              onPress={() => navigation.navigate('WordbankPicker' as never)}
+            >
+              选词
+            </Button>
+          </View>
+        </Card.Content>
+      </Card>
+
       <Card style={styles.card}>
         <Card.Title title="添加新单词" titleStyle={styles.cardTitle} />
         <Card.Content>
@@ -551,6 +625,46 @@ export default function AddWordScreen() {
         </Button>
       </View>
     </ScrollView>
+
+    {/* 覆盖确认 Dialog */}
+    <Portal>
+      <Dialog
+        visible={overwriteDialog.visible}
+        onDismiss={() => setOverwriteDialog({ visible: false, word: '', existing: null, analysis: null })}
+      >
+        <Dialog.Title>单词已存在</Dialog.Title>
+        <Dialog.Content>
+          <Text style={{ lineHeight: 20 }}>
+            「{overwriteDialog.word}」已在生词本中，是否用最新内容覆盖？{'\n'}
+            <Text style={{ fontSize: 12, color: '#666' }}>
+              覆盖会更新释义、词根、形近词、难度、音标，不影响学习记录。
+            </Text>
+          </Text>
+        </Dialog.Content>
+        <Dialog.Actions>
+          <Button
+            onPress={() => setOverwriteDialog({ visible: false, word: '', existing: null, analysis: null })}
+          >
+            取消
+          </Button>
+          <Button
+            mode="contained"
+            buttonColor="#D32F2F"
+            textColor="#FFF"
+            onPress={() => {
+              const { existing, analysis } = overwriteDialog;
+              setOverwriteDialog({ visible: false, word: '', existing: null, analysis: null });
+              if (existing && analysis) {
+                overwriteExisting(existing, analysis);
+              }
+            }}
+          >
+            覆盖
+          </Button>
+        </Dialog.Actions>
+      </Dialog>
+    </Portal>
+    </>
   );
 }
 
@@ -563,6 +677,25 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
     elevation: 2,
+  },
+  pickerEntryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pickerEntryText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  pickerEntryTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    marginBottom: 2,
+  },
+  pickerEntryHint: {
+    fontSize: 12,
+    color: '#666',
   },
   cardTitle: {
     fontSize: 18,

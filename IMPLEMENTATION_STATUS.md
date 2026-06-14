@@ -19,7 +19,7 @@
 - [x] 数据导入导出功能
 
 ### AI服务 ✅ 100%
-- [x] AIService - OpenRouter API集成
+- [x] AIService - DeepSeek API集成
 - [x] 单词AI分析 (考研释义、熟词僻义)
 - [x] 文本单词提取
 - [x] AI内容生成接口
@@ -60,7 +60,7 @@
 
 **技术实现**:
 - 使用React Native Paper组件库
-- 集成OpenRouter API进行AI分析
+- 集成DeepSeek API进行AI分析
 - 支持熟词僻义特别标注
 - 形近词和词根词缀分析
 
@@ -158,7 +158,7 @@
 - **网络**: Axios
 
 ### 后端服务
-- **AI服务**: OpenRouter API (Claude/GPT)
+- **AI服务**: DeepSeek API
 - **语音服务**: expo-speech
 - **日期处理**: date-fns
 

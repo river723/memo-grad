@@ -20,7 +20,7 @@
 - 设置存储
 
 #### 3. 🤖 AI服务集成 ✅
-- OpenRouter API接入
+- DeepSeek API接入
 - 单词智能分析
 - 文本单词提取
 - AI内容生成接口

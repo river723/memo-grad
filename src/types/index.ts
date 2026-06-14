@@ -44,11 +44,42 @@ export interface StudyPlan {
 
 export type StudyMode = 'flashcard' | 'listening' | 'quiz' | 'exam_quiz';
 
+export type AIProviderId = 'deepseek';
+
+export interface AppSettings {
+  dailyNewWords: number;
+  reviewInterval: number[];
+  soundEnabled: boolean;
+  autoPlaySound: boolean;
+  theme: string;
+  fontSize: number;
+  showRareSense: boolean;
+  showEtymology: boolean;
+  apiKey: string;
+  aiProvider: AIProviderId;
+  aiModel: string;
+  articleWordCount: number;
+  articleLength: number;
+  examQuestionCount: number;
+}
+
 export interface DailyStats {
   date: string;
   new_words: number;
   reviewed_words: number;
   correct_rate: number;
+}
+
+export interface WeeklyStudyTrend {
+  date: string;
+  dayLabel: string;
+  studyCount: number;
+  studiedWordCount: number;
+  correctCount: number;
+  accuracy: number | null;
+  plannedCount: number;
+  completedCount: number;
+  completionRate: number | null;
 }
 
 export interface AIResponse {

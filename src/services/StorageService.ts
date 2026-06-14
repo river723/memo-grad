@@ -1,4 +1,5 @@
-import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion } from '../types';
+import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId } from '../types';
+import { AI_PROVIDERS } from '../constants';
 
 // 跨平台存储接口
 interface StorageInterface {
@@ -36,6 +37,23 @@ if (typeof window !== 'undefined') {
     }
   };
 }
+
+const DEFAULT_SETTINGS: AppSettings = {
+  dailyNewWords: 10,
+  reviewInterval: [1, 2, 4, 7, 15],
+  soundEnabled: true,
+  autoPlaySound: false,
+  theme: 'light',
+  fontSize: 14,
+  showRareSense: true,
+  showEtymology: true,
+  apiKey: '',
+  aiProvider: 'deepseek',
+  aiModel: AI_PROVIDERS.deepseek.defaultModel,
+  articleWordCount: 10,
+  articleLength: 200,
+  examQuestionCount: 10,
+};
 
 class StorageService {
   private static instance: StorageService;
@@ -351,33 +369,42 @@ class StorageService {
     return coverage;
   }
 
+  private normalizeSettings(settings: Partial<AppSettings> & { [key: string]: any } = {}): AppSettings {
+    const provider = (settings.aiProvider && settings.aiProvider in AI_PROVIDERS)
+      ? settings.aiProvider as AIProviderId
+      : DEFAULT_SETTINGS.aiProvider;
+    const defaultModel = AI_PROVIDERS[provider].defaultModel;
+
+    return {
+      ...DEFAULT_SETTINGS,
+      ...settings,
+      aiProvider: provider,
+      aiModel: settings.aiModel || defaultModel,
+      apiKey: settings.apiKey || '',
+    };
+  }
+
   // 设置操作
-  async getSettings(): Promise<any> {
+  async getSettings(): Promise<AppSettings> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.SETTINGS);
-      return data ? JSON.parse(data) : {
-        dailyNewWords: 10,
-        reviewInterval: [1, 2, 4, 7, 15],
-        soundEnabled: true,
-        autoPlaySound: false,
-        theme: 'light',
-        apiKey: '',
-        articleWordCount: 10,
-        articleLength: 200,
-        examQuestionCount: 10,
-      };
+      const parsed = data ? JSON.parse(data) : {};
+      return this.normalizeSettings(parsed);
     } catch (error) {
       console.error('Get settings error:', error);
-      return {};
+      return DEFAULT_SETTINGS;
     }
   }
 
-  async saveSettings(settings: any): Promise<void> {
-    await AsyncStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(settings));
+  async saveSettings(settings: Partial<AppSettings>): Promise<void> {
+    const current = await this.getSettings();
+    const next = this.normalizeSettings({ ...current, ...settings });
+    await AsyncStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(next));
   }
 
   // 数据导入导出
   async exportData(): Promise<string> {
+    const settings = await this.getSettings();
     const data = {
       words: await this.getWords(),
       studyRecords: await this.getStudyRecords(),
@@ -385,7 +412,11 @@ class StorageService {
       articles: await this.getArticles(),
       examSessions: await this.getExamSessions(),
       wrongQuestions: await this.getWrongQuestions(),
-      settings: await this.getSettings(),
+      settings: {
+        ...settings,
+        apiKey: '',
+        apiKeyConfigured: Boolean(settings.apiKey)
+      },
       exportDate: new Date().toISOString()
     };
     return JSON.stringify(data, null, 2);
@@ -408,7 +439,11 @@ class StorageService {
         await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(data.articles));
       }
       if (data.settings) {
-        await AsyncStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(data.settings));
+        const currentSettings = await this.getSettings();
+        await this.saveSettings({
+          ...data.settings,
+          apiKey: data.settings.apiKey || currentSettings.apiKey
+        });
       }
       if (data.examSessions) {
         await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(data.examSessions));

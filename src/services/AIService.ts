@@ -1,12 +1,46 @@
 import axios from 'axios';
-import { AIResponse } from '../types';
-import { API_CONFIG } from '../constants';
+import { AIProviderId, AIResponse, AppSettings } from '../types';
+import { API_CONFIG, AI_PROVIDERS } from '../constants';
+
+interface AIServiceConfig {
+  provider: AIProviderId;
+  apiKey: string;
+  model?: string;
+}
 
 class AIService {
   private apiKey: string;
+  private provider: AIProviderId;
+  private baseUrl: string;
+  private model: string;
 
-  constructor(apiKey: string = '') {
-    this.apiKey = apiKey;
+  constructor(config: AIServiceConfig | string = '') {
+    if (typeof config === 'string') {
+      this.provider = 'deepseek';
+      this.apiKey = config;
+      this.baseUrl = AI_PROVIDERS.deepseek.baseUrl;
+      this.model = AI_PROVIDERS.deepseek.defaultModel;
+      return;
+    }
+
+    const provider: AIProviderId = config.provider in AI_PROVIDERS ? config.provider : 'deepseek';
+    const providerConfig = AI_PROVIDERS[provider];
+    this.provider = provider;
+    this.apiKey = config.apiKey || '';
+    this.baseUrl = providerConfig.baseUrl;
+    this.model = config.model || providerConfig.defaultModel;
+  }
+
+  static fromSettings(settings: AppSettings): AIService {
+    return new AIService({
+      provider: settings.aiProvider,
+      apiKey: settings.apiKey,
+      model: settings.aiModel,
+    });
+  }
+
+  getProviderName(): string {
+    return AI_PROVIDERS[this.provider].name;
   }
 
   // 测试网络连接
@@ -24,9 +58,9 @@ class AIService {
   async testApiKey(): Promise<boolean> {
     try {
       await axios.post(
-        `${API_CONFIG.BASE_URL}/chat/completions`,
+        `${this.baseUrl}/chat/completions`,
         {
-          model: API_CONFIG.DEFAULT_MODEL,
+          model: this.model,
           messages: [{ role: 'user', content: 'test' }],
           max_tokens: 5
         },
@@ -48,13 +82,13 @@ class AIService {
 
   async analyzeWord(word: string): Promise<AIResponse> {
     const prompt = this.buildWordAnalysisPrompt(word);
-    console.log('发送AI请求，单词:', word, '使用模型:', API_CONFIG.DEFAULT_MODEL);
+    console.log('发送AI请求，单词:', word, '使用模型:', this.model);
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/chat/completions`,
+        `${this.baseUrl}/chat/completions`,
         {
-          model: API_CONFIG.DEFAULT_MODEL,
+          model: this.model,
           messages: [
             {
               role: 'system',
@@ -83,7 +117,7 @@ class AIService {
       const result = this.parseAIResponse(content);
       console.log('解析后的结果:', result);
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI analysis error:', error);
       if (axios.isAxiosError(error)) {
         console.error('Error details:', error.message, error.response?.status, error.response?.data);
@@ -102,13 +136,13 @@ class AIService {
     for (let i = 0; i < words.length; i += batchSize) {
       const batch = words.slice(i, i + batchSize);
       const batchPrompt = this.buildBatchAnalysisPrompt(batch);
-      console.log(`批量分析单词，使用模型: ${API_CONFIG.DEFAULT_MODEL}, 批次: ${i / batchSize + 1}/${Math.ceil(words.length / batchSize)}`);
+      console.log(`批量分析单词，使用模型: ${this.model}, 批次: ${i / batchSize + 1}/${Math.ceil(words.length / batchSize)}`);
       
       try {
         const response = await axios.post(
-          `${API_CONFIG.BASE_URL}/chat/completions`,
+          `${this.baseUrl}/chat/completions`,
           {
-            model: API_CONFIG.DEFAULT_MODEL,
+            model: this.model,
             messages: [
               {
                 role: 'system',
@@ -192,9 +226,9 @@ class AIService {
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/chat/completions`,
+        `${this.baseUrl}/chat/completions`,
         {
-          model: API_CONFIG.DEFAULT_MODEL,
+          model: this.model,
           messages: [
             {
               role: 'system',
@@ -261,9 +295,9 @@ class AIService {
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/chat/completions`,
+        `${this.baseUrl}/chat/completions`,
         {
-          model: API_CONFIG.DEFAULT_MODEL,
+          model: this.model,
           messages: [
             {
               role: 'system',
@@ -355,9 +389,9 @@ ${wordList}
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/chat/completions`,
+        `${this.baseUrl}/chat/completions`,
         {
-          model: API_CONFIG.DEFAULT_MODEL,
+          model: this.model,
           messages: [
             {
               role: 'system',
@@ -464,9 +498,9 @@ ${wordList}
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/chat/completions`,
+        `${this.baseUrl}/chat/completions`,
         {
-          model: API_CONFIG.DEFAULT_MODEL,
+          model: this.model,
           messages: [
             {
               role: 'system',
@@ -542,9 +576,9 @@ ${wordList}
 
     try {
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/chat/completions`,
+        `${this.baseUrl}/chat/completions`,
         {
-          model: API_CONFIG.DEFAULT_MODEL,
+          model: this.model,
           messages: [
             {
               role: 'system',
@@ -813,14 +847,14 @@ ${wordList}
       if (jsonString) {
         try {
           return JSON.parse(jsonString);
-        } catch (firstError) {
+        } catch (firstError: any) {
           console.warn('首轮 JSON 解析失败，尝试修复格式:', firstError.message);
 
           const fixedJson = this.normalizeJsonString(jsonString);
 
           try {
             return JSON.parse(fixedJson);
-          } catch (secondError) {
+          } catch (secondError: any) {
             console.error('修复后 JSON 解析仍失败:', secondError.message);
             console.error('原始内容长度:', content.length);
             console.error('JSON字符串长度:', jsonString.length);

@@ -13,7 +13,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
-import { Word, Article } from '../types';
+import { Word, Article, AppSettings } from '../types';
 import { getRecommendedWords } from '../utils/examHelpers';
 
 // 将文章内容中的目标单词高亮
@@ -71,7 +71,7 @@ export default function ArticleGenerateScreen() {
   const [selectedTheme, setSelectedTheme] = useState('random');
   const [articleWordCount, setArticleWordCount] = useState(10);
   const [articleLength, setArticleLength] = useState(200);
-  const [apiKey, setApiKey] = useState('');
+  const [aiSettings, setAiSettings] = useState<AppSettings | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generatedArticle, setGeneratedArticle] = useState<{
@@ -93,7 +93,7 @@ export default function ArticleGenerateScreen() {
       const settings = await StorageService.getSettings();
       setArticleWordCount(settings.articleWordCount || 10);
       setArticleLength(settings.articleLength || 200);
-      setApiKey(settings.apiKey || '');
+      setAiSettings(settings);
 
       // 加载单词
       const words = await StorageService.getWords();
@@ -188,8 +188,10 @@ export default function ArticleGenerateScreen() {
       Alert.alert('生词不足', msg);
       return;
     }
-    if (!apiKey) {
-      const msg = '请先在设置中配置 DeepSeek API 密钥';
+    const latestSettings = await StorageService.getSettings();
+    setAiSettings(latestSettings);
+    if (!latestSettings.apiKey || !latestSettings.aiModel) {
+      const msg = '请先在设置中配置 AI API';
       console.log('[ArticleGen]', msg);
       setGenerateError(msg);
       Alert.alert('未配置 API', msg);
@@ -199,7 +201,7 @@ export default function ArticleGenerateScreen() {
     setIsGenerating(true);
     setGeneratedArticle(null);
     try {
-      const aiService = new AIService(apiKey);
+      const aiService = AIService.fromSettings(latestSettings);
       const wordStrings = selectedWords.map(w => w.word);
       const result = await aiService.generateFunArticle(
         wordStrings,
@@ -480,9 +482,9 @@ export default function ArticleGenerateScreen() {
             <Text style={styles.statusWarn}>
               ⚠ 已选 {selectedWords.length}/5 个生词（不足，请切换手动模式选词或降低生词数）
             </Text>
-          ) : !apiKey ? (
+          ) : !aiSettings?.apiKey || !aiSettings?.aiModel ? (
             <Text style={styles.statusWarn}>
-              ⚠ 未配置 API 密钥，请前往设置页配置
+              ⚠ 未配置 AI API，请前往设置页配置
             </Text>
           ) : null}
           {generateError && (

@@ -12,9 +12,11 @@ import {
 } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
-import { Word, StudyRecord, StudyMode } from '../types';
+import { Word, StudyRecord, StudyMode, AppSettings } from '../types';
 import { REVIEW_INTERVALS } from '../constants';
 import { format, addDays } from 'date-fns';
+import AIService from '../services/AIService';
+import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
 
 // Web 平台兼容性处理
 let Speech: any = null;
@@ -61,6 +63,8 @@ export default function StudyScreen() {
     soundEnabled: true,
     autoPlaySound: false,
   });
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [enhancingWordId, setEnhancingWordId] = useState<number | null>(null);
   // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
   const retryMapRef = useRef<Map<number, number>>(new Map());
   const pendingIndexRef = useRef<number>(0);
@@ -90,6 +94,7 @@ export default function StudyScreen() {
       const today = format(new Date(), 'yyyy-MM-dd');
 
       const settings = await StorageService.getSettings();
+      setAppSettings(settings);
       setSpeechSettings({
         soundEnabled: settings.soundEnabled !== false,
         autoPlaySound: settings.autoPlaySound === true,
@@ -210,6 +215,27 @@ export default function StudyScreen() {
   const getCurrentWord = (): Word | null => {
     if (words.length === 0) return null;
     return words[currentIndex] || null;
+  };
+
+  // 手动触发 AI 补全：词条「骨架」缺词根/例句/近义词时由用户点击按钮调
+  const enhanceCurrentWord = async () => {
+    const w = getCurrentWord();
+    if (!w || !appSettings || w.id == null) return;
+    setEnhancingWordId(w.id);
+    try {
+      const ai = AIService.fromSettings(appSettings);
+      const result = await ai.analyzeWord(w.word);
+      const merged = mergeAIResultIntoWord(w, result);
+
+      await StorageService.updateWord(w.id, merged);
+      setWords(prev =>
+        prev.map(x => (x.id === w.id ? { ...x, ...merged } : x))
+      );
+    } catch (err) {
+      console.warn('AI 增强失败:', err);
+    } finally {
+      setEnhancingWordId(null);
+    }
   };
 
   // 处理单词正式完成后的收尾工作（创建复习计划、标记计划完成）
@@ -486,6 +512,23 @@ export default function StudyScreen() {
                     )}
                   </Surface>
                 ))}
+
+                {/* AI 补全：仅当词条信息不全且已配置 AI 时显示 */}
+                {canWordBeEnhanced(currentWord, appSettings) && (
+                  <Button
+                    mode="outlined"
+                    icon="auto-fix"
+                    onPress={enhanceCurrentWord}
+                    loading={enhancingWordId === currentWord.id}
+                    disabled={enhancingWordId === currentWord.id}
+                    style={styles.enhanceBtn}
+                    compact
+                  >
+                    {enhancingWordId === currentWord.id
+                      ? 'AI 补全中...'
+                      : 'AI 补全词根、例句、近义词'}
+                  </Button>
+                )}
               </View>
             )}
           </Card.Content>
@@ -1019,6 +1062,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontStyle: 'italic',
+  },
+  enhanceBtn: {
+    marginTop: 8,
+    borderRadius: 8,
   },
   listeningContainer: {
     alignItems: 'center',

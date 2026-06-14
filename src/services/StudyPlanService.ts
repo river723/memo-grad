@@ -1,10 +1,10 @@
 import { format, addDays, subDays } from 'date-fns';
-import { StudyPlan, Word, StudyRecord } from '../types';
+import { StudyPlan, Word, WeeklyStudyTrend } from '../types';
 import { REVIEW_INTERVALS } from '../constants';
 import StorageService from './StorageService';
 
 class StudyPlanService {
-  private storage: StorageService;
+  private storage: typeof StorageService;
 
   constructor() {
     this.storage = StorageService;
@@ -117,36 +117,64 @@ class StudyPlanService {
     return words.slice(0, 3); // 临时返回前3个单词作为示例
   }
 
+  async getWeeklyStudyTrend(): Promise<WeeklyStudyTrend[]> {
+    const [allRecords, allPlans] = await Promise.all([
+      this.storage.getStudyRecords(),
+      this.storage.getStudyPlans(),
+    ]);
+
+    const weeklyTrend: WeeklyStudyTrend[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const targetDate = subDays(new Date(), i);
+      const date = format(targetDate, 'yyyy-MM-dd');
+      const dayLabel = targetDate.toLocaleDateString('zh-CN', { weekday: 'short' });
+      const records = allRecords.filter(record => record.study_date === date);
+      const plans = allPlans.filter(plan => plan.plan_date === date);
+      const correctCount = records.filter(record => record.result === 1).length;
+      const completedCount = plans.filter(plan => plan.completed).length;
+      const studiedWordIds = new Set(records.map(record => record.word_id));
+
+      weeklyTrend.push({
+        date,
+        dayLabel,
+        studyCount: records.length,
+        studiedWordCount: studiedWordIds.size,
+        correctCount,
+        accuracy: records.length > 0 ? correctCount / records.length : null,
+        plannedCount: plans.length,
+        completedCount,
+        completionRate: plans.length > 0 ? completedCount / plans.length : null,
+      });
+    }
+
+    return weeklyTrend;
+  }
+
   async calculateStudyStats(): Promise<{
     totalWords: number;
     masteredWords: number;
     todayProgress: number;
     weeklyProgress: number[];
+    weeklyTrend: WeeklyStudyTrend[];
   }> {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const todayPlans = await this.storage.getTodayStudyPlan();
-    const todayRecords = await this.storage.getStudyRecordsByDate(today);
+    const [allPlans, weeklyTrend] = await Promise.all([
+      this.storage.getStudyPlans(),
+      this.getWeeklyStudyTrend(),
+    ]);
+    const todayPlans = allPlans.filter(plan => plan.plan_date === today);
 
     // 计算今日进度
     const todayCompleted = todayPlans.filter(p => p.completed).length;
     const todayTotal = todayPlans.length;
     const todayProgress = todayTotal > 0 ? todayCompleted / todayTotal : 0;
 
-    // 计算一周进度
-    const weeklyProgress: number[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = format(subDays(new Date(), i), 'yyyy-MM-dd');
-      const records = await this.storage.getStudyRecordsByDate(date);
-      const correctCount = records.filter(r => r.result === 1).length;
-      const accuracy = records.length > 0 ? correctCount / records.length : 0;
-      weeklyProgress.push(accuracy);
-    }
-
     return {
       totalWords: 0, // 需要从数据库获取
       masteredWords: 0, // 需要从数据库计算
       todayProgress,
-      weeklyProgress
+      weeklyProgress: weeklyTrend.map(day => day.accuracy ?? 0),
+      weeklyTrend
     };
   }
 

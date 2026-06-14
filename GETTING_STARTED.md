@@ -19,22 +19,7 @@ cd kaoyan-english-vocabulary
 npm install
 ```
 
-### 第二步：配置API密钥
-
-创建 `.env` 文件：
-```bash
-# 在项目根目录创建 .env 文件
-touch .env
-```
-
-添加你的OpenRouter API密钥：
-```
-OPENROUTER_API_KEY=your_api_key_here
-```
-
-> **获取API密钥**: 访问 [OpenRouter.ai](https://openrouter.ai/) 注册并获取免费API密钥
-
-### 第三步：启动应用
+### 第二步：启动应用
 
 ```bash
 # 启动开发服务器
@@ -47,6 +32,16 @@ npx expo start
 # - 扫描二维码在真机中运行
 ```
 
+### 第三步：配置API密钥
+
+App 启动后进入“设置 → AI API设置”，填写 DeepSeek API Key，点击“测试连接”确认可用，再点击“保存 AI 设置”。
+
+> **获取API密钥**: 访问 [DeepSeek 开放平台](https://platform.deepseek.com/) 获取 API Key
+
+### 第四步：开始使用
+
+配置完成后即可添加单词、生成文章或进行 AI 出题练习。
+
 ## 📱 核心功能体验
 
 ### 1. 添加第一个单词
@@ -55,8 +50,9 @@ npx expo start
 import StorageService from './src/services/StorageService';
 import AIService from './src/services/AIService';
 
-// 创建AI服务实例
-const aiService = new AIService('your-api-key');
+// App 中会从设置页读取已保存的 DeepSeek API Key
+const settings = await StorageService.getSettings();
+const aiService = AIService.fromSettings(settings);
 
 // 分析单词
 const analysis = await aiService.analyzeWord('abandon');
@@ -238,8 +234,8 @@ A: 编辑 `src/constants/index.ts` 中的 `WORD_CATEGORIES`
 - [React TypeScript教程](https://react-typescript-cheatsheet.netlify.app/)
 
 ### AI集成学习
-- [OpenRouter API文档](https://openrouter.ai/docs)
-- [Anthropic Claude API](https://docs.anthropic.com/)
+- [DeepSeek 开放平台](https://platform.deepseek.com/)
+- [DeepSeek API 文档](https://api-docs.deepseek.com/)
 
 ## 🤝 寻求帮助
 

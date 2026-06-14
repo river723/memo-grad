@@ -9,7 +9,8 @@ import {
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
-import { Word, StudyRecord } from '../types';
+import StudyPlanService from '../services/StudyPlanService';
+import { Word, StudyRecord, WeeklyStudyTrend } from '../types';
 import { format } from 'date-fns';
 
 export default function StatsScreen() {
@@ -19,7 +20,7 @@ export default function StatsScreen() {
     todayStudyCount: 0,
     todayCorrectCount: 0,
     todayAccuracy: 0,
-    weeklyAccuracy: [] as number[],
+    weeklyTrend: [] as WeeklyStudyTrend[],
     difficultWords: [] as Word[],
     masteredWords: 0
   });
@@ -51,7 +52,8 @@ export default function StatsScreen() {
       const todayAccuracy = todayStudyCount > 0 ? (todayCorrectCount / todayStudyCount) * 100 : 0;
 
       // 一周统计
-      const weeklyAccuracy = await getWeeklyAccuracy();
+      const studyPlanService = new StudyPlanService();
+      const weeklyTrend = await studyPlanService.getWeeklyStudyTrend();
 
       // 困难单词（正确率低）
       const wordStats = calculateWordStats(allWords, allRecords);
@@ -68,28 +70,13 @@ export default function StatsScreen() {
         todayStudyCount,
         todayCorrectCount,
         todayAccuracy,
-        weeklyAccuracy,
+        weeklyTrend,
         difficultWords: difficultWords.slice(0, 5),
         masteredWords
       });
     } catch (error) {
       console.error('Failed to load stats:', error);
     }
-  };
-
-  const getWeeklyAccuracy = async (): Promise<number[]> => {
-    const result: number[] = [];
-    const today = new Date();
-
-    for (let i = 6; i >= 0; i--) {
-      const date = format(new Date(today.getTime() - i * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
-      const records = await StorageService.getStudyRecordsByDate(date);
-      const correctCount = records.filter(r => r.result === 1).length;
-      const accuracy = records.length > 0 ? (correctCount / records.length) * 100 : 0;
-      result.push(accuracy);
-    }
-
-    return result;
   };
 
   const calculateWordStats = (words: Word[], records: StudyRecord[]) => {
@@ -103,9 +90,10 @@ export default function StatsScreen() {
     });
   };
 
-  const getDifficultyColor = (level: number) => {
-    const colors = ['#4CAF50', '#8BC34A', '#FF9800', '#FF5722', '#F44336'];
-    return colors[level - 1] || '#9E9E9E';
+  const getProgressColor = (value: number) => {
+    if (value >= 80) return '#4CAF50';
+    if (value >= 60) return '#FF9800';
+    return '#F44336';
   };
 
   const renderProgressBar = (value: number, color: string = '#1976D2') => (
@@ -114,7 +102,14 @@ export default function StatsScreen() {
     </View>
   );
 
-  const daysOfWeek = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  const weeklyStudyCount = stats.weeklyTrend.reduce((sum, day) => sum + day.studyCount, 0);
+  const weeklyStudiedWordCount = stats.weeklyTrend.reduce((sum, day) => sum + day.studiedWordCount, 0);
+  const weeklyCorrectCount = stats.weeklyTrend.reduce((sum, day) => sum + day.correctCount, 0);
+  const weeklyPlannedCount = stats.weeklyTrend.reduce((sum, day) => sum + day.plannedCount, 0);
+  const weeklyCompletedCount = stats.weeklyTrend.reduce((sum, day) => sum + day.completedCount, 0);
+  const weeklyAccuracy = weeklyStudyCount > 0 ? (weeklyCorrectCount / weeklyStudyCount) * 100 : null;
+  const weeklyCompletionRate = weeklyPlannedCount > 0 ? (weeklyCompletedCount / weeklyPlannedCount) * 100 : null;
+  const maxStudyCount = Math.max(...stats.weeklyTrend.map(day => day.studyCount), 1);
 
   return (
     <ScrollView style={styles.container}>
@@ -159,23 +154,51 @@ export default function StatsScreen() {
       {/* 一周趋势 */}
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>📈 一周正确率趋势</Text>
+          <Text style={styles.sectionTitle}>📈 一周学习趋势</Text>
+          <View style={styles.trendSummary}>
+            <View style={styles.trendMetric}>
+              <Text style={styles.trendMetricValue}>{weeklyStudyCount}</Text>
+              <Text style={styles.trendMetricLabel}>学习次数</Text>
+            </View>
+            <View style={styles.trendMetric}>
+              <Text style={[styles.trendMetricValue, { color: weeklyAccuracy === null ? '#9E9E9E' : getProgressColor(weeklyAccuracy) }]}>
+                {weeklyAccuracy === null ? '--' : `${weeklyAccuracy.toFixed(0)}%`}
+              </Text>
+              <Text style={styles.trendMetricLabel}>平均正确率</Text>
+            </View>
+            <View style={styles.trendMetric}>
+              <Text style={[styles.trendMetricValue, { color: weeklyCompletionRate === null ? '#9E9E9E' : getProgressColor(weeklyCompletionRate) }]}>
+                {weeklyCompletionRate === null ? '--' : `${weeklyCompletionRate.toFixed(0)}%`}
+              </Text>
+              <Text style={styles.trendMetricLabel}>计划完成</Text>
+            </View>
+          </View>
+
           <View style={styles.weeklyChart}>
-            {stats.weeklyAccuracy.map((accuracy, index) => {
-              const barHeight = Math.max(accuracy * 0.8, 4);
-              const color = accuracy >= 80 ? '#4CAF50' : accuracy >= 60 ? '#FF9800' : '#F44336';
+            {stats.weeklyTrend.map(day => {
+              const accuracy = day.accuracy === null ? null : day.accuracy * 100;
+              const accuracyColor = accuracy === null ? '#BDBDBD' : getProgressColor(accuracy);
+              const studyRatio = day.studyCount > 0 ? day.studyCount / maxStudyCount : 0;
+              const completionText = day.completionRate === null
+                ? '无计划'
+                : `完${Math.round(day.completionRate * 100)}%`;
 
               return (
-                <View key={index} style={styles.chartItem}>
-                  <View style={[styles.chartBar, { height: barHeight, backgroundColor: color }]} />
-                  <Text style={styles.chartLabel}>{daysOfWeek[index]}</Text>
-                  <Text style={[styles.chartValue, { color }]}>
-                    {accuracy.toFixed(0)}%
+                <View key={day.date} style={styles.chartItem}>
+                  <Surface style={[styles.chartBar, { height: Math.max(studyRatio * 70, 4), backgroundColor: accuracyColor }]}>
+                    <View />
+                  </Surface>
+                  <Text style={styles.chartLabel}>{day.dayLabel}</Text>
+                  <Text style={styles.chartValue}>{day.studyCount}次</Text>
+                  <Text style={[styles.chartSubValue, { color: accuracyColor }]}>
+                    {accuracy === null ? '--' : `${accuracy.toFixed(0)}%`}
                   </Text>
+                  <Text style={styles.chartPlanValue}>{completionText}</Text>
                 </View>
               );
             })}
           </View>
+          <Text style={styles.trendHint}>柱高代表学习量，颜色代表正确率，底部显示计划完成率。</Text>
         </Card.Content>
       </Card>
 
@@ -283,15 +306,39 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
   },
+  trendSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  trendMetric: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    marginHorizontal: 3,
+  },
+  trendMetricValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1976D2',
+  },
+  trendMetricLabel: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 3,
+  },
   weeklyChart: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'flex-end',
-    height: 120,
-    paddingTop: 20,
+    minHeight: 145,
+    paddingTop: 8,
   },
   chartItem: {
     alignItems: 'center',
+    flex: 1,
   },
   chartBar: {
     width: 24,
@@ -306,6 +353,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     marginTop: 4,
+  },
+  chartSubValue: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  chartPlanValue: {
+    fontSize: 9,
+    color: '#777',
+    marginTop: 2,
+  },
+  trendHint: {
+    fontSize: 11,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 8,
   },
   difficultWordItem: {
     flexDirection: 'row',

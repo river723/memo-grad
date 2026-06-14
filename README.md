@@ -16,16 +16,15 @@
 npm install
 ```
 
-2. 配置环境变量：
-创建 `.env` 文件并添加你的OpenRouter API密钥：
-```
-OPENROUTER_API_KEY=your_api_key_here
-```
-
-3. 启动开发服务器：
+2. 启动开发服务器：
 ```bash
 npm start
 ```
+
+3. 在 App 设置页配置 DeepSeek API Key：
+- 打开 App 后进入“设置”
+- 在“AI API设置”中填写 DeepSeek API Key
+- 点击“测试连接”确认可用，再点击“保存 AI 设置”
 
 4. 在模拟器或真机上运行：
 - iOS: 按 `i` 或在iOS模拟器中运行
@@ -79,7 +78,7 @@ src/
 - **UI组件库**: React Native Paper
 - **导航**: React Navigation
 - **本地存储**: SQLite (expo-sqlite)
-- **AI服务**: OpenRouter API (支持Claude、GPT等)
+- **AI服务**: DeepSeek API
 - **语音**: expo-speech
 - **状态管理**: React Hooks
 
@@ -92,10 +91,7 @@ src/
 
 ## 🔑 API配置
 
-应用使用OpenRouter API来访问AI服务，支持多个模型：
-- Claude 3 Haiku (默认)
-- GPT-3.5 Turbo
-- 其他兼容模型
+应用使用 DeepSeek API 提供 AI 单词分析、文章生成和考题生成功能。API Key 不需要写入 `.env`，请在 App 的“设置 → AI API设置”中填写并保存。
 
 ## 🎯 开发计划
 
@@ -130,10 +126,10 @@ MIT License
 ## 💡 使用说明
 
 ### 配置API密钥
-1. 注册 [OpenRouter](https://openrouter.ai/) 账号
-2. 获取API密钥
-3. 在项目根目录创建 `.env` 文件
-4. 添加你的密钥：`OPENROUTER_API_KEY=your_key_here`
+1. 注册并登录 [DeepSeek 开放平台](https://platform.deepseek.com/)
+2. 获取 API Key
+3. 打开 App，进入“设置 → AI API设置”
+4. 填写 API Key，点击“测试连接”确认可用，再点击“保存 AI 设置”
 
 ### 数据库初始化
 应用首次启动时会自动创建SQLite数据库和必要的表结构。
@@ -147,8 +143,8 @@ MIT License
 
 ## 🐛 常见问题
 
-### Q: 如何添加更多AI模型？
-A: 在 `constants/index.ts` 中修改 `API_CONFIG.DEFAULT_MODEL`
+### Q: 如何配置AI功能？
+A: 在 App 的“设置 → AI API设置”中填写 DeepSeek API Key，并点击“测试连接”验证。
 
 ### Q: 如何调整艾宾浩斯复习间隔？
 A: 在 `constants/index.ts` 中修改 `REVIEW_INTERVALS` 数组

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet, Platform } from 'react-native';
-import { Text, Chip, Surface, Button, IconButton } from 'react-native-paper';
+import { Text, Chip, Surface, Button, IconButton, ActivityIndicator } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
-import { Word } from '../types';
+import AIService from '../services/AIService';
+import { Word, AppSettings } from '../types';
+import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
 
 // Web 平台兼容性处理
 let Speech: any = null;
@@ -15,27 +17,53 @@ if (Platform.OS !== 'web') {
   }
 }
 
+// 判断与合并逻辑统一在 utils/wordUtils
 export default function WordDetailScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation();
   const [word, setWord] = useState<Word | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [enhancing, setEnhancing] = useState(false);
 
   useEffect(() => {
     const loadWord = async () => {
       const id = route.params?.wordId;
       if (!id) return;
 
-      const [loadedWord, settings] = await Promise.all([
+      const [loadedWord, appSettings] = await Promise.all([
         StorageService.getWordById(id),
         StorageService.getSettings(),
       ]);
       setWord(loadedWord);
-      setSoundEnabled(settings.soundEnabled !== false);
+      setSettings(appSettings);
+      setSoundEnabled(appSettings.soundEnabled !== false);
     };
 
     loadWord();
   }, [route.params]);
+
+  const enhanceWord = async () => {
+    if (!word || !settings) return;
+    setEnhancing(true);
+    try {
+      const ai = AIService.fromSettings(settings);
+      const result = await ai.analyzeWord(word.word);
+      const merged = mergeAIResultIntoWord(word, result);
+
+      if (word.id != null) {
+        await StorageService.updateWord(word.id, merged);
+      }
+      setWord({ ...word, ...merged });
+    } catch (err) {
+      console.warn('AI 增强失败，保持词库版本:', err);
+      // 静默失败，UI 仍显示词库原值
+    } finally {
+      setEnhancing(false);
+    }
+  };
+
+  const canEnhance = canWordBeEnhanced(word, settings);
 
   const speakWord = (text: string) => {
     if (!soundEnabled) return;
@@ -113,6 +141,24 @@ export default function WordDetailScreen() {
               <Text style={styles.similarDescription}>{item.description}</Text>
             </View>
           ))}
+        </Surface>
+      ) : null}
+
+      {/* AI 补全：仅当词条信息不全且已配置 AI 时显示 */}
+      {canEnhance && !enhancing ? (
+        <Button
+          mode="outlined"
+          icon="auto-fix"
+          onPress={enhanceWord}
+          style={styles.enhanceBtn}
+        >
+          AI 补全词根、例句、近义词
+        </Button>
+      ) : null}
+      {enhancing ? (
+        <Surface style={styles.enhancingBar}>
+          <ActivityIndicator size="small" color="#1976D2" />
+          <Text style={styles.enhancingText}>AI 正在补全...</Text>
         </Surface>
       ) : null}
 
@@ -215,5 +261,23 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginTop: 16,
+  },
+  enhancingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    marginBottom: 16,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+  },
+  enhancingText: {
+    fontSize: 13,
+    color: '#1976D2',
+    marginLeft: 4,
+  },
+  enhanceBtn: {
+    marginBottom: 12,
+    borderRadius: 8,
   },
 });

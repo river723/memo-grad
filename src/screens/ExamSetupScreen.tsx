@@ -27,7 +27,6 @@ export default function ExamSetupScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [questionType, setQuestionType] = useState<ExamQuestionType>('definition');
   const [questionCount, setQuestionCount] = useState(EXAM_CONFIG.DEFAULT_QUESTION_COUNT);
-  const [apiKey, setApiKey] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
   useFocusEffect(
@@ -40,7 +39,6 @@ export default function ExamSetupScreen() {
     try {
       const settings = await StorageService.getSettings();
       setQuestionCount(settings.examQuestionCount || EXAM_CONFIG.DEFAULT_QUESTION_COUNT);
-      setApiKey(settings.apiKey || '');
 
       const words = await StorageService.getWords();
       setAllWords(words);
@@ -115,14 +113,15 @@ export default function ExamSetupScreen() {
       Alert.alert('生词不足', `至少需要 ${EXAM_CONFIG.MIN_QUESTION_COUNT} 个生词才能出题`);
       return;
     }
-    if (!apiKey) {
-      Alert.alert('未配置 API', '请在设置中配置 DeepSeek API 密钥');
+    const settings = await StorageService.getSettings();
+    if (!settings.apiKey || !settings.aiModel) {
+      Alert.alert('未配置 API', '请在设置中配置 AI API');
       return;
     }
 
     setIsGenerating(true);
     try {
-      const aiService = new AIService(apiKey);
+      const aiService = AIService.fromSettings(settings);
       const wordData = selectedWords.map(w => ({
         word: w.word,
         meaning: w.definitions.find(d => d.is_core)?.meaning || w.definitions[0]?.meaning || '',

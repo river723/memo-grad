@@ -23,6 +23,7 @@ import ExamAnswerScreen from '../screens/ExamAnswerScreen';
 import ExamResultScreen from '../screens/ExamResultScreen';
 import WrongQuestionReviewScreen from '../screens/WrongQuestionReviewScreen';
 import ExamHistoryScreen from '../screens/ExamHistoryScreen';
+import WordbankPickerScreen from '../screens/WordbankPickerScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -108,6 +109,11 @@ export default function AppNavigator() {
           name="AddWord"
           component={AddWordScreen}
           options={stackHeaderOptions('添加单词')}
+        />
+        <Stack.Screen
+          name="WordbankPicker"
+          component={WordbankPickerScreen}
+          options={{ ...stackHeaderOptions('从词库选词'), headerShown: true }}
         />
         <Stack.Screen
           name="Study"

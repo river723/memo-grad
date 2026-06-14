@@ -27,7 +27,7 @@
   - 设置存储
 
 ### 4. 🤖 AI服务集成
-- ✅ **AIService.ts** - OpenRouter API集成
+- ✅ **AIService.ts** - DeepSeek API集成
   - 单词AI分析
   - 文本单词提取
   - AI内容生成

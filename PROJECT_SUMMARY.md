@@ -6,7 +6,7 @@
 - ✅ 项目基础配置和依赖管理
 - ✅ 完整的TypeScript类型定义
 - ✅ 本地数据存储服务 (AsyncStorage)
-- ✅ AI服务集成 (OpenRouter API)
+- ✅ AI服务集成 (DeepSeek API)
 - ✅ 艾宾浩斯记忆算法实现
 - ✅ 响应式UI组件和主题配置
 - ✅ 导航结构和首页仪表板
@@ -29,7 +29,7 @@
 - **数据存储**: AsyncStorage (轻量级)
 
 ### 后端服务
-- **AI服务**: OpenRouter API (支持Claude、GPT等多模型)
+- **AI服务**: DeepSeek API
 - **本地存储**: AsyncStorage
 - **语音服务**: expo-speech
 - **日期处理**: date-fns
@@ -152,11 +152,10 @@ e--study-claude-MemoGrad/
 # 安装依赖
 npm install
 
-# 配置环境变量 (创建 .env 文件)
-OPENROUTER_API_KEY=your_api_key
-
 # 启动开发服务器
 npx expo start
+
+# 启动后在 App 的“设置 → AI API设置”中填写 DeepSeek API Key
 ```
 
 ### 生产部署
