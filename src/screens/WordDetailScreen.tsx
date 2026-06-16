@@ -5,7 +5,12 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, AppSettings } from '../types';
-import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
+import {
+  canWordBeEnhanced,
+  getLocalWordDictResult,
+  mergeAIResultIntoWord,
+  needsWordEnhancement,
+} from '../utils/wordUtils';
 
 // Web 平台兼容性处理
 let Speech: any = null;
@@ -44,11 +49,16 @@ export default function WordDetailScreen() {
   }, [route.params]);
 
   const enhanceWord = async () => {
-    if (!word || !settings) return;
+    if (!word) return;
     setEnhancing(true);
     try {
-      const ai = AIService.fromSettings(settings);
-      const result = await ai.analyzeWord(word.word);
+      const localResult = getLocalWordDictResult(word.word);
+      const result = localResult || (settings
+        ? await AIService.fromSettings(settings).analyzeWord(word.word)
+        : null);
+
+      if (!result) return;
+
       const merged = mergeAIResultIntoWord(word, result);
 
       if (word.id != null) {
@@ -56,14 +66,19 @@ export default function WordDetailScreen() {
       }
       setWord({ ...word, ...merged });
     } catch (err) {
-      console.warn('AI 增强失败，保持词库版本:', err);
+      console.warn('单词增强失败，保持词库版本:', err);
       // 静默失败，UI 仍显示词库原值
     } finally {
       setEnhancing(false);
     }
   };
 
-  const canEnhance = canWordBeEnhanced(word, settings);
+  const localWordDictResult = word ? getLocalWordDictResult(word.word) : null;
+  const canEnhance = !!(
+    word &&
+    needsWordEnhancement(word) &&
+    (localWordDictResult || canWordBeEnhanced(word, settings))
+  );
 
   const speakWord = (text: string) => {
     if (!soundEnabled) return;
@@ -144,7 +159,7 @@ export default function WordDetailScreen() {
         </Surface>
       ) : null}
 
-      {/* AI 补全：仅当词条信息不全且已配置 AI 时显示 */}
+      {/* 信息补全：优先用本地词典，未命中且已配置 AI 时再调用 AI */}
       {canEnhance && !enhancing ? (
         <Button
           mode="outlined"
@@ -152,7 +167,7 @@ export default function WordDetailScreen() {
           onPress={enhanceWord}
           style={styles.enhanceBtn}
         >
-          AI 补全词根、例句、近义词
+          {localWordDictResult ? '本地词典补全词根、例句、近义词' : 'AI 补全词根、例句、近义词'}
         </Button>
       ) : null}
       {enhancing ? (

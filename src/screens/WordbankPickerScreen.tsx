@@ -1,7 +1,7 @@
 // src/screens/WordbankPickerScreen.tsx
 //
-// 从本地词库勾选单词，批量加入生词本。
-// 数据来自 src/data/wordbank.json (4801 条考研词)，不走运行时下载。
+// 从本地增强词典勾选单词，批量加入生词本。
+// 数据来自 src/data/worddict.json，已包含词根、例句、易混词。
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
@@ -24,25 +24,16 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
-import wordbank from '../data/wordbank.json';
+import { getLocalWordDictWords } from '../utils/wordUtils';
 
 type WordbankEntry = Omit<Word, 'id' | 'created_at' | 'updated_at'>;
 
-type FreqFilter = 'all' | 1 | 2 | 3;
-type SortMode = 'alpha' | 'diffAsc' | 'diffDesc' | 'freq';
-
-const FREQ_LABEL: Record<FreqFilter, string> = {
-  all: '全部',
-  1: '低频★',
-  2: '中频★★',
-  3: '高频★★★',
-};
+type SortMode = 'alpha' | 'diffAsc' | 'diffDesc';
 
 const SORT_LABEL: Record<SortMode, string> = {
   alpha: '字母',
   diffAsc: '难度↑',
   diffDesc: '难度↓',
-  freq: '频率↓',
 };
 
 const DIFF_COLORS: Record<number, string> = {
@@ -119,7 +110,7 @@ export default function WordbankPickerScreen() {
   const flatRef = useRef<FlatList>(null);
 
   // 数据
-  const [list] = useState<WordbankEntry[]>(() => wordbank as WordbankEntry[]);
+  const [list] = useState<WordbankEntry[]>(() => getLocalWordDictWords());
   const [existing, setExisting] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -127,7 +118,6 @@ export default function WordbankPickerScreen() {
   // 筛选
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [freqFilter, setFreqFilter] = useState<FreqFilter>('all');
   const [sortMode, setSortMode] = useState<SortMode>('alpha');
 
   // 分组
@@ -158,10 +148,6 @@ export default function WordbankPickerScreen() {
   const sorted = useMemo(() => {
     let items = list;
 
-    if (freqFilter !== 'all') {
-      items = items.filter((e) => e.frequency === freqFilter);
-    }
-
     const q = debouncedQuery.trim().toLowerCase();
     if (q) {
       items = items.filter(
@@ -180,13 +166,11 @@ export default function WordbankPickerScreen() {
       items = items.slice().sort((a, b) => a.difficulty - b.difficulty);
     } else if (sortMode === 'diffDesc') {
       items = items.slice().sort((a, b) => b.difficulty - a.difficulty);
-    } else if (sortMode === 'freq') {
-      items = items.slice().sort((a, b) => b.frequency - a.frequency);
     }
     // sortMode==='alpha' 维持 JSON 内置字母序
 
     return items;
-  }, [list, freqFilter, debouncedQuery, sortMode]);
+  }, [list, debouncedQuery, sortMode]);
 
   // 第二层：剔除已在词本的词 → 候选池
   const pool = useMemo(
@@ -206,7 +190,7 @@ export default function WordbankPickerScreen() {
   // 筛选/搜索/排序变更 → 回到第 1 组
   useEffect(() => {
     setGroup(0);
-  }, [freqFilter, debouncedQuery, sortMode]);
+  }, [debouncedQuery, sortMode]);
 
   // 加入后 pool 缩短可能让 group 越界 → 自动夹到合法范围
   useEffect(() => {
@@ -353,23 +337,8 @@ export default function WordbankPickerScreen() {
       {/* 筛选 Chip 行 */}
       <View style={styles.chipRow}>
         <View style={styles.chipGroup}>
-          <Text style={styles.chipGroupLabel}>频率</Text>
-          {(['all', 3, 2, 1] as FreqFilter[]).map((v) => (
-            <Chip
-              key={String(v)}
-              selected={freqFilter === v}
-              onPress={() => setFreqFilter(v)}
-              style={styles.chip}
-              mode="outlined"
-              compact
-            >
-              {FREQ_LABEL[v]}
-            </Chip>
-          ))}
-        </View>
-        <View style={styles.chipGroup}>
           <Text style={styles.chipGroupLabel}>排序</Text>
-          {(['alpha', 'diffAsc', 'diffDesc', 'freq'] as SortMode[]).map(
+          {(['alpha', 'diffAsc', 'diffDesc'] as SortMode[]).map(
             (v) => (
               <Chip
                 key={v}
@@ -440,7 +409,7 @@ export default function WordbankPickerScreen() {
       <View style={styles.bottomBar}>
         <View style={styles.bottomHintWrap}>
           <Text style={styles.bottomHint}>
-            💡 加入后首次打开详情会自动用 AI 补全词根、例句
+            💡 本地增强词典已包含词根、例句、易混词
           </Text>
         </View>
         <View style={styles.bottomBtnRow}>

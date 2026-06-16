@@ -90,6 +90,17 @@ export interface AIResponse {
   suggestedDifficulty?: number; // AI建议难度 1-5
 }
 
+export interface WordDictEntry {
+  definitions: WordDefinition[];
+  etymology?: string;
+  similar_words?: SimilarWord[];
+  suggestedDifficulty?: number; // 本地词典建议难度 1-5
+}
+
+export interface WordDictJson {
+  results: Record<string, WordDictEntry>;
+}
+
 export interface Article {
   id?: number;
   title: string;
