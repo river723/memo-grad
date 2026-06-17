@@ -67,7 +67,7 @@ function MainTabs() {
 
           if (route.name === '首页') {
             iconName = 'home';
-          } else if (route.name === '单词本') {
+          } else if (route.name === '生词本') {
             iconName = 'book';
           } else if (route.name === '练习') {
             iconName = 'edit';
@@ -92,7 +92,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="首页" component={HomeTabScreen} />
-      <Tab.Screen name="单词本" component={WordListTabScreen} />
+      <Tab.Screen name="生词本" component={WordListTabScreen} />
       <Tab.Screen name="练习" component={PracticeHubTabScreen} />
       <Tab.Screen name="设置" component={SettingsTabScreen} />
     </Tab.Navigator>
@@ -108,7 +108,7 @@ export default function AppNavigator() {
         <Stack.Screen
           name="AddWord"
           component={AddWordScreen}
-          options={stackHeaderOptions('添加单词')}
+          options={stackHeaderOptions('添加生词')}
         />
         <Stack.Screen
           name="WordbankPicker"

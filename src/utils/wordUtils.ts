@@ -5,7 +5,7 @@ const worddict = worddictJson as WordDictJson;
 
 /**
  * 判断词条是否为「骨架词」——本地词库直接加入但还没经过 AI 增强的。
- * 增强后 etymology / definitions[].example / similar_words 至少有一项非空。
+ * 增强后 etymology / definitions[].example / similar_words 至少有一项为空。
  */
 export function needsWordEnhancement(w: Word): boolean {
   const hasEty = !!(w.etymology && w.etymology.trim());
@@ -13,7 +13,7 @@ export function needsWordEnhancement(w: Word): boolean {
     (d) => d.example && d.example.trim()
   );
   const hasSimilar = Array.isArray(w.similar_words) && w.similar_words.length > 0;
-  return !hasEty && !hasExample && !hasSimilar;
+  return !hasEty || !hasExample || !hasSimilar;
 }
 
 /** AI 增强条件是否具备：是骨架词 + 有 API key + 有 model */

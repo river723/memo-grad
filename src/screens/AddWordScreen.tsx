@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   Surface,
   Dialog,
-  Portal
+  Portal,
+  SegmentedButtons
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -18,8 +19,11 @@ import AIService from '../services/AIService';
 import { Word, AIResponse, AppSettings } from '../types';
 import { mergeAIResultIntoWord } from '../utils/wordUtils';
 
+type AddWordTab = 'wordbank' | 'manual';
+
 export default function AddWordScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
+  const [activeTab, setActiveTab] = useState<AddWordTab>('wordbank');
   const [input, setInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<Map<string, AIResponse> | AIResponse | null>(null);
@@ -407,30 +411,57 @@ export default function AddWordScreen() {
   return (
     <>
     <ScrollView style={styles.container}>
-      {/* 入口：从本地词库选词 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.pickerEntryRow}>
-            <MaterialIcons name="library-books" size={36} color="#1976D2" />
-            <View style={styles.pickerEntryText}>
-              <Text style={styles.pickerEntryTitle}>从本地词库选词</Text>
-              <Text style={styles.pickerEntryHint}>4801 个考研词，勾选即加入</Text>
+      <View style={styles.pageHeader}>
+        <View style={styles.pageTitleRow}>
+          <Text style={styles.pageTitle}>添加新生词</Text>
+          <Button
+            mode="text"
+            compact
+            icon="arrow-left"
+            onPress={() => navigation.goBack()}
+          >
+            返回
+          </Button>
+        </View>
+        <Text style={styles.pageSubtitle}>从本地增强词库快速选择，或手工录入并用 AI 补全释义</Text>
+      </View>
+
+      <SegmentedButtons
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as AddWordTab)}
+        buttons={[
+          { value: 'wordbank', label: '从本地词库选词', icon: 'library-books' },
+          { value: 'manual', label: '手工添加新单词', icon: 'pencil-plus' },
+        ]}
+        style={styles.tabButtons}
+      />
+
+      {activeTab === 'wordbank' && (
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.pickerEntryRow}>
+              <MaterialIcons name="library-books" size={40} color="#1976D2" />
+              <View style={styles.pickerEntryText}>
+                <Text style={styles.pickerEntryTitle}>从本地词库选词</Text>
+                <Text style={styles.pickerEntryHint}>4801 个考研词，已含词根、例句和易混词，勾选即可加入生词本</Text>
+              </View>
             </View>
             <Button
               mode="contained"
-              compact
               icon="book-search"
               onPress={() => navigation.navigate('WordbankPicker' as never)}
+              style={styles.pickerEntryButton}
             >
-              选词
+              打开本地词库
             </Button>
-          </View>
-        </Card.Content>
-      </Card>
+          </Card.Content>
+        </Card>
+      )}
 
-      <Card style={styles.card}>
-        <Card.Title title="添加新单词" titleStyle={styles.cardTitle} />
-        <Card.Content>
+      {activeTab === 'manual' && (
+        <Card style={styles.card}>
+          <Card.Title title="手工添加新单词" titleStyle={styles.cardTitle} />
+          <Card.Content>
           {/* 单词输入 */}
           <Text style={styles.helperText}>输入1-30个单词，用空格、换行或标点符号分隔</Text>
           <TextInput
@@ -498,8 +529,9 @@ export default function AddWordScreen() {
         </Card.Content>
       </Card>
 
-      {/* 分析中 */}
-      {isAnalyzing && (
+      )}
+
+      {activeTab === 'manual' && isAnalyzing && (
         <Card style={styles.card}>
           <Card.Content style={styles.loadingContainer}>
             <ActivityIndicator size="large" />
@@ -509,7 +541,7 @@ export default function AddWordScreen() {
       )}
 
       {/* 分析结果 - 单个单词 */}
-      {analysisResult && isSingleWordResult() && (
+      {activeTab === 'manual' && analysisResult && isSingleWordResult() && (
         <Card style={styles.card}>
           <Card.Title title="AI分析结果" titleStyle={styles.cardTitle} />
           <Card.Content>
@@ -559,7 +591,7 @@ export default function AddWordScreen() {
       )}
 
       {/* 分析结果 - 多个单词 */}
-      {analysisResult && !isSingleWordResult() && (
+      {activeTab === 'manual' && analysisResult && !isSingleWordResult() && (
         <Card style={styles.card}>
           <Card.Title title={`批量AI分析结果 (${(analysisResult as Map<string, AIResponse>).size}个单词)`} titleStyle={styles.cardTitle} />
           <Card.Content>
@@ -583,7 +615,7 @@ export default function AddWordScreen() {
       )}
 
       {/* 手动添加释义（仅单个单词且无分析时显示） */}
-      {wordCount === 1 && !analysisResult && (
+      {activeTab === 'manual' && wordCount === 1 && !analysisResult && (
         <Card style={styles.card}>
           <Card.Title title="手动添加释义" titleStyle={styles.cardTitle} />
           <Card.Content>
@@ -602,9 +634,10 @@ export default function AddWordScreen() {
       )}
 
       {/* AI建议难度等级显示（分析完成后显示） */}
-      {analysisResult && renderDifficultySelector()}
+      {activeTab === 'manual' && analysisResult && renderDifficultySelector()}
 
       {/* 保存按钮 */}
+      {activeTab === 'manual' && (
       <View style={styles.buttonContainer}>
         <Button
           mode="contained"
@@ -624,6 +657,7 @@ export default function AddWordScreen() {
           返回
         </Button>
       </View>
+      )}
     </ScrollView>
 
     {/* 覆盖确认 Dialog */}
@@ -678,6 +712,29 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     elevation: 2,
   },
+  pageHeader: {
+    marginBottom: 16,
+  },
+  pageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    flex: 1,
+  },
+  pageSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 20,
+  },
+  tabButtons: {
+    marginBottom: 16,
+  },
   pickerEntryRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -696,6 +753,10 @@ const styles = StyleSheet.create({
   pickerEntryHint: {
     fontSize: 12,
     color: '#666',
+    lineHeight: 18,
+  },
+  pickerEntryButton: {
+    marginTop: 16,
   },
   cardTitle: {
     fontSize: 18,

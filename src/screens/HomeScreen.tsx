@@ -90,9 +90,9 @@ const getDifficultWordIds = (words: Word[], records: StudyRecord[]) => {
 const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
   if (stats.totalWords === 0) {
     return {
-      title: '先添加单词',
-      description: '单词本还是空的，先添加几个考研词开始吧。',
-      actionLabel: '添加单词',
+      title: '先添加生词',
+      description: '生词本还是空的，先添加几个考研词开始吧。',
+      actionLabel: '添加生词',
       icon: 'plus',
       routeName: 'AddWord',
     };
@@ -100,7 +100,7 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
 
   if (stats.todayPending > 0) {
     return {
-      title: `今日还有 ${stats.todayPending} 个单词待学习`,
+      title: `今日还有 ${stats.todayPending} 个生词待学习`,
       description: `其中 ${stats.newPending} 个新词、${stats.reviewPending} 个复习词，建议先完成今日计划。`,
       actionLabel: '继续学习',
       icon: 'book-open-variant',
@@ -346,7 +346,7 @@ export default function HomeScreen() {
                 icon="plus"
                 textColor="#1976D2"
               >
-                添加单词
+                添加生词
               </Button>
               <Button
                 mode="text"
