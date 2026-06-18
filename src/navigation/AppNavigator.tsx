@@ -108,7 +108,7 @@ export default function AppNavigator() {
         <Stack.Screen
           name="AddWord"
           component={AddWordScreen}
-          options={stackHeaderOptions('添加生词')}
+          options={{ ...stackHeaderOptions('添加生词'), headerShown: true }}
         />
         <Stack.Screen
           name="WordbankPicker"

@@ -20,7 +20,6 @@ import {
   Button,
   Chip,
 } from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
@@ -69,11 +68,12 @@ const WordRow = React.memo(function WordRow({
     >
       {/* 勾选 */}
       <View style={styles.checkCol}>
-        {isSelected ? (
-          <MaterialIcons name="check-box" size={22} color="#1976D2" />
-        ) : (
-          <MaterialIcons name="check-box-outline-blank" size={22} color="#9E9E9E" />
-        )}
+        <View style={[
+          styles.checkbox,
+          isSelected && styles.checkboxChecked
+        ]}>
+          {isSelected && <Text style={styles.checkmark}>✓</Text>}
+        </View>
       </View>
 
       {/* 单词信息 */}
@@ -343,8 +343,12 @@ export default function WordbankPickerScreen() {
               <Chip
                 key={v}
                 selected={sortMode === v}
+                showSelectedCheck={false}
                 onPress={() => setSortMode(v)}
-                style={styles.chip}
+                style={[
+                  styles.chip,
+                  sortMode === v && styles.chipSelected
+                ]}
                 mode="outlined"
                 compact
               >
@@ -382,11 +386,7 @@ export default function WordbankPickerScreen() {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialIcons
-              name={debouncedQuery ? 'search-off' : 'library-books'}
-              size={48}
-              color="#CCC"
-            />
+            <Text style={styles.emptyIcon}>{debouncedQuery ? '🔍' : '📚'}</Text>
             <Text style={styles.emptyText}>
               {debouncedQuery
                 ? '没有找到匹配的单词'
@@ -490,6 +490,9 @@ const styles = StyleSheet.create({
   chip: {
     height: 28,
   },
+  chipSelected: {
+    backgroundColor: '#E3F2FD',
+  },
 
   // 列表
   list: {
@@ -516,6 +519,24 @@ const styles = StyleSheet.create({
     width: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderWidth: 2,
+    borderColor: '#9E9E9E',
+    borderRadius: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#1976D2',
+    borderColor: '#1976D2',
+  },
+  checkmark: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   infoCol: {
     flex: 1,
@@ -561,6 +582,10 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     paddingTop: 60,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    opacity: 0.5,
   },
   emptyText: {
     fontSize: 15,

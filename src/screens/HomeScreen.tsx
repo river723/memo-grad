@@ -252,11 +252,7 @@ export default function HomeScreen() {
 
   const weeklyStudyCount = weeklyTrend.reduce((sum, day) => sum + day.studyCount, 0);
   const weeklyStudiedWordCount = weeklyTrend.reduce((sum, day) => sum + day.studiedWordCount, 0);
-  const weeklyCorrectCount = weeklyTrend.reduce((sum, day) => sum + day.correctCount, 0);
-  const weeklyPlannedCount = weeklyTrend.reduce((sum, day) => sum + day.plannedCount, 0);
-  const weeklyCompletedCount = weeklyTrend.reduce((sum, day) => sum + day.completedCount, 0);
-  const weeklyAccuracy = weeklyStudyCount > 0 ? weeklyCorrectCount / weeklyStudyCount : null;
-  const weeklyCompletionRate = weeklyPlannedCount > 0 ? weeklyCompletedCount / weeklyPlannedCount : null;
+  const avgDailyStudyCount = weeklyTrend.length > 0 ? Math.round(weeklyStudyCount / weeklyTrend.length) : 0;
   const maxStudyCount = Math.max(...weeklyTrend.map(day => day.studyCount), 1);
 
   return (
@@ -380,35 +376,29 @@ export default function HomeScreen() {
         </Card>
 
         {/* 一周学习趋势 */}
-        <Card style={styles.card}>
-          <Card.Title title="一周学习趋势" titleStyle={styles.cardTitle} />
+        <Card style={styles.card} onPress={() => navigation.navigate('Stats' as never)}>
+          <Card.Title
+            title="一周学习趋势"
+            titleStyle={styles.cardTitle}
+            right={() => (
+              <Text style={styles.cardHint}>查看详情 →</Text>
+            )}
+          />
           <Card.Content>
             <View style={styles.trendSummary}>
               <View style={styles.trendMetric}>
                 <Text style={styles.trendMetricValue}>{weeklyStudiedWordCount}</Text>
-                <Text style={styles.trendMetricLabel}>学习单词</Text>
+                <Text style={styles.trendMetricLabel}>本周学习</Text>
               </View>
               <View style={styles.trendMetric}>
-                <Text style={[styles.trendMetricValue, { color: weeklyAccuracy === null ? '#9E9E9E' : getProgressColor(weeklyAccuracy) }]}>
-                  {weeklyAccuracy === null ? '--' : `${Math.round(weeklyAccuracy * 100)}%`}
-                </Text>
-                <Text style={styles.trendMetricLabel}>平均正确率</Text>
-              </View>
-              <View style={styles.trendMetric}>
-                <Text style={[styles.trendMetricValue, { color: weeklyCompletionRate === null ? '#9E9E9E' : getProgressColor(weeklyCompletionRate) }]}>
-                  {weeklyCompletionRate === null ? '--' : `${Math.round(weeklyCompletionRate * 100)}%`}
-                </Text>
-                <Text style={styles.trendMetricLabel}>计划完成</Text>
+                <Text style={styles.trendMetricValue}>{avgDailyStudyCount}</Text>
+                <Text style={styles.trendMetricLabel}>日均次数</Text>
               </View>
             </View>
 
             <View style={styles.weeklyChart}>
               {weeklyTrend.map(day => {
-                const accuracyColor = day.accuracy === null ? '#BDBDBD' : getProgressColor(day.accuracy);
                 const studyRatio = day.studyCount > 0 ? day.studyCount / maxStudyCount : 0;
-                const completionText = day.completionRate === null
-                  ? '无计划'
-                  : `完${Math.round(day.completionRate * 100)}%`;
 
                 return (
                   <View key={day.date} style={styles.chartItem}>
@@ -417,23 +407,18 @@ export default function HomeScreen() {
                         styles.chartBar,
                         {
                           height: Math.max(studyRatio * 60, 4),
-                          backgroundColor: accuracyColor,
+                          backgroundColor: '#1976D2',
                         },
                       ]}
                     >
                       <View />
                     </Surface>
+                    <Text style={styles.chartValue}>{day.studyCount}</Text>
                     <Text style={styles.chartLabel}>{day.dayLabel}</Text>
-                    <Text style={styles.chartValue}>{day.studyCount}次</Text>
-                    <Text style={[styles.chartSubValue, { color: accuracyColor }]}>
-                      {day.accuracy === null ? '--' : `${Math.round(day.accuracy * 100)}%`}
-                    </Text>
-                    <Text style={styles.chartPlanValue}>{completionText}</Text>
                   </View>
                 );
               })}
             </View>
-            <Text style={styles.trendHint}>柱高代表学习量，颜色代表正确率，底部显示计划完成率。</Text>
           </Card.Content>
         </Card>
 
@@ -443,7 +428,7 @@ export default function HomeScreen() {
             title="最近添加"
             titleStyle={styles.cardTitle}
             right={() => (
-              <Button onPress={() => navigation.navigate('单词本' as never)}>
+              <Button onPress={() => navigation.navigate('生词本' as never)}>
                 查看全部
               </Button>
             )}
@@ -568,69 +553,58 @@ const styles = StyleSheet.create({
     borderTopColor: '#E0E0E0',
     paddingTop: 8,
   },
+  cardHint: {
+    fontSize: 13,
+    color: '#1976D2',
+    marginRight: 8,
+  },
   trendSummary: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 24,
     marginBottom: 16,
   },
   trendMetric: {
-    flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
-    backgroundColor: '#F5F7FA',
-    borderRadius: 8,
-    marginHorizontal: 3,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   trendMetricValue: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#1976D2',
   },
   trendMetricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#666',
-    marginTop: 3,
+    marginTop: 4,
   },
   weeklyChart: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'flex-end',
-    minHeight: 130,
-    paddingTop: 8,
+    minHeight: 100,
+    paddingHorizontal: 8,
   },
   chartItem: {
     alignItems: 'center',
     flex: 1,
   },
   chartBar: {
-    width: 20,
-    borderRadius: 2,
+    width: 24,
+    borderRadius: 4,
     marginBottom: 8,
+    opacity: 0.85,
   },
   chartLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#666',
-    marginBottom: 2,
+    marginTop: 4,
   },
   chartValue: {
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  chartSubValue: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  chartPlanValue: {
-    fontSize: 9,
-    color: '#777',
-    marginTop: 2,
-  },
-  trendHint: {
-    fontSize: 11,
-    color: '#888',
-    textAlign: 'center',
-    marginTop: 8,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
   },
   recentWords: {
     flexDirection: 'row',

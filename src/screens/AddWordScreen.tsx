@@ -412,17 +412,7 @@ export default function AddWordScreen() {
     <>
     <ScrollView style={styles.container}>
       <View style={styles.pageHeader}>
-        <View style={styles.pageTitleRow}>
-          <Text style={styles.pageTitle}>添加新生词</Text>
-          <Button
-            mode="text"
-            compact
-            icon="arrow-left"
-            onPress={() => navigation.goBack()}
-          >
-            返回
-          </Button>
-        </View>
+        {/* <Text style={styles.pageTitle}>添加新生词</Text> */}
         <Text style={styles.pageSubtitle}>从本地增强词库快速选择，或手工录入并用 AI 补全释义</Text>
       </View>
 
@@ -430,7 +420,7 @@ export default function AddWordScreen() {
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as AddWordTab)}
         buttons={[
-          { value: 'wordbank', label: '从本地词库选词', icon: 'library-books' },
+          { value: 'wordbank', label: '从本地词库选词', icon: 'book-search' },
           { value: 'manual', label: '手工添加新单词', icon: 'pencil-plus' },
         ]}
         style={styles.tabButtons}
@@ -649,13 +639,13 @@ export default function AddWordScreen() {
           保存 ({wordCount}个单词)
         </Button>
 
-        <Button
+        {/* <Button
           mode="outlined"
           onPress={() => navigation.goBack()}
           style={styles.cancelButton}
         >
           返回
-        </Button>
+        </Button> */}
       </View>
       )}
     </ScrollView>
@@ -715,17 +705,11 @@ const styles = StyleSheet.create({
   pageHeader: {
     marginBottom: 16,
   },
-  pageTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1976D2',
-    flex: 1,
+    marginBottom: 6,
   },
   pageSubtitle: {
     fontSize: 13,

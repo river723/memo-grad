@@ -460,6 +460,7 @@ export default function ArticleGenerateScreen() {
               <Chip
                 key={theme.key}
                 selected={selectedTheme === theme.key}
+                showSelectedCheck={false}
                 onPress={() => setSelectedTheme(theme.key)}
                 style={[
                   styles.themeChip,
