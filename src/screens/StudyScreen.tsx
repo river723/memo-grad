@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, StyleSheet, TextInput, Platform } from 'react-native';
+import { View, ScrollView, StyleSheet, TextInput, Platform, Alert } from 'react-native';
 import {
   Card,
   Text,
@@ -8,15 +8,52 @@ import {
   Surface,
   Chip,
   SegmentedButtons,
-  Modal
+  Modal,
+  ActivityIndicator
 } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
-import { Word, StudyRecord, StudyMode, AppSettings } from '../types';
+import { Word, StudyRecord, AppSettings, Article } from '../types';
 import { REVIEW_INTERVALS } from '../constants';
 import { format, addDays } from 'date-fns';
 import AIService from '../services/AIService';
 import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
+
+type StudyScreenMode = 'flashcard' | 'listening' | 'quiz' | 'article';
+
+interface PreviewSegment {
+  text: string;
+  isWord: boolean;
+}
+
+function parsePreviewContent(content: string, targetWords: string[]): PreviewSegment[] {
+  if (!content || targetWords.length === 0) {
+    return [{ text: content || '', isWord: false }];
+  }
+
+  const escapedWords = targetWords
+    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(`\\b(${escapedWords.join('|')})\\b`, 'gi');
+
+  const segments: PreviewSegment[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ text: content.substring(lastIndex, match.index), isWord: false });
+    }
+    segments.push({ text: match[0], isWord: true });
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    segments.push({ text: content.substring(lastIndex), isWord: false });
+  }
+
+  return segments;
+}
 
 // Web 平台兼容性处理
 let Speech: any = null;
@@ -35,7 +72,7 @@ export default function StudyScreen() {
     ? route.params.wordIds.filter((id: unknown): id is number => typeof id === 'number')
     : [];
   const customWordIdKey = customWordIds.join(',');
-  const [currentMode, setCurrentMode] = useState<'flashcard' | 'listening' | 'quiz'>('flashcard');
+  const [currentMode, setCurrentMode] = useState<StudyScreenMode>('flashcard');
   const [words, setWords] = useState<Word[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -65,6 +102,16 @@ export default function StudyScreen() {
   });
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [enhancingWordId, setEnhancingWordId] = useState<number | null>(null);
+  const [isGeneratingArticle, setIsGeneratingArticle] = useState(false);
+  const [generatedArticle, setGeneratedArticle] = useState<{
+    title: string;
+    content: string;
+    translation: string;
+  } | null>(null);
+  const [articleError, setArticleError] = useState<string | null>(null);
+  const [showArticleTranslation, setShowArticleTranslation] = useState(false);
+  const [generatedArticleWords, setGeneratedArticleWords] = useState<Word[]>([]);
+  const [loadedArticleId, setLoadedArticleId] = useState<number | null>(null);
   // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
   const retryMapRef = useRef<Map<number, number>>(new Map());
   const pendingIndexRef = useRef<number>(0);
@@ -86,8 +133,20 @@ export default function StudyScreen() {
     }
   }, [currentMode, currentIndex]);
 
+  useEffect(() => {
+    if (currentMode === 'article' && words.length > 0 && !generatedArticle) {
+      loadExistingArticleForCurrentWords();
+    }
+  }, [currentMode, words.length, generatedArticle]);
+
   const loadStudyWords = async (exceedDailyLimit = false) => {
     try {
+      setGeneratedArticle(null);
+      setGeneratedArticleWords([]);
+      setLoadedArticleId(null);
+      setArticleError(null);
+      setShowArticleTranslation(false);
+
       const todayPlans = await StorageService.getTodayStudyPlan();
       const allWords = await StorageService.getWords();
       const allRecords = await StorageService.getStudyRecords();
@@ -271,7 +330,7 @@ export default function StudyScreen() {
 
   const handleResult = async (isCorrect: boolean) => {
     const currentWord = getCurrentWord();
-    if (!currentWord) return;
+    if (!currentWord || currentMode === 'article') return;
 
     try {
       // 1. 记录学习记录
@@ -434,6 +493,215 @@ export default function StudyScreen() {
 
     const isCorrect = listenAnswer.trim().toLowerCase() === currentWord.word.toLowerCase();
     handleResult(isCorrect);
+  };
+
+  const getArticleWords = () => words.slice(0, 30);
+
+  const getArticleTargetLength = (articleWords: Word[]) => articleWords.length * 20;
+
+  const getArticleWordKey = (articleWords: Word[]) => articleWords
+    .map(w => w.id)
+    .filter((id): id is number => typeof id === 'number')
+    .sort((a, b) => a - b)
+    .join(',');
+
+  const loadExistingArticleForCurrentWords = async () => {
+    const articleWords = getArticleWords();
+    const currentWordKey = getArticleWordKey(articleWords);
+    if (!currentWordKey) return;
+
+    try {
+      const articles = await StorageService.getArticles();
+      const matchedArticle = articles
+        .filter(article => {
+          const articleWordKey = [...article.word_ids]
+            .filter(id => typeof id === 'number')
+            .sort((a, b) => a - b)
+            .join(',');
+          return articleWordKey === currentWordKey;
+        })
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+      if (matchedArticle) {
+        setGeneratedArticle({
+          title: matchedArticle.title,
+          content: matchedArticle.content,
+          translation: matchedArticle.translation,
+        });
+        setGeneratedArticleWords(articleWords);
+        setLoadedArticleId(matchedArticle.id || null);
+        setArticleError('已载入该组单词的历史短文，不会消耗 AI 额度。');
+        setShowArticleTranslation(false);
+      }
+    } catch (error) {
+      console.warn('Failed to load existing article:', error);
+    }
+  };
+
+  const handleGenerateArticle = async () => {
+    setArticleError(null);
+
+    const articleWords = getArticleWords();
+    const targetLength = getArticleTargetLength(articleWords);
+    if (articleWords.length === 0) {
+      setArticleError('本轮暂无可用于生成短文的单词');
+      return;
+    }
+
+    const latestSettings = await StorageService.getSettings();
+    setAppSettings(latestSettings);
+
+    if (!latestSettings.apiKey || !latestSettings.aiModel) {
+      const msg = '请先在设置中配置 AI API';
+      setArticleError(msg);
+      Alert.alert('未配置 API', msg);
+      return;
+    }
+
+    setIsGeneratingArticle(true);
+    setShowArticleTranslation(false);
+    setGeneratedArticleWords([]);
+    setLoadedArticleId(null);
+    try {
+      const aiService = AIService.fromSettings(latestSettings);
+      const result = await aiService.generateFunArticle(
+        articleWords.map(w => w.word),
+        'random',
+        targetLength
+      );
+      setGeneratedArticle(result);
+      setGeneratedArticleWords(articleWords);
+
+      try {
+        const articleData: Omit<Article, 'id'> = {
+          title: result.title,
+          content: result.content,
+          translation: result.translation,
+          words: articleWords.map(w => w.word),
+          word_ids: articleWords.map(w => w.id).filter((id): id is number => typeof id === 'number'),
+          theme: 'random',
+          created_at: new Date().toISOString(),
+          read_count: 0,
+        };
+        const articleId = await StorageService.saveArticle(articleData);
+        setLoadedArticleId(articleId);
+        setArticleError('已自动保存，可在“趣味文章”中找到。');
+      } catch (saveError) {
+        console.warn('Auto-save article failed:', saveError);
+        setArticleError('短文已生成，但自动保存失败，请稍后重试。');
+      }
+    } catch (error: any) {
+      const msg = error.message || '短文生成失败，请重试';
+      setArticleError(msg);
+      Alert.alert('生成失败', msg);
+    } finally {
+      setIsGeneratingArticle(false);
+    }
+  };
+
+  const renderHighlightedArticle = () => {
+    if (!generatedArticle) return null;
+
+    const targetWords = (generatedArticleWords.length > 0 ? generatedArticleWords : getArticleWords()).map(w => w.word);
+    const segments = parsePreviewContent(generatedArticle.content, targetWords);
+    return (
+      <Text style={styles.articleContentText}>
+        {segments.map((segment, index) => (
+          <Text
+            key={`${segment.text}-${index}`}
+            style={segment.isWord ? styles.articleHighlight : undefined}
+          >
+            {segment.text}
+          </Text>
+        ))}
+      </Text>
+    );
+  };
+
+  const renderArticleMode = () => {
+    const articleWords = getArticleWords();
+    const targetLength = getArticleTargetLength(articleWords);
+    const hiddenWordCount = Math.max(0, words.length - articleWords.length);
+
+    return (
+      <View style={styles.modeContainer}>
+        <Card style={styles.wordCard}>
+          <Card.Content>
+            <Text style={styles.articleTitle}>生成短文</Text>
+            <Text style={styles.articleSubtitle}>
+              用本轮单词生成一篇有趣英文短文，通过语境帮助记忆；阅读不会计入答题准确率。
+            </Text>
+
+            <View style={styles.articleWordWrap}>
+              {articleWords.slice(0, 12).map(word => (
+                <Chip key={word.id || word.word} compact style={styles.articleWordChip}>
+                  {word.word}
+                </Chip>
+              ))}
+              {articleWords.length > 12 && (
+                <Chip compact style={styles.articleWordChip}>等 {articleWords.length} 个</Chip>
+              )}
+              {hiddenWordCount > 0 && (
+                <Chip compact style={styles.articleLimitChip}>已优先使用前 30 个</Chip>
+              )}
+            </View>
+
+            <Text style={styles.articleAutoLengthText}>
+              将根据 {articleWords.length} 个生词自动生成约 {targetLength} 词的短文。
+            </Text>
+
+            {articleError && (
+              <Text style={loadedArticleId ? styles.articleInfo : styles.articleError}>
+                {articleError}
+              </Text>
+            )}
+
+            <Button
+              mode="contained"
+              onPress={handleGenerateArticle}
+              loading={isGeneratingArticle}
+              disabled={isGeneratingArticle || articleWords.length === 0}
+              icon="creation"
+              style={styles.articleGenerateButton}
+            >
+              {generatedArticle ? '重新生成短文' : '生成短文'}
+            </Button>
+
+            {isGeneratingArticle && (
+              <View style={styles.articleLoadingBox}>
+                <ActivityIndicator animating color="#1976D2" />
+                <Text style={styles.articleLoadingText}>AI 正在为你创作短文...</Text>
+              </View>
+            )}
+          </Card.Content>
+        </Card>
+
+        {generatedArticle && (
+          <Card style={styles.articlePreviewCard}>
+            <Card.Content>
+              <Text style={styles.articlePreviewTitle}>{generatedArticle.title}</Text>
+              {renderHighlightedArticle()}
+
+              {!!generatedArticle.translation && (
+                <Button
+                  mode="text"
+                  onPress={() => setShowArticleTranslation(prev => !prev)}
+                  style={styles.articleTranslationButton}
+                >
+                  {showArticleTranslation ? '隐藏中文翻译' : '显示中文翻译'}
+                </Button>
+              )}
+
+              {showArticleTranslation && !!generatedArticle.translation && (
+                <Surface style={styles.articleTranslationBox}>
+                  <Text style={styles.articleTranslationText}>{generatedArticle.translation}</Text>
+                </Surface>
+              )}
+            </Card.Content>
+          </Card>
+        )}
+      </View>
+    );
   };
 
   const renderFlashcardMode = () => {
@@ -737,7 +1005,7 @@ export default function StudyScreen() {
           <SegmentedButtons
             value={currentMode}
             onValueChange={(value) => {
-              setCurrentMode(value as StudyMode);
+              setCurrentMode(value as StudyScreenMode);
               setCurrentIndex(0);
               setIsFlipped(false);
               setSelectedAnswer('');
@@ -749,7 +1017,8 @@ export default function StudyScreen() {
             buttons={[
               { value: 'flashcard', label: '📖 单词卡' },
               { value: 'listening', label: '🔊 听写' },
-              { value: 'quiz', label: '✏️ 选择释义' }
+              { value: 'quiz', label: '✏️ 释义' },
+              { value: 'article', label: '✨ 短文' }
             ]}
           />
         </Card.Content>
@@ -850,6 +1119,7 @@ export default function StudyScreen() {
             {currentMode === 'flashcard' && renderFlashcardMode()}
             {currentMode === 'listening' && renderListeningMode()}
             {currentMode === 'quiz' && renderQuizMode()}
+            {currentMode === 'article' && renderArticleMode()}
           </>
         )}
         {showResult && (
@@ -1163,6 +1433,99 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 14,
     textAlign: 'left',
+  },
+  articleTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    marginBottom: 8,
+  },
+  articleSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  articleWordWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 18,
+  },
+  articleWordChip: {
+    backgroundColor: '#E3F2FD',
+  },
+  articleLimitChip: {
+    backgroundColor: '#FFF3E0',
+  },
+  articleSectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  articleAutoLengthText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  articleError: {
+    color: '#F44336',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  articleInfo: {
+    color: '#2E7D32',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  articleGenerateButton: {
+    marginTop: 4,
+    borderRadius: 10,
+  },
+  articleLoadingBox: {
+    alignItems: 'center',
+    paddingVertical: 18,
+    gap: 8,
+  },
+  articleLoadingText: {
+    color: '#666',
+  },
+  articlePreviewCard: {
+    marginBottom: 16,
+    elevation: 3,
+  },
+  articlePreviewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  articleContentText: {
+    fontSize: 16,
+    lineHeight: 26,
+    color: '#333',
+  },
+  articleHighlight: {
+    color: '#D32F2F',
+    fontWeight: 'bold',
+    backgroundColor: '#FFF9C4',
+  },
+  articleTranslationButton: {
+    marginTop: 12,
+  },
+  articleTranslationBox: {
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#F5F5F5',
+    marginTop: 8,
+  },
+  articleTranslationText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#555',
   },
   resultIcon: {
     fontSize: 20,

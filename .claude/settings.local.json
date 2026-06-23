@@ -7,7 +7,9 @@
       "Bash(node 功能演示.js)",
       "Bash(node test-word-entry.js)",
       "Bash(start study-demo-complete.html)",
-      "Bash(npx expo *)"
+      "Bash(npx expo *)",
+      "PowerShell(npx tsc --noEmit --module esnext --ignoreDeprecations 5.0)",
+      "PowerShell(npm run build:web)"
     ]
   }
 }
