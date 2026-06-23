@@ -73,7 +73,8 @@ class StorageService {
     SETTINGS: 'kaoyan_settings',
     ARTICLES: 'kaoyan_articles',
     EXAM_SESSIONS: 'kaoyan_exam_sessions',
-    WRONG_QUESTIONS: 'kaoyan_wrong_questions'
+    WRONG_QUESTIONS: 'kaoyan_wrong_questions',
+    IGNORED_WORDBANK_WORDS: 'kaoyan_ignored_wordbank_words'
   };
 
   // 生词操作
@@ -134,6 +135,31 @@ class StorageService {
     const words = await this.getWords();
     const filtered = words.filter(word => word.id !== id);
     await AsyncStorage.setItem(this.KEYS.WORDS, JSON.stringify(filtered));
+  }
+
+  // 词库忽略词操作
+  async getIgnoredWordbankWords(): Promise<string[]> {
+    try {
+      const data = await AsyncStorage.getItem(this.KEYS.IGNORED_WORDBANK_WORDS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Get ignored wordbank words error:', error);
+      return [];
+    }
+  }
+
+  async addIgnoredWordbankWords(words: string[]): Promise<void> {
+    const current = await this.getIgnoredWordbankWords();
+    const next = new Set(current.map(word => word.toLowerCase()));
+    words.forEach(word => next.add(word.toLowerCase()));
+    await AsyncStorage.setItem(
+      this.KEYS.IGNORED_WORDBANK_WORDS,
+      JSON.stringify(Array.from(next))
+    );
+  }
+
+  async clearIgnoredWordbankWords(): Promise<void> {
+    await AsyncStorage.removeItem(this.KEYS.IGNORED_WORDBANK_WORDS);
   }
 
   // 学习记录操作
@@ -412,6 +438,7 @@ class StorageService {
       articles: await this.getArticles(),
       examSessions: await this.getExamSessions(),
       wrongQuestions: await this.getWrongQuestions(),
+      ignoredWordbankWords: await this.getIgnoredWordbankWords(),
       settings: {
         ...settings,
         apiKey: '',
@@ -451,6 +478,12 @@ class StorageService {
       if (data.wrongQuestions) {
         await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(data.wrongQuestions));
       }
+      if (data.ignoredWordbankWords) {
+        await AsyncStorage.setItem(
+          this.KEYS.IGNORED_WORDBANK_WORDS,
+          JSON.stringify(data.ignoredWordbankWords)
+        );
+      }
     } catch (error) {
       console.error('Import data error:', error);
       throw new Error('数据导入失败');
@@ -466,6 +499,7 @@ class StorageService {
       this.KEYS.ARTICLES,
       this.KEYS.EXAM_SESSIONS,
       this.KEYS.WRONG_QUESTIONS,
+      this.KEYS.IGNORED_WORDBANK_WORDS,
       this.KEYS.SETTINGS
     ]);
   }

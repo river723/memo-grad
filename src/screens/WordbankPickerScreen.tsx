@@ -46,6 +46,25 @@ const DIFF_COLORS: Record<number, string> = {
 const ROW_HEIGHT = 72;
 const PAGE_SIZE = 10;
 
+const confirmAction = (
+  title: string,
+  message: string,
+  onConfirm: () => void | Promise<void>,
+  confirmText = '确认'
+) => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+    if (window.confirm(`${title}\n\n${message}`)) {
+      onConfirm();
+    }
+    return;
+  }
+
+  Alert.alert(title, message, [
+    { text: '取消', style: 'cancel' },
+    { text: confirmText, style: 'destructive', onPress: onConfirm },
+  ]);
+};
+
 // -----------------------------------------------------------------------
 // 子级行组件（React.memo 隔离渲染）
 
@@ -53,52 +72,63 @@ interface WordRowProps {
   entry: WordbankEntry;
   isSelected: boolean;
   onToggle: (word: string) => void;
+  onIgnore: (word: string) => void;
 }
 
 const WordRow = React.memo(function WordRow({
   entry,
   isSelected,
   onToggle,
+  onIgnore,
 }: WordRowProps) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={() => onToggle(entry.word)}
-      style={[styles.row, isSelected && styles.rowSelected]}
-    >
-      {/* 勾选 */}
-      <View style={styles.checkCol}>
-        <View style={[
-          styles.checkbox,
-          isSelected && styles.checkboxChecked
-        ]}>
-          {isSelected && <Text style={styles.checkmark}>✓</Text>}
+    <View style={[styles.row, isSelected && styles.rowSelected]}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => onToggle(entry.word)}
+        style={styles.rowContent}
+      >
+        {/* 勾选 */}
+        <View style={styles.checkCol}>
+          <View style={[
+            styles.checkbox,
+            isSelected && styles.checkboxChecked
+          ]}>
+            {isSelected && <Text style={styles.checkmark}>✓</Text>}
+          </View>
         </View>
-      </View>
 
-      {/* 单词信息 */}
-      <View style={styles.infoCol}>
-        <View style={styles.wordLine}>
-          <Text style={styles.word}>{entry.word}</Text>
-          {entry.pronunciation_uk && (
-            <Text style={styles.phonetic}> {entry.pronunciation_uk}</Text>
-          )}
+        {/* 单词信息 */}
+        <View style={styles.infoCol}>
+          <View style={styles.wordLine}>
+            <Text style={styles.word}>{entry.word}</Text>
+            {entry.pronunciation_uk && (
+              <Text style={styles.phonetic}> {entry.pronunciation_uk}</Text>
+            )}
+          </View>
+          <Text style={styles.meaning} numberOfLines={1}>
+            {entry.definitions[0]?.meaning || '暂无释义'}
+          </Text>
         </View>
-        <Text style={styles.meaning} numberOfLines={1}>
-          {entry.definitions[0]?.meaning || '暂无释义'}
-        </Text>
-      </View>
 
-      {/* 难度 + 频率 */}
-      <View style={styles.metaCol}>
-        <Text style={[styles.diffBadge, { color: DIFF_COLORS[entry.difficulty] || '#999' }]}>
-          {'★'.repeat(entry.difficulty)}{'☆'.repeat(5 - entry.difficulty)}
-        </Text>
-        <Text style={styles.freqBadge}>
-          {'■'.repeat(entry.frequency)}{'□'.repeat(3 - entry.frequency)}
-        </Text>
-      </View>
-    </TouchableOpacity>
+        {/* 难度 + 频率 */}
+        <View style={styles.metaCol}>
+          <Text style={[styles.diffBadge, { color: DIFF_COLORS[entry.difficulty] || '#999' }]}>
+            {'★'.repeat(entry.difficulty)}{'☆'.repeat(5 - entry.difficulty)}
+          </Text>
+          <Text style={styles.freqBadge}>
+            {'■'.repeat(entry.frequency)}{'□'.repeat(3 - entry.frequency)}
+          </Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => onIgnore(entry.word)}
+        style={styles.ignorePill}
+      >
+        <Text style={styles.ignorePillText}>忽略</Text>
+      </TouchableOpacity>
+    </View>
   );
 });
 
@@ -112,6 +142,7 @@ export default function WordbankPickerScreen() {
   // 数据
   const [list] = useState<WordbankEntry[]>(() => getLocalWordDictWords());
   const [existing, setExisting] = useState<Set<string>>(new Set());
+  const [ignored, setIgnored] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
@@ -134,8 +165,12 @@ export default function WordbankPickerScreen() {
     useCallback(() => {
       (async () => {
         try {
-          const words = await StorageService.getWords();
+          const [words, ignoredWords] = await Promise.all([
+            StorageService.getWords(),
+            StorageService.getIgnoredWordbankWords(),
+          ]);
           setExisting(new Set(words.map((w) => w.word.toLowerCase())));
+          setIgnored(new Set(ignoredWords));
         } catch {
           // 词本为空时静默失败
           setExisting(new Set());
@@ -172,10 +207,13 @@ export default function WordbankPickerScreen() {
     return items;
   }, [list, debouncedQuery, sortMode]);
 
-  // 第二层：剔除已在词本的词 → 候选池
+  // 第二层：剔除已在词本和已忽略的词 → 候选池
   const pool = useMemo(
-    () => sorted.filter((e) => !existing.has(e.word.toLowerCase())),
-    [sorted, existing]
+    () => sorted.filter((e) => {
+      const key = e.word.toLowerCase();
+      return !existing.has(key) && !ignored.has(key);
+    }),
+    [sorted, existing, ignored]
   );
 
   // 第三层：当前组（最多 10 个）
@@ -206,6 +244,10 @@ export default function WordbankPickerScreen() {
   );
   const allInGroupSelected =
     groupKeys.length > 0 && groupKeys.every((k) => selected.has(k));
+  const unselectedGroupKeys = useMemo(
+    () => groupKeys.filter((k) => !selected.has(k)),
+    [groupKeys, selected]
+  );
 
   const toggleSelectAll = useCallback(() => {
     setSelected((prev) => {
@@ -229,6 +271,50 @@ export default function WordbankPickerScreen() {
       return next;
     });
   }, []);
+
+  // 忽略不想再推荐的词
+  const ignoreWords = useCallback(async (wordKeys: string[]) => {
+    if (!wordKeys.length) return;
+
+    await StorageService.addIgnoredWordbankWords(wordKeys);
+    setIgnored((prev) => {
+      const next = new Set(prev);
+      wordKeys.forEach((k) => next.add(k));
+      return next;
+    });
+    setSelected((prev) => {
+      const next = new Set(prev);
+      wordKeys.forEach((k) => next.delete(k));
+      return next;
+    });
+  }, []);
+
+  const ignoreWord = useCallback((word: string) => {
+    ignoreWords([word.toLowerCase()]);
+  }, [ignoreWords]);
+
+  const ignoreUnselectedGroup = useCallback(() => {
+    if (!unselectedGroupKeys.length) return;
+    confirmAction(
+      '忽略本组未选词？',
+      `将不再推荐本组未勾选的 ${unselectedGroupKeys.length} 个单词`,
+      () => ignoreWords(unselectedGroupKeys),
+      '忽略'
+    );
+  }, [ignoreWords, unselectedGroupKeys]);
+
+  const clearIgnored = useCallback(() => {
+    if (!ignored.size) return;
+    confirmAction(
+      '恢复已忽略单词？',
+      `将恢复 ${ignored.size} 个已忽略单词的推荐`,
+      async () => {
+        await StorageService.clearIgnoredWordbankWords();
+        setIgnored(new Set());
+      },
+      '恢复'
+    );
+  }, [ignored]);
 
   // 下一组
   const nextGroup = useCallback(() => {
@@ -257,9 +343,10 @@ export default function WordbankPickerScreen() {
         entry={item}
         isSelected={selected.has(item.word.toLowerCase())}
         onToggle={toggle}
+        onIgnore={ignoreWord}
       />
     ),
-    [selected, toggle]
+    [selected, toggle, ignoreWord]
   );
 
   // 批量加入
@@ -318,6 +405,11 @@ export default function WordbankPickerScreen() {
           <Text style={styles.statusSelected}>· 已选 {selectedCount}</Text>
         )}
         <Text style={styles.statusExisting}>· 词本已有 {existing.size}</Text>
+        {ignored.size > 0 && (
+          <TouchableOpacity onPress={clearIgnored}>
+            <Text style={styles.statusIgnored}>· 已忽略 {ignored.size}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* 搜索框 */}
@@ -365,6 +457,14 @@ export default function WordbankPickerScreen() {
           本组 {groupItems.length} 个候选词
         </Text>
         <View style={{ flex: 1 }} />
+        <Button
+          mode="text"
+          compact
+          disabled={unselectedGroupKeys.length === 0}
+          onPress={ignoreUnselectedGroup}
+        >
+          忽略本组未选
+        </Button>
         <Button
           mode="text"
           compact
@@ -460,6 +560,7 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 13, color: '#666' },
   statusSelected: { fontSize: 13, color: '#1976D2' },
   statusExisting: { fontSize: 13, color: '#999' },
+  statusIgnored: { fontSize: 13, color: '#F57C00' },
 
   // 搜索
   searchCard: {
@@ -505,11 +606,19 @@ const styles = StyleSheet.create({
     height: ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
     marginBottom: 4,
     borderRadius: 8,
     backgroundColor: '#FFF',
     elevation: 1,
+    overflow: 'hidden',
+  },
+  rowContent: {
+    flex: 1,
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+    paddingRight: 6,
   },
   rowSelected: {
     backgroundColor: '#E3F2FD',
@@ -576,6 +685,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#AAA',
     marginTop: 2,
+  },
+  ignorePill: {
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: '#FFF3E0',
+  },
+  ignorePillText: {
+    fontSize: 12,
+    color: '#F57C00',
   },
 
   // 空态
