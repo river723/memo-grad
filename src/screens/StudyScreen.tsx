@@ -9,7 +9,8 @@ import {
   Chip,
   SegmentedButtons,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  IconButton
 } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
@@ -24,9 +25,14 @@ type StudyScreenMode = 'flashcard' | 'listening' | 'quiz' | 'article';
 interface PreviewSegment {
   text: string;
   isWord: boolean;
+  wordObj?: Word;
 }
 
-function parsePreviewContent(content: string, targetWords: string[]): PreviewSegment[] {
+function parsePreviewContent(
+  content: string,
+  targetWords: string[],
+  wordMap?: Map<string, Word>
+): PreviewSegment[] {
   if (!content || targetWords.length === 0) {
     return [{ text: content || '', isWord: false }];
   }
@@ -44,7 +50,12 @@ function parsePreviewContent(content: string, targetWords: string[]): PreviewSeg
     if (match.index > lastIndex) {
       segments.push({ text: content.substring(lastIndex, match.index), isWord: false });
     }
-    segments.push({ text: match[0], isWord: true });
+    const matchedWord = match[0];
+    segments.push({
+      text: matchedWord,
+      isWord: true,
+      wordObj: wordMap?.get(matchedWord.toLowerCase()),
+    });
     lastIndex = pattern.lastIndex;
   }
 
@@ -111,6 +122,8 @@ export default function StudyScreen() {
   const [articleError, setArticleError] = useState<string | null>(null);
   const [showArticleTranslation, setShowArticleTranslation] = useState(false);
   const [generatedArticleWords, setGeneratedArticleWords] = useState<Word[]>([]);
+  const [selectedArticleWord, setSelectedArticleWord] = useState<Word | null>(null);
+  const [showArticleWordModal, setShowArticleWordModal] = useState(false);
   const [loadedArticleId, setLoadedArticleId] = useState<number | null>(null);
   // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
   const retryMapRef = useRef<Map<number, number>>(new Map());
@@ -499,26 +512,27 @@ export default function StudyScreen() {
 
   const getArticleTargetLength = (articleWords: Word[]) => articleWords.length * 20;
 
-  const getArticleWordKey = (articleWords: Word[]) => articleWords
+  const getArticleWordIds = (articleWords: Word[]) => articleWords
     .map(w => w.id)
-    .filter((id): id is number => typeof id === 'number')
-    .sort((a, b) => a - b)
-    .join(',');
+    .filter((id): id is number => typeof id === 'number');
+
+  const handleArticleWordTap = (wordObj?: Word) => {
+    if (!wordObj) return;
+    setSelectedArticleWord(wordObj);
+    setShowArticleWordModal(true);
+  };
 
   const loadExistingArticleForCurrentWords = async () => {
     const articleWords = getArticleWords();
-    const currentWordKey = getArticleWordKey(articleWords);
-    if (!currentWordKey) return;
+    const currentWordIds = getArticleWordIds(articleWords);
+    if (currentWordIds.length === 0) return;
 
     try {
       const articles = await StorageService.getArticles();
       const matchedArticle = articles
         .filter(article => {
-          const articleWordKey = [...article.word_ids]
-            .filter(id => typeof id === 'number')
-            .sort((a, b) => a - b)
-            .join(',');
-          return articleWordKey === currentWordKey;
+          const articleIdSet = new Set(article.word_ids.filter(id => typeof id === 'number'));
+          return currentWordIds.every(id => articleIdSet.has(id));
         })
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
@@ -602,14 +616,20 @@ export default function StudyScreen() {
   const renderHighlightedArticle = () => {
     if (!generatedArticle) return null;
 
-    const targetWords = (generatedArticleWords.length > 0 ? generatedArticleWords : getArticleWords()).map(w => w.word);
-    const segments = parsePreviewContent(generatedArticle.content, targetWords);
+    const articleWords = generatedArticleWords.length > 0 ? generatedArticleWords : getArticleWords();
+    const wordMap = new Map(articleWords.map(word => [word.word.toLowerCase(), word]));
+    const segments = parsePreviewContent(
+      generatedArticle.content,
+      articleWords.map(w => w.word),
+      wordMap
+    );
     return (
       <Text style={styles.articleContentText}>
         {segments.map((segment, index) => (
           <Text
             key={`${segment.text}-${index}`}
             style={segment.isWord ? styles.articleHighlight : undefined}
+            onPress={segment.isWord ? () => handleArticleWordTap(segment.wordObj) : undefined}
           >
             {segment.text}
           </Text>
@@ -681,6 +701,10 @@ export default function StudyScreen() {
             <Card.Content>
               <Text style={styles.articlePreviewTitle}>{generatedArticle.title}</Text>
               {renderHighlightedArticle()}
+
+              <Text style={styles.articleTapHint}>
+                💡 点击文中<Text style={styles.articleTapHintHighlight}>蓝色高亮</Text>生词可查看释义
+              </Text>
 
               {!!generatedArticle.translation && (
                 <Button
@@ -1171,6 +1195,86 @@ export default function StudyScreen() {
           </Surface>
         </View>
       </Modal>
+
+      {/* 单词释义弹窗 */}
+      <Modal
+        visible={showArticleWordModal}
+        onDismiss={() => setShowArticleWordModal(false)}
+        contentContainerStyle={styles.articleWordModal}
+      >
+        {selectedArticleWord && (
+          <View>
+            <View style={styles.articleWordModalHeader}>
+              <Text style={styles.articleWordModalTitle}>{selectedArticleWord.word}</Text>
+              <IconButton
+                icon="close"
+                size={20}
+                onPress={() => setShowArticleWordModal(false)}
+              />
+            </View>
+
+            {selectedArticleWord.pronunciation_uk && (
+              <Text style={styles.articleWordPronunciation}>
+                英 /{selectedArticleWord.pronunciation_uk}/
+                {selectedArticleWord.pronunciation_us &&
+                  `  美 /${selectedArticleWord.pronunciation_us}/`}
+              </Text>
+            )}
+
+            <View style={styles.articleWordDefinitions}>
+              {selectedArticleWord.definitions.map((def, index) => (
+                <View key={index} style={styles.articleWordDefItem}>
+                  <View style={styles.articleWordDefHeader}>
+                    <Chip style={styles.articleWordPosChip} textStyle={styles.articleWordPosChipText} compact>
+                      {def.part_of_speech}
+                    </Chip>
+                    <Text style={styles.articleWordDefMeaning}>{def.meaning}</Text>
+                    {def.is_core && (
+                      <Chip
+                        style={styles.articleWordCoreChip}
+                        textStyle={styles.articleWordCoreChipText}
+                        compact
+                      >
+                        核心
+                      </Chip>
+                    )}
+                    {def.is_rare_sense && (
+                      <Chip
+                        style={styles.articleWordRareChip}
+                        textStyle={styles.articleWordRareChipText}
+                        compact
+                      >
+                        熟词僻义
+                      </Chip>
+                    )}
+                  </View>
+                  {def.example ? (
+                    <Text style={styles.articleWordDefExample}>{def.example}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+
+            {selectedArticleWord.etymology ? (
+              <View style={styles.articleWordEtymologySection}>
+                <Text style={styles.articleWordSectionLabel}>词根词缀</Text>
+                <Text style={styles.articleWordEtymologyText}>{selectedArticleWord.etymology}</Text>
+              </View>
+            ) : null}
+
+            {Array.isArray(selectedArticleWord.similar_words) && selectedArticleWord.similar_words.length > 0 && (
+              <View style={styles.articleWordSimilarSection}>
+                <Text style={styles.articleWordSectionLabel}>易混词提醒</Text>
+                {selectedArticleWord.similar_words.map((sw, index) => (
+                  <Text key={index} style={styles.articleWordSimilarText}>
+                    · {sw.word}（{sw.relation === 'spelling' ? '形近' : sw.relation === 'meaning' ? '义近' : '同根'}）— {sw.description}
+                  </Text>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+      </Modal>
     </View>
   );
 }
@@ -1494,38 +1598,154 @@ const styles = StyleSheet.create({
   },
   articlePreviewCard: {
     marginBottom: 16,
-    elevation: 3,
+    borderRadius: 12,
+    elevation: 2,
   },
   articlePreviewTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1976D2',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
     marginBottom: 14,
-    textAlign: 'center',
   },
   articleContentText: {
     fontSize: 16,
-    lineHeight: 26,
+    lineHeight: 28,
     color: '#333',
   },
   articleHighlight: {
-    color: '#D32F2F',
-    fontWeight: 'bold',
-    backgroundColor: '#FFF9C4',
+    color: '#1565C0',
+    fontWeight: '800',
+    textDecorationLine: 'underline',
+    textDecorationColor: '#1565C0',
+    textDecorationStyle: 'solid',
   },
-  articleTranslationButton: {
+  articleTapHint: {
+    fontSize: 12,
+    color: '#BBB',
+    textAlign: 'center',
     marginTop: 12,
   },
+  articleTapHintHighlight: {
+    color: '#1976D2',
+    fontWeight: '600',
+  },
+  articleTranslationButton: {
+    marginTop: 16,
+    borderColor: '#1976D2',
+  },
   articleTranslationBox: {
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: '#F5F5F5',
-    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    paddingTop: 16,
+    marginTop: 16,
+    backgroundColor: 'transparent',
+    elevation: 0,
   },
   articleTranslationText: {
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 26,
     color: '#555',
+  },
+  articleWordModal: {
+    backgroundColor: 'white',
+    padding: 20,
+    margin: 24,
+    borderRadius: 16,
+    maxHeight: '70%',
+  },
+  articleWordModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  articleWordModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1976D2',
+  },
+  articleWordPronunciation: {
+    fontSize: 13,
+    color: '#999',
+    marginBottom: 16,
+  },
+  articleWordDefinitions: {
+    marginBottom: 12,
+  },
+  articleWordDefItem: {
+    marginBottom: 10,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  articleWordDefHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 4,
+  },
+  articleWordPosChip: {
+    backgroundColor: '#F5F5F5',
+    height: 22,
+  },
+  articleWordPosChipText: {
+    fontSize: 10,
+    color: '#666',
+  },
+  articleWordDefMeaning: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+  },
+  articleWordCoreChip: {
+    backgroundColor: '#E3F2FD',
+    height: 22,
+  },
+  articleWordCoreChipText: {
+    fontSize: 10,
+    color: '#1976D2',
+  },
+  articleWordRareChip: {
+    backgroundColor: '#FFF3E0',
+    height: 22,
+  },
+  articleWordRareChipText: {
+    fontSize: 10,
+    color: '#E65100',
+  },
+  articleWordDefExample: {
+    fontSize: 13,
+    color: '#888',
+    fontStyle: 'italic',
+    marginTop: 2,
+    marginLeft: 4,
+    lineHeight: 19,
+  },
+  articleWordEtymologySection: {
+    marginBottom: 12,
+    paddingTop: 4,
+  },
+  articleWordSectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  articleWordEtymologyText: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 20,
+  },
+  articleWordSimilarSection: {
+    marginBottom: 4,
+  },
+  articleWordSimilarText: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 20,
+    marginBottom: 2,
   },
   resultIcon: {
     fontSize: 20,
