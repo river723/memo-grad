@@ -17,9 +17,14 @@ import { useNavigation } from '@react-navigation/native';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, AIResponse, AppSettings } from '../types';
-import { mergeAIResultIntoWord } from '../utils/wordUtils';
+import { getLocalWordDictResult, mergeAIResultIntoWord } from '../utils/wordUtils';
 
 type AddWordTab = 'wordbank' | 'manual';
+
+type AnalysisSourceBuckets = {
+  local: Map<string, AIResponse>;
+  ai: Map<string, AIResponse>;
+};
 
 export default function AddWordScreen() {
   const navigation = useNavigation<any>();
@@ -27,6 +32,7 @@ export default function AddWordScreen() {
   const [input, setInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<Map<string, AIResponse> | AIResponse | null>(null);
+  const [analysisSources, setAnalysisSources] = useState<AnalysisSourceBuckets | null>(null);
   const [pronunciation, setPronunciation] = useState('');
   const [customDefinitions, setCustomDefinitions] = useState('');
   const [parsedWords, setParsedWords] = useState<string[]>([]);
@@ -125,35 +131,94 @@ export default function AddWordScreen() {
       return;
     }
 
+    setAnalysisResult(null);
+    setAnalysisSources(null);
     setIsAnalyzing(true);
     try {
-      const latestSettings = await StorageService.getSettings();
-      setAiSettings(latestSettings);
-      if (!latestSettings.apiKey || !latestSettings.aiModel) {
-        Alert.alert('错误', '请先在设置中配置 AI API');
-        return;
+      const resultMap = new Map<string, AIResponse>();
+      const localResults = new Map<string, AIResponse>();
+      const aiResults = new Map<string, AIResponse>();
+      const missingWords: string[] = [];
+
+      words.forEach(word => {
+        const localResult = getLocalWordDictResult(word);
+        if (localResult) {
+          localResults.set(word, localResult);
+          resultMap.set(word, localResult);
+        } else {
+          missingWords.push(word);
+        }
+      });
+
+      console.log('本地词库命中:', Array.from(localResults.keys()));
+      console.log('需要AI分析:', missingWords);
+
+      if (missingWords.length > 0) {
+        const latestSettings = await StorageService.getSettings();
+        setAiSettings(latestSettings);
+        if (!latestSettings.apiKey || !latestSettings.aiModel) {
+          if (resultMap.size > 0) {
+            setAnalysisSources({ local: localResults, ai: new Map() });
+            setAnalysisResult(words.length === 1 ? resultMap.get(words[0])! : resultMap);
+            Alert.alert(
+              '部分单词已从本地词库找到',
+              `${resultMap.size} 个单词可直接保存，${missingWords.length} 个未在本地词库中找到；配置 AI API 后可继续分析未命中的单词，当前保存会跳过它们。`
+            );
+          } else {
+            setAnalysisSources(null);
+            setAnalysisResult(null);
+            Alert.alert('提示', '未在本地词库找到这些单词，请先在设置中配置 AI API，或为单个单词手动填写释义。');
+          }
+          return;
+        }
+        console.log('使用AI服务商:', latestSettings.aiProvider, '模型:', latestSettings.aiModel);
+
+        const aiService = AIService.fromSettings(latestSettings);
+        if (missingWords.length === 1) {
+          console.log('AI分析单个未命中单词:', missingWords[0]);
+          const result = await aiService.analyzeWord(missingWords[0]);
+          aiResults.set(missingWords[0], result);
+          resultMap.set(missingWords[0], result);
+        } else {
+          console.log('AI批量分析未命中单词:', missingWords);
+          const aiResultMap = await aiService.analyzeWords(missingWords);
+          aiResultMap.forEach((result, word) => {
+            aiResults.set(word, result);
+            resultMap.set(word, result);
+          });
+        }
       }
-      console.log('使用AI服务商:', latestSettings.aiProvider, '模型:', latestSettings.aiModel);
 
-      const aiService = AIService.fromSettings(latestSettings);
-
+      setAnalysisSources({ local: localResults, ai: aiResults });
+      console.log('合并分析结果:', resultMap);
       if (words.length === 1) {
-        // 单个单词：使用单个分析接口获得更详细的信息
-        console.log('分析单个单词:', words[0]);
-        const result = await aiService.analyzeWord(words[0]);
-        console.log('单个单词分析结果:', result);
-        setAnalysisResult(result);
+        setAnalysisResult(resultMap.get(words[0]) || null);
       } else {
-        // 多个单词：使用批量分析接口
-        console.log('批量分析单词:', words);
-        const results = await aiService.analyzeWords(words);
-        console.log('批量分析结果:', results);
-        setAnalysisResult(results);
+        setAnalysisResult(resultMap);
       }
     } catch (error: any) {
-      console.error('AI分析失败:', error);
+      console.error('分析失败:', error);
       console.error('错误详情:', error.message, error.response?.data);
-      Alert.alert('错误', 'AI分析失败，请检查网络连接或API密钥');
+
+      const localResults = new Map<string, AIResponse>();
+      words.forEach(word => {
+        const localResult = getLocalWordDictResult(word);
+        if (localResult) {
+          localResults.set(word, localResult);
+        }
+      });
+
+      if (localResults.size > 0) {
+        setAnalysisSources({ local: localResults, ai: new Map() });
+        setAnalysisResult(words.length === 1 ? localResults.get(words[0])! : localResults);
+        Alert.alert(
+          '部分单词已从本地词库找到',
+          `已保留 ${localResults.size} 个本地词库结果，${words.length - localResults.size} 个未命中词 AI 分析失败，保存时会跳过。`
+        );
+      } else {
+        setAnalysisSources(null);
+        Alert.alert('错误', 'AI分析失败，请检查网络连接或API密钥');
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -165,14 +230,11 @@ export default function AddWordScreen() {
     return !(analysisResult instanceof Map) && 'definitions' in analysisResult;
   };
 
-  // 获取难度等级（从AI结果或默认值）
-  const getDifficulty = (word: string): number => {
-    if (analysisResult instanceof Map) {
-      return (analysisResult.get(word)?.suggestedDifficulty) || 3;
-    } else if (analysisResult) {
-      return (analysisResult as AIResponse).suggestedDifficulty || 3;
-    }
-    return 3;
+  // 获取难度等级（从分析结果或默认值）
+  const getAnalysisDifficulty = (analysis: AIResponse | null | undefined): number => {
+    const raw = analysis?.suggestedDifficulty;
+    if (typeof raw !== 'number' || Number.isNaN(raw)) return 3;
+    return Math.max(1, Math.min(5, Math.round(raw)));
   };
 
   // 获取难度描述
@@ -194,17 +256,23 @@ export default function AddWordScreen() {
 
   const canSave = (): boolean => {
     if (parsedWords.length === 0) return false;
-    if (analysisResult) return true;
-    return parsedWords.length === 1 && customDefinitions.trim().length > 0;
+    return parsedWords.some(word => getAnalysisFor(word));
   };
 
-  // 把当前 state 转成可保存的 AIResponse（按单词取值）
-  const buildAnalysisFor = (word: string): AIResponse => {
+  // 获取当前 state 中真实可保存的分析结果，避免保存未分析占位内容
+  const getAnalysisFor = (word: string): AIResponse | null => {
     if (analysisResult instanceof Map) {
-      return analysisResult.get(word) || {
+      return analysisResult.get(word) || null;
+    }
+    if (analysisResult && parsedWords.length === 1 && parsedWords[0] === word) {
+      return analysisResult as AIResponse;
+    }
+    // 仅手动释义路径（单个单词 + 无分析结果）
+    if (!analysisResult && parsedWords.length === 1 && parsedWords[0] === word && customDefinitions.trim()) {
+      return {
         definitions: [{
           part_of_speech: 'unknown',
-          meaning: 'AI分析未覆盖此单词，请手动添加释义',
+          meaning: customDefinitions.trim(),
           example: '',
           is_core: false,
           is_rare_sense: false
@@ -214,29 +282,68 @@ export default function AddWordScreen() {
         suggestedDifficulty: 3
       };
     }
-    if (analysisResult) {
-      return analysisResult as AIResponse;
-    }
-    // 仅手动释义路径（单个单词 + 无 AI 分析）
-    return {
-      definitions: [{
-        part_of_speech: 'unknown',
-        meaning: customDefinitions.trim(),
-        example: '',
-        is_core: false,
-        is_rare_sense: false
-      }],
-      etymology: '',
-      similar_words: [],
-      suggestedDifficulty: 3
-    };
+    return null;
   };
+
+  const getSavableCount = (): number => parsedWords.filter(word => getAnalysisFor(word)).length;
+
+  const getSingleResultTitle = (): string => {
+    if (analysisSources?.local.size) return '本地词库命中 (1)';
+    if (analysisSources?.ai.size) return 'AI 分析结果 (1)';
+    return '分析结果';
+  };
+
+  const renderSuggestedDifficulty = (analysis: AIResponse, compact = false) => {
+    const difficulty = getAnalysisDifficulty(analysis);
+
+    return (
+      <View style={compact ? styles.difficultyInlineCompact : styles.difficultyInline}>
+        <Text style={styles.difficultyInlineLabel}>难度</Text>
+        <View style={styles.difficultyDots}>
+          {[1, 2, 3, 4, 5].map(level => (
+            <View
+              key={level}
+              style={[
+                styles.difficultyDot,
+                {
+                  backgroundColor: level <= difficulty
+                    ? getDifficultyColor(level)
+                    : '#E0E0E0'
+                }
+              ]}
+            />
+          ))}
+        </View>
+        <Text style={styles.difficultyText}>{getDifficultyLabel(difficulty)}</Text>
+      </View>
+    );
+  };
+
+  const renderAnalysisSummaryItem = (word: string, analysis: AIResponse) => (
+    <Surface key={word} style={styles.batchWordItem}>
+      <View style={styles.batchWordHeader}>
+        <Text style={styles.batchWordTitle}>{word}</Text>
+        {renderSuggestedDifficulty(analysis, true)}
+      </View>
+      {analysis.definitions && analysis.definitions.length > 0 ? (
+        analysis.definitions.slice(0, 2).map((def, index) => (
+          <View key={index} style={styles.batchDefinition}>
+            <Text style={styles.batchPartOfSpeech}>{def.part_of_speech}</Text>
+            <Text style={styles.batchMeaning}>{def.meaning}</Text>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.batchNoAnalysis}>暂无分析结果</Text>
+      )}
+    </Surface>
+  );
 
   // 清空表单 state
   const resetForm = () => {
     setInput('');
     setParsedWords([]);
     setAnalysisResult(null);
+    setAnalysisSources(null);
     setPronunciation('');
     setCustomDefinitions('');
   };
@@ -281,7 +388,7 @@ export default function AddWordScreen() {
 
     if (!canSave() || parsedWords.length === 0) {
       console.log('❌ 保存条件不满足');
-      Alert.alert('提示', '请先进行AI分析或填写手动释义');
+      Alert.alert('提示', '请先进行本地词库/AI分析或填写手动释义');
       return;
     }
 
@@ -295,7 +402,11 @@ export default function AddWordScreen() {
       );
       console.log('🔍 [Overwrite] 命中已有单词:', existing ? `${existing.word} (id=${existing.id})` : '(无)');
       if (existing) {
-        const analysis = buildAnalysisFor(word);
+        const analysis = getAnalysisFor(word);
+        if (!analysis) {
+          Alert.alert('提示', '请先进行本地词库/AI分析或填写手动释义');
+          return;
+        }
         console.log('🔔 [Overwrite] 打开覆盖确认 Dialog');
         setOverwriteDialog({ visible: true, word, existing, analysis });
         return;
@@ -307,6 +418,7 @@ export default function AddWordScreen() {
       let successCount = 0;
       let failCount = 0;
       let duplicateCount = 0;
+      let skippedUnanalyzedCount = 0;
 
       // 先获取所有已有单词
       const existingWords = await StorageService.getWords();
@@ -323,8 +435,13 @@ export default function AddWordScreen() {
         }
 
         try {
-          const analysis = buildAnalysisFor(word);
-          const difficulty = analysis.suggestedDifficulty || 3;
+          const analysis = getAnalysisFor(word);
+          if (!analysis) {
+            console.log(`⏭️ 单词 ${word} 没有分析结果，跳过`);
+            skippedUnanalyzedCount++;
+            continue;
+          }
+          const difficulty = getAnalysisDifficulty(analysis);
 
           const wordData: Omit<Word, 'id'> = {
             word: word,
@@ -354,8 +471,8 @@ export default function AddWordScreen() {
         }
       }
 
-      console.log(`📊 保存统计: 成功${successCount}个，失败${failCount}个，重复${duplicateCount}个`);
-      const message = `成功保存 ${successCount} 个单词${failCount > 0 ? `，失败 ${failCount} 个` : ''}${duplicateCount > 0 ? `，已有 ${duplicateCount} 个` : ''}`;
+      console.log(`📊 保存统计: 成功${successCount}个，失败${failCount}个，重复${duplicateCount}个，未分析跳过${skippedUnanalyzedCount}个`);
+      const message = `成功保存 ${successCount} 个单词${failCount > 0 ? `，失败 ${failCount} 个` : ''}${duplicateCount > 0 ? `，已有 ${duplicateCount} 个` : ''}${skippedUnanalyzedCount > 0 ? `，未分析跳过 ${skippedUnanalyzedCount} 个` : ''}`;
 
       // 立即清空数据，让用户看到单词数变为0
       resetForm();
@@ -374,39 +491,8 @@ export default function AddWordScreen() {
     }
   };
 
-  const renderDifficultySelector = () => (
-    <View style={styles.difficultyContainer}>
-      <Text style={styles.label}>AI建议难度等级</Text>
-      <View style={styles.difficultyDisplay}>
-        {parsedWords.map(word => (
-          <Surface key={word} style={styles.difficultyItem}>
-            <View style={styles.difficultyItemContent}>
-              <Text style={styles.difficultyWord}>{word}</Text>
-              <View style={styles.difficultyDots}>
-                {[1, 2, 3, 4, 5].map(level => (
-                  <View
-                    key={level}
-                    style={[
-                      styles.difficultyDot,
-                      {
-                        backgroundColor: level <= getDifficulty(word)
-                          ? getDifficultyColor(level)
-                          : '#E0E0E0'
-                      }
-                    ]}
-                  />
-                ))}
-              </View>
-              <Text style={styles.difficultyText}>{getDifficultyLabel(getDifficulty(word))}</Text>
-            </View>
-          </Surface>
-        ))}
-      </View>
-      <Text style={styles.helperInfo}>难度由AI智能分析生成，根据考研重要性和理解难度自动评估。可在学习过程中根据成绩动态调整。</Text>
-    </View>
-  );
-
   const wordCount = parsedWords.length;
+  const savableCount = getSavableCount();
 
   return (
     <>
@@ -459,9 +545,11 @@ export default function AddWordScreen() {
             value={input}
             onChangeText={(text) => {
               setInput(text);
-              // 输入变化时同步更新 parsedWords
+              // 输入变化时同步更新 parsedWords，并清理旧分析结果
               const words = parseWords(text);
               setParsedWords(words);
+              setAnalysisResult(null);
+              setAnalysisSources(null);
             }}
             mode="outlined"
             multiline
@@ -505,7 +593,7 @@ export default function AddWordScreen() {
             />
           )}
 
-          {/* AI分析按钮 */}
+          {/* 本地词库/AI分析按钮 */}
           <Button
             mode="contained"
             onPress={analyzeWords}
@@ -514,7 +602,7 @@ export default function AddWordScreen() {
             style={styles.analyzeButton}
             icon="auto-fix"
           >
-            {isAnalyzing ? 'AI分析中...' : `AI智能分析 (${wordCount}个)`}
+            {isAnalyzing ? '分析中...' : `本地词库/AI分析 (${wordCount}个)`}
           </Button>
         </Card.Content>
       </Card>
@@ -525,7 +613,7 @@ export default function AddWordScreen() {
         <Card style={styles.card}>
           <Card.Content style={styles.loadingContainer}>
             <ActivityIndicator size="large" />
-            <Text style={styles.loadingText}>AI正在分析单词...</Text>
+            <Text style={styles.loadingText}>正在查找本地词库，必要时调用 AI...</Text>
           </Card.Content>
         </Card>
       )}
@@ -533,8 +621,10 @@ export default function AddWordScreen() {
       {/* 分析结果 - 单个单词 */}
       {activeTab === 'manual' && analysisResult && isSingleWordResult() && (
         <Card style={styles.card}>
-          <Card.Title title="AI分析结果" titleStyle={styles.cardTitle} />
+          <Card.Title title={getSingleResultTitle()} titleStyle={styles.cardTitle} />
           <Card.Content>
+            {renderSuggestedDifficulty(analysisResult as AIResponse)}
+
             {/* 释义 */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📚 考研释义</Text>
@@ -581,27 +671,30 @@ export default function AddWordScreen() {
       )}
 
       {/* 分析结果 - 多个单词 */}
-      {activeTab === 'manual' && analysisResult && !isSingleWordResult() && (
-        <Card style={styles.card}>
-          <Card.Title title={`批量AI分析结果 (${(analysisResult as Map<string, AIResponse>).size}个单词)`} titleStyle={styles.cardTitle} />
-          <Card.Content>
-            {Array.from((analysisResult as Map<string, AIResponse>).entries()).map(([word, analysis]) => (
-              <Surface key={word} style={styles.batchWordItem}>
-                <Text style={styles.batchWordTitle}>{word}</Text>
-                {analysis.definitions && analysis.definitions.length > 0 ? (
-                  analysis.definitions.slice(0, 2).map((def, index) => (
-                    <View key={index} style={styles.batchDefinition}>
-                      <Text style={styles.batchPartOfSpeech}>{def.part_of_speech}</Text>
-                      <Text style={styles.batchMeaning}>{def.meaning}</Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.batchNoAnalysis}>暂无AI分析结果</Text>
+      {activeTab === 'manual' && analysisResult && analysisSources && !isSingleWordResult() && (
+        <>
+          {analysisSources.local.size > 0 && (
+            <Card style={styles.card}>
+              <Card.Title title={`本地词库命中 (${analysisSources.local.size}个单词)`} titleStyle={styles.cardTitle} />
+              <Card.Content>
+                {Array.from(analysisSources.local.entries()).map(([word, analysis]) =>
+                  renderAnalysisSummaryItem(word, analysis)
                 )}
-              </Surface>
-            ))}
-          </Card.Content>
-        </Card>
+              </Card.Content>
+            </Card>
+          )}
+
+          {analysisSources.ai.size > 0 && (
+            <Card style={styles.card}>
+              <Card.Title title={`AI 分析结果 (${analysisSources.ai.size}个单词)`} titleStyle={styles.cardTitle} />
+              <Card.Content>
+                {Array.from(analysisSources.ai.entries()).map(([word, analysis]) =>
+                  renderAnalysisSummaryItem(word, analysis)
+                )}
+              </Card.Content>
+            </Card>
+          )}
+        </>
       )}
 
       {/* 手动添加释义（仅单个单词且无分析时显示） */}
@@ -623,9 +716,6 @@ export default function AddWordScreen() {
         </Card>
       )}
 
-      {/* AI建议难度等级显示（分析完成后显示） */}
-      {activeTab === 'manual' && analysisResult && renderDifficultySelector()}
-
       {/* 保存按钮 */}
       {activeTab === 'manual' && (
       <View style={styles.buttonContainer}>
@@ -636,7 +726,7 @@ export default function AddWordScreen() {
           style={styles.saveButton}
           icon="content-save"
         >
-          保存 ({wordCount}个单词)
+          保存 ({savableCount}/{wordCount}个单词)
         </Button>
 
         {/* <Button
@@ -867,28 +957,30 @@ const styles = StyleSheet.create({
   textArea: {
     marginBottom: 16,
   },
-  difficultyContainer: {
-    marginBottom: 16,
-  },
-  difficultyDisplay: {
-    marginBottom: 12,
-  },
-  difficultyItem: {
-    padding: 12,
-    marginBottom: 8,
-    borderRadius: 8,
-    elevation: 1,
-  },
-  difficultyItemContent: {
+  difficultyInline: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFF7E6',
+    marginBottom: 12,
   },
-  difficultyWord: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1976D2',
-    minWidth: 80,
+  difficultyInlineCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#FFF7E6',
+  },
+  difficultyInlineLabel: {
+    fontSize: 12,
+    color: '#795548',
+    marginRight: 6,
+    fontWeight: '600',
   },
   difficultyDots: {
     flexDirection: 'row',
@@ -906,13 +998,6 @@ const styles = StyleSheet.create({
     minWidth: 50,
     textAlign: 'right',
   },
-  helperInfo: {
-    fontSize: 11,
-    color: '#999',
-    fontStyle: 'italic',
-    marginTop: 8,
-    lineHeight: 16,
-  },
   buttonContainer: {
     marginBottom: 32,
   },
@@ -926,11 +1011,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     elevation: 1,
   },
+  batchWordHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 8,
+  },
   batchWordTitle: {
+    flex: 1,
     fontSize: 16,
     fontWeight: 'bold',
     color: '#1976D2',
-    marginBottom: 8,
   },
   batchDefinition: {
     marginBottom: 4,
