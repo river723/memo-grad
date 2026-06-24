@@ -9,7 +9,10 @@
       "Bash(start study-demo-complete.html)",
       "Bash(npx expo *)",
       "PowerShell(npx tsc --noEmit --module esnext --ignoreDeprecations 5.0)",
-      "PowerShell(npm run build:web)"
+      "PowerShell(npm run build:web)",
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(npm test -- --runInBand)",
+      "PowerShell(npm test -- --watchAll=false)"
     ]
   }
 }
