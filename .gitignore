@@ -43,6 +43,12 @@ yarn-error.*
 .vscode/
 .idea/
 
+# Claude Code local/session files
+.claude/settings.local.json
+.claude/worktrees/
+.claude/transcripts/
+.claude/scheduled_tasks.json
+
 # Temporary files
 *.tmp
 *.temp
