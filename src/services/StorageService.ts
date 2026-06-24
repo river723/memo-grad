@@ -432,6 +432,8 @@ class StorageService {
   async exportData(): Promise<string> {
     const settings = await this.getSettings();
     const data = {
+      appName: 'memo-grad',
+      schemaVersion: 1,
       words: await this.getWords(),
       studyRecords: await this.getStudyRecords(),
       studyPlans: await this.getStudyPlans(),

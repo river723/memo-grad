@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Linking } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Linking, Platform } from 'react-native';
 import {
   Card,
   Text,
@@ -9,13 +9,54 @@ import {
   TextInput,
   Divider,
   Surface,
-  Button,
-  Modal
+  Button
 } from 'react-native-paper';
 import StorageService from '../services/StorageService';
+import FileService from '../services/FileService';
 import AIService from '../services/AIService';
 import { AI_PROVIDERS, UI_CONFIG } from '../constants';
 import { AppSettings } from '../types';
+
+const BACKUP_FIELDS = [
+  'words',
+  'studyRecords',
+  'studyPlans',
+  'articles',
+  'examSessions',
+  'wrongQuestions',
+  'ignoredWordbankWords',
+  'settings',
+];
+
+const showMessage = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+    return;
+  }
+
+  Alert.alert(title, message);
+};
+
+const getBackupValidationError = (jsonData: string): string | null => {
+  let data: unknown;
+
+  try {
+    data = JSON.parse(jsonData);
+  } catch (error) {
+    return '备份内容无法解析，请选择正确的 .bk 备份文件。';
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return '这不是本应用的备份文件。';
+  }
+
+  const backup = data as Record<string, unknown>;
+  const hasBackupField = BACKUP_FIELDS.some(field =>
+    Object.prototype.hasOwnProperty.call(backup, field)
+  );
+
+  return hasBackupField ? null : '这不是本应用的备份文件。';
+};
 
 export default function SettingsScreen() {
   const [settings, setSettings] = useState<AppSettings>({
@@ -39,8 +80,8 @@ export default function SettingsScreen() {
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [apiTestMessage, setApiTestMessage] = useState('');
   const [apiTestOk, setApiTestOk] = useState<boolean | null>(null);
-  const [dataExport, setDataExport] = useState('');
-  const [showExportModal, setShowExportModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -119,31 +160,71 @@ export default function SettingsScreen() {
   };
 
   const handleExport = async () => {
+    if (isExporting) {
+      return;
+    }
+
+    setIsExporting(true);
     try {
-      const data = await StorageService.exportData();
-      setDataExport(data);
-      setShowExportModal(true);
-    } catch (error) {
-      Alert.alert('导出失败', '无法导出数据');
+      const exportedData = await StorageService.exportData();
+      const fileName = FileService.generateBackupFileName();
+
+      const result = await FileService.exportBackupFile(exportedData, fileName);
+      showMessage(
+        '导出成功',
+        result === 'downloaded'
+          ? '备份文件已开始下载，请妥善保存 .bk 文件。'
+          : '已打开系统分享面板，请选择保存位置并妥善保存 .bk 文件。'
+      );
+    } catch (error: any) {
+      showMessage('导出失败', error.message || '无法导出备份文件');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const runImport = async () => {
+    if (isImporting) {
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const fileText = await FileService.pickAndReadBackupFile();
+      if (!fileText) {
+        return;
+      }
+
+      const validationError = getBackupValidationError(fileText);
+      if (validationError) {
+        showMessage('导入失败', validationError);
+        return;
+      }
+
+      await StorageService.importData(fileText);
+      await loadSettings();
+      showMessage('导入成功', '备份已成功导入，当前设备的 API Key 已保留。');
+    } catch (error: any) {
+      showMessage('导入失败', error.message || '无法导入备份文件，请检查文件格式');
+    } finally {
+      setIsImporting(false);
     }
   };
 
   const handleImport = async () => {
+    if (Platform.OS === 'web') {
+      await runImport();
+      return;
+    }
+
     Alert.alert(
-      '导入数据',
-      '确定要从文件导入数据吗？当前数据可能会被覆盖。',
+      '导入备份',
+      '请选择本应用导出的 .bk 备份文件。导入会覆盖本机已有学习数据；备份文件不会覆盖当前设备保存的 API Key。确定继续吗？',
       [
         { text: '取消', style: 'cancel' },
         {
-          text: '确定',
-          onPress: async () => {
-            try {
-              await StorageService.importData(dataExport);
-              Alert.alert('导入成功', '数据已成功导入');
-            } catch (error) {
-              Alert.alert('导入失败', '无法导入数据，请检查数据格式');
-            }
-          }
+          text: '选择 .bk 文件',
+          onPress: runImport,
         }
       ]
     );
@@ -556,16 +637,32 @@ export default function SettingsScreen() {
         <Card.Content>
           <View style={styles.dataActions}>
             <View style={styles.dataActionItem}>
-              <Surface style={[styles.dataActionBtn, { backgroundColor: '#E8F5E9' }]}>
-                <Text style={styles.dataActionText} onPress={handleExport}>导出数据</Text>
-              </Surface>
-              <Text style={styles.dataActionDesc}>导出所有学习数据</Text>
+              <Button
+                mode="contained-tonal"
+                icon="export"
+                onPress={handleExport}
+                loading={isExporting}
+                disabled={isExporting || isImporting}
+                style={[styles.dataActionBtn, { backgroundColor: '#E8F5E9' }]}
+                labelStyle={styles.dataActionText}
+              >
+                导出备份
+              </Button>
+              <Text style={styles.dataActionDesc}>导出 .bk 压缩备份</Text>
             </View>
             <View style={styles.dataActionItem}>
-              <Surface style={[styles.dataActionBtn, { backgroundColor: '#FFF3E0' }]}>
-                <Text style={styles.dataActionText} onPress={handleImport}>导入数据</Text>
-              </Surface>
-              <Text style={styles.dataActionDesc}>从文件恢复数据</Text>
+              <Button
+                mode="contained-tonal"
+                icon="import"
+                onPress={handleImport}
+                loading={isImporting}
+                disabled={isExporting || isImporting}
+                style={[styles.dataActionBtn, { backgroundColor: '#FFF3E0' }]}
+                labelStyle={styles.dataActionText}
+              >
+                导入备份
+              </Button>
+              <Text style={styles.dataActionDesc}>从 .bk 文件恢复数据</Text>
             </View>
           </View>
         </Card.Content>
@@ -596,20 +693,6 @@ export default function SettingsScreen() {
         <Text style={styles.footerSub}>考研英语生词本</Text>
         <Text style={styles.footerSub}>专注考研 · 科学背词</Text>
       </View>
-
-      {/* 导出弹窗 */}
-      <Modal visible={showExportModal} animationType="slide">
-        <View style={styles.exportModal}>
-          <Text style={styles.exportTitle}>📦 导出数据</Text>
-          <ScrollView style={styles.exportContent}>
-            <Text style={styles.exportJson}>{dataExport}</Text>
-          </ScrollView>
-          <View style={styles.exportActions}>
-            <PaperButton onPress={() => setShowExportModal(false)}>关闭</PaperButton>
-            <PaperButton onPress={() => { /* 复制到剪贴板 */ }}>复制</PaperButton>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 }
@@ -745,15 +828,15 @@ const styles = StyleSheet.create({
   dataActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
   },
   dataActionItem: {
     flex: 1,
     alignItems: 'center',
   },
   dataActionBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
     borderRadius: 8,
+    width: '100%',
   },
   dataActionText: {
     fontSize: 14,
