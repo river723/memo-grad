@@ -4,9 +4,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialIcons } from '@expo/vector-icons';
 
-// Web 平台兼容性处理
-const isWeb = typeof window !== 'undefined';
-
 import HomeScreen from '../screens/HomeScreen';
 import AddWordScreen from '../screens/AddWordScreen';
 import StudyScreen from '../screens/StudyScreen';
@@ -15,6 +12,7 @@ import WordListScreen from '../screens/WordListScreen';
 import WordDetailScreen from '../screens/WordDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import PracticeHubScreen from '../screens/PracticeHubScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import ArticleListScreen from '../screens/ArticleListScreen';
 import ArticleGenerateScreen from '../screens/ArticleGenerateScreen';
 import ArticleDetailScreen from '../screens/ArticleDetailScreen';
@@ -24,29 +22,14 @@ import ExamResultScreen from '../screens/ExamResultScreen';
 import WrongQuestionReviewScreen from '../screens/WrongQuestionReviewScreen';
 import ExamHistoryScreen from '../screens/ExamHistoryScreen';
 import WordbankPickerScreen from '../screens/WordbankPickerScreen';
+import type { RootStackParamList, MainTabParamList } from './types';
 
-const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator<MainTabParamList>();
+const Stack = createStackNavigator<RootStackParamList>();
 
-function HomeTabScreen() {
-  return <HomeScreen />;
-}
-
-function WordListTabScreen() {
-  return <WordListScreen />;
-}
-
-function PracticeHubTabScreen() {
-  return <PracticeHubScreen />;
-}
-
-function SettingsTabScreen() {
-  return <SettingsScreen />;
-}
-
-// 统一的 Stack header 样式
+// 统一的 Stack header 样式：所有栈屏一律显示标题栏（含返回按钮），Web 与移动端一致
 const stackHeaderOptions = (title: string) => ({
-  headerShown: !isWeb as boolean,
+  headerShown: true as boolean,
   title,
   headerStyle: {
     backgroundColor: '#1976D2',
@@ -57,26 +40,25 @@ const stackHeaderOptions = (title: string) => ({
   },
 });
 
-// 主标签导航（4 个 Tab）
+// 主标签导航（4 个 Tab：学习 / 生词本 / 练习 / 我的）
+// 图标名需精确匹配 MaterialIcons 的字面量联合类型，用查找表保证类型安全
+const TAB_ICONS: Record<
+  keyof MainTabParamList,
+  React.ComponentProps<typeof MaterialIcons>['name']
+> = {
+  Home: 'home',
+  Words: 'book',
+  Practice: 'edit',
+  Profile: 'account-circle',
+};
+
 function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName = '';
-
-          if (route.name === '首页') {
-            iconName = 'home';
-          } else if (route.name === '生词本') {
-            iconName = 'book';
-          } else if (route.name === '练习') {
-            iconName = 'edit';
-          } else if (route.name === '设置') {
-            iconName = 'settings';
-          }
-
-          return <MaterialIcons name={iconName} size={size} color={color} />;
-        },
+        tabBarIcon: ({ color, size }) => (
+          <MaterialIcons name={TAB_ICONS[route.name]} size={size} color={color} />
+        ),
         tabBarActiveTintColor: '#1976D2',
         tabBarInactiveTintColor: '#757575',
         headerShown: false,
@@ -91,10 +73,10 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="首页" component={HomeTabScreen} />
-      <Tab.Screen name="生词本" component={WordListTabScreen} />
-      <Tab.Screen name="练习" component={PracticeHubTabScreen} />
-      <Tab.Screen name="设置" component={SettingsTabScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: '学习' }} />
+      <Tab.Screen name="Words" component={WordListScreen} options={{ tabBarLabel: '生词本' }} />
+      <Tab.Screen name="Practice" component={PracticeHubScreen} options={{ tabBarLabel: '练习' }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: '我的' }} />
     </Tab.Navigator>
   );
 }
@@ -108,12 +90,12 @@ export default function AppNavigator() {
         <Stack.Screen
           name="AddWord"
           component={AddWordScreen}
-          options={{ ...stackHeaderOptions('添加生词'), headerShown: true }}
+          options={stackHeaderOptions('添加生词')}
         />
         <Stack.Screen
           name="WordbankPicker"
           component={WordbankPickerScreen}
-          options={{ ...stackHeaderOptions('从词库选词'), headerShown: true }}
+          options={stackHeaderOptions('从词库选词')}
         />
         <Stack.Screen
           name="Study"
@@ -128,71 +110,52 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Stats"
           component={StatsScreen}
-          options={{ ...stackHeaderOptions('学习统计'), headerShown: true }}
+          options={stackHeaderOptions('学习统计')}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={stackHeaderOptions('设置')}
         />
         <Stack.Screen
           name="ArticleList"
           component={ArticleListScreen}
-          options={{
-            ...stackHeaderOptions('趣味文章'),
-            headerShown: true,
-          }}
+          options={stackHeaderOptions('趣味文章')}
         />
         <Stack.Screen
           name="ArticleGenerate"
           component={ArticleGenerateScreen}
-          options={{
-            ...stackHeaderOptions('生成文章'),
-            headerShown: true,
-          }}
+          options={stackHeaderOptions('生成文章')}
         />
         <Stack.Screen
           name="ArticleDetail"
           component={ArticleDetailScreen}
-          options={{
-            ...stackHeaderOptions('文章阅读'),
-            headerShown: true,
-          }}
+          options={stackHeaderOptions('文章阅读')}
         />
         <Stack.Screen
           name="ExamSetup"
           component={ExamSetupScreen}
-          options={{
-            ...stackHeaderOptions('考题练习'),
-            headerShown: true,
-          }}
+          options={stackHeaderOptions('考题练习')}
         />
         <Stack.Screen
           name="ExamAnswer"
           component={ExamAnswerScreen}
-          options={{
-            ...stackHeaderOptions('答题中'),
-            headerShown: true,
-          }}
+          options={stackHeaderOptions('答题中')}
         />
         <Stack.Screen
           name="ExamResult"
           component={ExamResultScreen}
-          options={{
-            ...stackHeaderOptions('练习结果'),
-            headerShown: true,
-          }}
+          options={stackHeaderOptions('练习结果')}
         />
         <Stack.Screen
           name="WrongQuestionReview"
           component={WrongQuestionReviewScreen}
-          options={{
-            ...stackHeaderOptions('错题复习'),
-            headerShown: true,
-          }}
+          options={stackHeaderOptions('错题复习')}
         />
         <Stack.Screen
           name="ExamHistory"
           component={ExamHistoryScreen}
-          options={{
-            ...stackHeaderOptions('练习历史'),
-            headerShown: true,
-          }}
+          options={stackHeaderOptions('练习历史')}
         />
       </Stack.Navigator>
     </NavigationContainer>

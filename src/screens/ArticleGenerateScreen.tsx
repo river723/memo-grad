@@ -10,7 +10,8 @@ import {
   Searchbar,
   SegmentedButtons,
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, Article, AppSettings } from '../types';
@@ -61,7 +62,7 @@ const THEMES = [
 ];
 
 export default function ArticleGenerateScreen() {
-  const navigation = useNavigation();
+  const navigation = useAppNavigation();
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
   const [coverage, setCoverage] = useState<Map<number, number>>(new Map());
@@ -233,7 +234,7 @@ export default function ArticleGenerateScreen() {
         read_count: 0,
       };
       await StorageService.saveArticle(articleData);
-      navigation.navigate('ArticleList' as never);
+      navigation.navigate('ArticleList');
     } catch (error) {
       Alert.alert('保存失败', '请重试');
     } finally {

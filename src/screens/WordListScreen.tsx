@@ -10,12 +10,13 @@ import {
   Surface
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
 
 export default function WordListScreen() {
-  const navigation = useNavigation();
+  const navigation = useAppNavigation();
   const [words, setWords] = useState<Word[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -93,7 +94,9 @@ export default function WordListScreen() {
 
   const renderWordItem = useCallback(({ item }: { item: Word }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('WordDetail' as never, { wordId: item.id } as never)}
+      onPress={() => {
+        if (item.id != null) navigation.navigate('WordDetail', { wordId: item.id });
+      }}
       activeOpacity={0.7}
     >
       <Surface style={styles.wordItem}>
@@ -201,7 +204,7 @@ export default function WordListScreen() {
       {/* 添加按钮 */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate('AddWord' as never)}
+        onPress={() => navigation.navigate('AddWord')}
         activeOpacity={0.8}
       >
         <MaterialIcons name="add" size={28} color="white" />

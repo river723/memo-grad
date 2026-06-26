@@ -6,15 +6,15 @@ import {
   Button,
   Surface,
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { ExamSession, WrongQuestion } from '../types';
 
 export default function PracticeHubScreen() {
-  const navigation = useNavigation();
+  const navigation = useAppNavigation();
   const [examSessions, setExamSessions] = useState<ExamSession[]>([]);
   const [wrongQuestions, setWrongQuestions] = useState<WrongQuestion[]>([]);
-  const [allData, setAllData] = useState<any>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -24,10 +24,12 @@ export default function PracticeHubScreen() {
 
   const loadData = async () => {
     try {
-      const data = await StorageService.getAllData();
-      setAllData(data);
-      setExamSessions(data.examSessions || []);
-      setWrongQuestions(data.wrongQuestions || []);
+      const [sessions, wrongs] = await Promise.all([
+        StorageService.getExamSessions(),
+        StorageService.getWrongQuestions(),
+      ]);
+      setExamSessions(sessions);
+      setWrongQuestions(wrongs);
     } catch (error) {
       console.error('加载练习数据失败:', error);
       setExamSessions([]);
@@ -81,7 +83,7 @@ export default function PracticeHubScreen() {
           <Card.Content>
             <Button
               mode="contained"
-              onPress={() => navigation.navigate('ExamSetup' as never)}
+              onPress={() => navigation.navigate('ExamSetup')}
               style={styles.primaryButton}
               icon="play-circle"
               labelStyle={styles.primaryButtonLabel}
@@ -91,15 +93,25 @@ export default function PracticeHubScreen() {
             <View style={styles.actionRow}>
               <Button
                 mode="outlined"
-                onPress={() => navigation.navigate('ExamHistory' as never)}
+                onPress={() => navigation.navigate('ArticleList')}
+                style={styles.actionButton}
+                icon="file-document"
+              >
+                趣味文章
+              </Button>
+              <Button
+                mode="outlined"
+                onPress={() => navigation.navigate('ExamHistory')}
                 style={styles.actionButton}
                 icon="history"
               >
                 练习历史
               </Button>
+            </View>
+            <View style={styles.actionRow}>
               <Button
                 mode="outlined"
-                onPress={() => navigation.navigate('WrongQuestionReview' as never)}
+                onPress={() => navigation.navigate('WrongQuestionReview')}
                 style={styles.actionButton}
                 icon="alert-circle"
               >
@@ -116,7 +128,7 @@ export default function PracticeHubScreen() {
               title="最近练习"
               titleStyle={styles.cardTitle}
               right={() => (
-                <Button onPress={() => navigation.navigate('ExamHistory' as never)}>
+                <Button onPress={() => navigation.navigate('ExamHistory')}>
                   查看全部
                 </Button>
               )}

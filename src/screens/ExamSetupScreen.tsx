@@ -10,7 +10,8 @@ import {
   Searchbar,
   SegmentedButtons,
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, ExamQuestion, ExamQuestionType, DefinitionQuestion, ClozeQuestion } from '../types';
@@ -18,7 +19,7 @@ import { getRecommendedWords } from '../utils/examHelpers';
 import { EXAM_CONFIG } from '../constants';
 
 export default function ExamSetupScreen() {
-  const navigation = useNavigation();
+  const navigation = useAppNavigation();
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
   const [coverage, setCoverage] = useState<Map<number, number>>(new Map());
@@ -164,10 +165,10 @@ export default function ExamSetupScreen() {
         return;
       }
 
-      navigation.navigate('ExamAnswer' as never, {
+      navigation.navigate('ExamAnswer', {
         questions: allQuestions,
         questionType,
-      } as never);
+      });
     } catch (error: any) {
       Alert.alert('出题失败', error.message || '题目生成失败，请重试');
     } finally {

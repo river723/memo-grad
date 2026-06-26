@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   IconButton
 } from 'react-native-paper';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAppNavigation, useAppRoute } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { Word, StudyRecord, AppSettings, Article } from '../types';
 import { REVIEW_INTERVALS } from '../constants';
@@ -77,8 +77,8 @@ if (Platform.OS !== 'web') {
 }
 
 export default function StudyScreen() {
-  const navigation = useNavigation();
-  const route = useRoute<any>();
+  const navigation = useAppNavigation();
+  const route = useAppRoute<'Study'>();
   const customWordIds = Array.isArray(route.params?.wordIds)
     ? route.params.wordIds.filter((id: unknown): id is number => typeof id === 'number')
     : [];
@@ -1001,7 +1001,7 @@ export default function StudyScreen() {
             {!isCustomReview && (
               <Button
                 mode="contained"
-                onPress={() => navigation.navigate('AddWord' as never)}
+                onPress={() => navigation.navigate('AddWord')}
                 style={styles.addWordBtn}
               >
                 添加单词

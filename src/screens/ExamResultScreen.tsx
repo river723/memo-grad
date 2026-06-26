@@ -6,14 +6,14 @@ import {
   Button,
   Divider,
 } from 'react-native-paper';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAppNavigation, useAppRoute } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { ExamQuestion, ExamAnswer as ExamAnswerType, ExamQuestionType } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 
 export default function ExamResultScreen() {
-  const navigation = useNavigation();
-  const route = useRoute<any>();
+  const navigation = useAppNavigation();
+  const route = useAppRoute<'ExamResult'>();
   const questions: ExamQuestion[] = route.params?.questions || [];
   const answers: ExamAnswerType[] = route.params?.answers || [];
   const questionType: ExamQuestionType = route.params?.questionType || 'definition';
@@ -181,7 +181,7 @@ export default function ExamResultScreen() {
       <View style={styles.actions}>
         <Button
           mode="contained"
-          onPress={() => navigation.navigate('ExamSetup' as never)}
+          onPress={() => navigation.navigate('ExamSetup')}
           style={styles.actionButton}
           icon="refresh"
         >
@@ -190,7 +190,7 @@ export default function ExamResultScreen() {
         {hasWrongQuestions && (
           <Button
             mode="outlined"
-            onPress={() => navigation.navigate('WrongQuestionReview' as never)}
+            onPress={() => navigation.navigate('WrongQuestionReview')}
             style={styles.actionButton}
             icon="alert-circle"
           >
@@ -199,7 +199,7 @@ export default function ExamResultScreen() {
         )}
         <Button
           mode="outlined"
-          onPress={() => navigation.navigate('单词本' as never)}
+          onPress={() => navigation.navigate('Main', { screen: 'Words' })}
           style={styles.actionButton}
           icon="book"
         >
@@ -207,7 +207,7 @@ export default function ExamResultScreen() {
         </Button>
         <Button
           mode="text"
-          onPress={() => navigation.navigate('Main' as never)}
+          onPress={() => navigation.navigate('Main', { screen: 'Home' })}
         >
           返回首页
         </Button>

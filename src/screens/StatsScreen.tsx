@@ -7,14 +7,14 @@ import {
   Chip,
   Button
 } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import { Word, StudyRecord, WeeklyStudyTrend } from '../types';
 import { format } from 'date-fns';
 
 export default function StatsScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
   const [stats, setStats] = useState({
     totalWords: 0,
     todayStudyCount: 0,

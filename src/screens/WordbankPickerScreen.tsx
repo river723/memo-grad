@@ -20,7 +20,8 @@ import {
   Button,
   Chip,
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
 import { getLocalWordDictWords } from '../utils/wordUtils';
@@ -136,7 +137,7 @@ const WordRow = React.memo(function WordRow({
 // 主页面
 
 export default function WordbankPickerScreen() {
-  const navigation = useNavigation();
+  const navigation = useAppNavigation();
   const flatRef = useRef<FlatList>(null);
 
   // 数据

@@ -14,7 +14,8 @@ import {
   ActivityIndicator,
   IconButton,
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation, useAppRoute } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Article, Word, WordDefinition } from '../types';
@@ -85,8 +86,8 @@ function parseArticleContent(
 }
 
 export default function ArticleDetailScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
+  const navigation = useAppNavigation();
+  const route = useAppRoute<'ArticleDetail'>();
   const { articleId } = route.params as { articleId: number };
 
   const [article, setArticle] = useState<Article | null>(null);

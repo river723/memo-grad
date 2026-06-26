@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, ScrollView, StyleSheet, Pressable } from 'react-native';
 import {
   Card,
   Text,
   Button,
   ProgressBar,
-  Chip,
   Surface,
+  IconButton,
+  ActivityIndicator,
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import { Word, StudyRecord, WeeklyStudyTrend } from '../types';
@@ -28,13 +30,15 @@ type TodayStats = {
   difficultWordCount: number;
 };
 
+type SuggestionRoute = 'Study' | 'AddWord' | 'WrongQuestionReview' | 'ExamSetup';
+
 type TodaySuggestion = {
   title: string;
   description: string;
   actionLabel: string;
   icon: string;
-  routeName: string;
-  params?: any;
+  routeName: SuggestionRoute;
+  params?: { wordIds?: number[] };
 };
 
 const DEFAULT_TODAY_STATS: TodayStats = {
@@ -155,22 +159,18 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
 };
 
 export default function HomeScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
   const [todayStats, setTodayStats] = useState<TodayStats>(DEFAULT_TODAY_STATS);
   const [todaySuggestion, setTodaySuggestion] = useState<TodaySuggestion>(DEFAULT_SUGGESTION);
   const [recentWords, setRecentWords] = useState<Word[]>([]);
   const [weeklyTrend, setWeeklyTrend] = useState<WeeklyStudyTrend[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadDashboardData();
-    }, [])
-  );
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError(false);
     try {
-      console.log('开始加载仪表板数据...');
-
       const today = format(new Date(), 'yyyy-MM-dd');
       const [allWords, allPlans, todayRecords, allRecords, wrongQuestions] = await Promise.all([
         StorageService.getWords(),
@@ -214,257 +214,256 @@ export default function HomeScreen() {
           const dateB = new Date(b.created_at || 0).getTime();
           return dateB - dateA;
         })
-        .slice(0, 5);
+        .slice(0, 8);
       setRecentWords(words);
 
       // 加载一周趋势
       const studyPlanService = new StudyPlanService();
       const stats = await studyPlanService.calculateStudyStats();
       setWeeklyTrend(stats.weeklyTrend || []);
-
-      console.log('仪表板数据加载完成');
-    } catch (error) {
-      console.error('加载仪表板数据失败:', error);
-      setTodayStats(DEFAULT_TODAY_STATS);
-      setTodaySuggestion(DEFAULT_SUGGESTION);
-      setRecentWords([]);
-      setWeeklyTrend([]);
+    } catch (e) {
+      console.error('加载仪表板数据失败:', e);
+      setError(true);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const getProgressColor = (progress: number) => {
-    if (progress >= 0.8) return '#4CAF50';
-    if (progress >= 0.6) return '#FF9800';
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [loadDashboardData])
+  );
+
+  const getProgressColor = (rate: number) => {
+    if (rate >= 0.8) return '#4CAF50';
+    if (rate >= 0.6) return '#FF9800';
     return '#F44336';
   };
 
   const totalPlanned = todayStats.todayTotal;
   const progress = totalPlanned > 0 ? todayStats.todayCompleted / totalPlanned : 0;
+  const accuracyPercent = Math.round(todayStats.accuracy * 100);
 
   const handleSuggestionPress = () => {
-    if (todaySuggestion.params) {
-      navigation.navigate(todaySuggestion.routeName, todaySuggestion.params);
-      return;
+    const { routeName, params } = todaySuggestion;
+    switch (routeName) {
+      case 'Study':
+        navigation.navigate('Study', params);
+        break;
+      case 'AddWord':
+        navigation.navigate('AddWord');
+        break;
+      case 'WrongQuestionReview':
+        navigation.navigate('WrongQuestionReview');
+        break;
+      case 'ExamSetup':
+        navigation.navigate('ExamSetup');
+        break;
     }
-
-    navigation.navigate(todaySuggestion.routeName);
   };
 
-  const weeklyStudyCount = weeklyTrend.reduce((sum, day) => sum + day.studyCount, 0);
   const weeklyStudiedWordCount = weeklyTrend.reduce((sum, day) => sum + day.studiedWordCount, 0);
+  const weeklyStudyCount = weeklyTrend.reduce((sum, day) => sum + day.studyCount, 0);
   const avgDailyStudyCount = weeklyTrend.length > 0 ? Math.round(weeklyStudyCount / weeklyTrend.length) : 0;
-  const maxStudyCount = Math.max(...weeklyTrend.map(day => day.studyCount), 1);
+
+  // 首次加载且尚无数据时显示骨架加载
+  const showSpinner =
+    loading && todayStats.totalWords === 0 && recentWords.length === 0 && !error;
+  const isEmpty = !loading && !error && todayStats.totalWords === 0;
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.content}>
-        {/* 今日学习概览 - 精简为 3 个指标 */}
-        <Card style={styles.card}>
-          <Card.Title title="今日学习" titleStyle={styles.cardTitle} />
-          <Card.Content>
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: todayStats.todayPending > 0 ? '#FF9800' : '#1976D2' }]}>
-                  {todayStats.todayPending}
-                </Text>
-                <Text style={styles.statLabel}>待学习</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{todayStats.todayCompleted}</Text>
-                <Text style={styles.statLabel}>已完成</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: getProgressColor(todayStats.accuracy) }]}>
-                  {Math.round(todayStats.accuracy * 100)}%
-                </Text>
-                <Text style={styles.statLabel}>正确率</Text>
-              </View>
-            </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        {showSpinner && (
+          <View style={styles.centerState}>
+            <ActivityIndicator size="large" color="#1976D2" />
+            <Text style={styles.centerStateText}>加载中…</Text>
+          </View>
+        )}
 
-            <View style={styles.progressSection}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressLabel}>
+        {error && todayStats.totalWords === 0 && recentWords.length === 0 && (
+          <View style={styles.centerState}>
+            <Text style={styles.emptyIcon}>⚠️</Text>
+            <Text style={styles.centerStateText}>数据加载失败</Text>
+            <Button mode="contained" onPress={loadDashboardData} style={styles.centerStateButton}>
+              重试
+            </Button>
+          </View>
+        )}
+
+        {/* 空状态：引导首次添加生词 */}
+        {isEmpty && (
+          <Card style={styles.card}>
+            <Card.Content style={styles.onboarding}>
+              <Text style={styles.emptyIcon}>🌱</Text>
+              <Text style={styles.onboardingTitle}>添加你的第一个生词</Text>
+              <Text style={styles.onboardingDesc}>
+                添加 → 学习 → 复习 → 掌握。按艾宾浩斯曲线自动安排复习，让记忆更牢固。
+              </Text>
+              <Button
+                mode="contained"
+                onPress={() => navigation.navigate('AddWord')}
+                icon="plus"
+                style={styles.onboardingButton}
+              >
+                添加生词
+              </Button>
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* 常规内容 */}
+        {!showSpinner && !isEmpty && !(error && todayStats.totalWords === 0) && (
+          <>
+            {error && (
+              <Card style={[styles.card, styles.errorBanner]}>
+                <Card.Content>
+                  <Text style={styles.errorBannerText}>部分数据加载失败，下拉重试</Text>
+                </Card.Content>
+              </Card>
+            )}
+
+            {/* 1. 智能建议英雄卡（置顶） */}
+            <Card style={[styles.card, styles.suggestionCard]}>
+              <Card.Content>
+                <Text style={styles.reminderTitle}>📚 今日建议</Text>
+                <Text style={styles.suggestionSubtitle}>{todaySuggestion.title}</Text>
+                <Text style={styles.reminderText}>{todaySuggestion.description}</Text>
+                <Button
+                  mode="contained"
+                  onPress={handleSuggestionPress}
+                  style={styles.suggestionButton}
+                  icon={todaySuggestion.icon}
+                >
+                  {todaySuggestion.actionLabel}
+                </Button>
+              </Card.Content>
+            </Card>
+
+            {/* 2. 今日进度（精简为一行 + 进度条） */}
+            <Card style={styles.card}>
+              <Card.Content>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressLabel}>
+                    待学 {todayStats.todayPending} · 已完成 {todayStats.todayCompleted} · 正确率 {accuracyPercent}%
+                  </Text>
+                  <Text style={[styles.progressPercent, { color: getProgressColor(todayStats.accuracy) }]}>
+                    {Math.round(progress * 100)}%
+                  </Text>
+                </View>
+                <ProgressBar
+                  progress={progress}
+                  color="#1976D2"
+                  style={styles.progressBar}
+                />
+                <Text style={styles.progressHint}>
                   {totalPlanned > 0
                     ? `进度 ${todayStats.todayCompleted}/${totalPlanned}`
-                    : '今日暂无学习计划'}
+                    : '今日暂无学习计划，点击下方按钮开始'}
                 </Text>
-                <Text style={styles.progressPercent}>
-                  {Math.round(progress * 100)}%
-                </Text>
-              </View>
-              <ProgressBar
-                progress={progress}
-                color="#1976D2"
-                style={styles.progressBar}
-              />
-            </View>
-          </Card.Content>
-        </Card>
+              </Card.Content>
+            </Card>
 
-        {/* 核心操作区 - 3 个主要入口 */}
-        <Card style={styles.card}>
-          <Card.Title title="快速开始" titleStyle={styles.cardTitle} />
-          <Card.Content>
+            {/* 3. 主操作 CTA */}
             <Button
               mode="contained"
-              onPress={() => navigation.navigate('Study' as never)}
+              onPress={() => navigation.navigate('Study')}
               style={styles.primaryButton}
               icon="book-open-variant"
               labelStyle={styles.primaryButtonLabel}
             >
-              开始背诵
+              开始今日学习
             </Button>
-            <View style={styles.actionRow}>
-              <Button
-                mode="contained-tonal"
-                onPress={() => navigation.navigate('ExamSetup' as never)}
-                style={styles.actionButton}
-                icon="pencil"
-              >
-                考题练习
-              </Button>
-              <Button
-                mode="contained-tonal"
-                onPress={() => navigation.navigate('ArticleList' as never)}
-                style={styles.actionButton}
-                icon="file-document"
-              >
-                趣味文章
-              </Button>
-            </View>
 
-            {/* 次要入口 */}
-            <View style={styles.secondaryRow}>
-              <Button
-                mode="text"
-                compact
-                onPress={() => navigation.navigate('AddWord' as never)}
-                icon="plus"
-                textColor="#1976D2"
-              >
-                添加生词
-              </Button>
-              <Button
-                mode="text"
-                compact
-                onPress={() => navigation.navigate('WrongQuestionReview' as never)}
-                icon="alert-circle-outline"
-                textColor="#1976D2"
-              >
-                错题本
-              </Button>
-              <Button
-                mode="text"
-                compact
-                onPress={() => navigation.navigate('ExamHistory' as never)}
-                icon="history"
-                textColor="#1976D2"
-              >
-                练习历史
-              </Button>
-              <Button
-                mode="text"
-                compact
-                onPress={() => navigation.navigate('Stats' as never)}
-                icon="chart-bar"
-                textColor="#1976D2"
-              >
-                统计
-              </Button>
-            </View>
-          </Card.Content>
-        </Card>
-
-        {/* 一周学习趋势 */}
-        <Card style={styles.card} onPress={() => navigation.navigate('Stats' as never)}>
-          <Card.Title
-            title="一周学习趋势"
-            titleStyle={styles.cardTitle}
-            right={() => (
-              <Text style={styles.cardHint}>查看详情 →</Text>
+            {/* 4. 待办行（条件渲染，为 0 即隐藏） */}
+            {(todayStats.wrongQuestionCount > 0 || todayStats.difficultWordCount > 0) && (
+              <View style={styles.pendingRow}>
+                {todayStats.wrongQuestionCount > 0 && (
+                  <Button
+                    mode="outlined"
+                    onPress={() => navigation.navigate('WrongQuestionReview')}
+                    icon="alert-circle-outline"
+                    textColor="#F44336"
+                    style={styles.pendingButton}
+                  >
+                    错题本 ({todayStats.wrongQuestionCount})
+                  </Button>
+                )}
+                {todayStats.difficultWordCount > 0 && (
+                  <Button
+                    mode="outlined"
+                    onPress={() =>
+                      navigation.navigate('Study', { wordIds: todayStats.difficultWordIds })
+                    }
+                    icon="refresh"
+                    textColor="#FF9800"
+                    style={styles.pendingButton}
+                  >
+                    强化复习 ({todayStats.difficultWordCount})
+                  </Button>
+                )}
+              </View>
             )}
-          />
-          <Card.Content>
-            <View style={styles.trendSummary}>
-              <View style={styles.trendMetric}>
-                <Text style={styles.trendMetricValue}>{weeklyStudiedWordCount}</Text>
-                <Text style={styles.trendMetricLabel}>本周学习</Text>
-              </View>
-              <View style={styles.trendMetric}>
-                <Text style={styles.trendMetricValue}>{avgDailyStudyCount}</Text>
-                <Text style={styles.trendMetricLabel}>日均次数</Text>
-              </View>
-            </View>
 
-            <View style={styles.weeklyChart}>
-              {weeklyTrend.map(day => {
-                const studyRatio = day.studyCount > 0 ? day.studyCount / maxStudyCount : 0;
-
-                return (
-                  <View key={day.date} style={styles.chartItem}>
-                    <Surface
-                      style={[
-                        styles.chartBar,
-                        {
-                          height: Math.max(studyRatio * 60, 4),
-                          backgroundColor: '#1976D2',
-                        },
-                      ]}
+            {/* 5. 最近添加（横向瓦片，加大点击区） */}
+            {recentWords.length > 0 && (
+              <Card style={styles.card}>
+                <Card.Title
+                  title="最近添加"
+                  titleStyle={styles.cardTitle}
+                  right={() => (
+                    <Button
+                      onPress={() => navigation.navigate('Main', { screen: 'Words' })}
+                      textColor="#1976D2"
                     >
-                      <View />
-                    </Surface>
-                    <Text style={styles.chartValue}>{day.studyCount}</Text>
-                    <Text style={styles.chartLabel}>{day.dayLabel}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </Card.Content>
-        </Card>
-
-        {/* 最近添加的单词 */}
-        <Card style={styles.card}>
-          <Card.Title
-            title="最近添加"
-            titleStyle={styles.cardTitle}
-            right={() => (
-              <Button onPress={() => navigation.navigate('生词本' as never)}>
-                查看全部
-              </Button>
+                      查看全部
+                    </Button>
+                  )}
+                />
+                <Card.Content>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.recentTiles}>
+                      {recentWords.map(word => (
+                        <Pressable
+                          key={word.id ?? word.word}
+                          onPress={() => {
+                            if (word.id != null) navigation.navigate('WordDetail', { wordId: word.id });
+                          }}
+                        >
+                          <Surface style={styles.wordTile} elevation={1}>
+                            <Text style={styles.wordTileText}>{word.word}</Text>
+                            <Text style={styles.wordTileDifficulty}>
+                              {'★'.repeat(Math.max(1, Math.min(5, word.difficulty)))}
+                            </Text>
+                          </Surface>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </Card.Content>
+              </Card>
             )}
-          />
-          <Card.Content>
-            <View style={styles.recentWords}>
-              {recentWords.map((word, index) => (
-                <Chip
-                  key={index}
-                  mode="outlined"
-                  onPress={() => navigation.navigate('WordDetail' as never, { wordId: word.id } as never)}
-                  style={styles.wordChip}
-                >
-                  {word.word}
-                </Chip>
-              ))}
-            </View>
-          </Card.Content>
-        </Card>
 
-        {/* 今日建议 */}
-        <Card style={[styles.card, styles.lastCard]}>
-          <Card.Content>
-            <Text style={styles.reminderTitle}>📚 今日建议</Text>
-            <Text style={styles.suggestionSubtitle}>{todaySuggestion.title}</Text>
-            <Text style={styles.reminderText}>{todaySuggestion.description}</Text>
-            <Button
-              mode="contained"
-              onPress={handleSuggestionPress}
-              style={styles.suggestionButton}
-              icon={todaySuggestion.icon}
+            {/* 6. 一周趋势（折叠为摘要 + 箭头） */}
+            <Card
+              style={[styles.card, styles.lastCard]}
+              onPress={() => navigation.navigate('Stats')}
             >
-              {todaySuggestion.actionLabel}
-            </Button>
-          </Card.Content>
-        </Card>
+              <Card.Content style={styles.trendRow}>
+                <View style={styles.trendSummary}>
+                  <Text style={styles.trendMetricValue}>{weeklyStudiedWordCount}</Text>
+                  <Text style={styles.trendMetricLabel}>本周学习词数</Text>
+                </View>
+                <View style={styles.trendSummary}>
+                  <Text style={styles.trendMetricValue}>{avgDailyStudyCount}</Text>
+                  <Text style={styles.trendMetricLabel}>日均次数</Text>
+                </View>
+                <IconButton icon="chevron-right" size={24} iconColor="#1976D2" />
+              </Card.Content>
+            </Card>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -476,143 +475,69 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   content: {
-    flex: 1,
     padding: 16,
+    paddingBottom: 24,
   },
   card: {
     marginBottom: 16,
     elevation: 2,
   },
   lastCard: {
-    marginBottom: 24,
+    marginBottom: 8,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  statItem: {
+  centerState: {
     alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1976D2',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  progressSection: {
-    marginTop: 4,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  progressLabel: {
-    fontSize: 14,
-    color: '#666',
-  },
-  progressPercent: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1976D2',
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-  },
-  primaryButton: {
-    marginBottom: 12,
-    paddingVertical: 6,
-  },
-  primaryButtonLabel: {
-    fontSize: 16,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  actionButton: {
-    flex: 1,
-    marginHorizontal: 4,
-  },
-  secondaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    flexWrap: 'wrap',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E0E0E0',
-    paddingTop: 8,
-  },
-  cardHint: {
-    fontSize: 13,
-    color: '#1976D2',
-    marginRight: 8,
-  },
-  trendSummary: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    gap: 24,
-    marginBottom: 16,
+    paddingVertical: 64,
   },
-  trendMetric: {
+  centerStateText: {
+    fontSize: 15,
+    color: '#666',
+    marginTop: 12,
+  },
+  centerStateButton: {
+    marginTop: 16,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  errorBanner: {
+    backgroundColor: '#FFEBEE',
+    elevation: 1,
+  },
+  errorBannerText: {
+    fontSize: 14,
+    color: '#C62828',
+    textAlign: 'center',
+  },
+  onboarding: {
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 24,
   },
-  trendMetricValue: {
-    fontSize: 24,
+  onboardingTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#1976D2',
+    marginBottom: 10,
   },
-  trendMetricLabel: {
-    fontSize: 12,
+  onboardingDesc: {
+    fontSize: 14,
     color: '#666',
-    marginTop: 4,
-  },
-  weeklyChart: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    minHeight: 100,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
     paddingHorizontal: 8,
   },
-  chartItem: {
-    alignItems: 'center',
-    flex: 1,
+  onboardingButton: {
+    paddingHorizontal: 8,
   },
-  chartBar: {
-    width: 24,
-    borderRadius: 4,
-    marginBottom: 8,
-    opacity: 0.85,
-  },
-  chartLabel: {
-    fontSize: 11,
-    color: '#666',
-    marginTop: 4,
-  },
-  chartValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-  },
-  recentWords: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  wordChip: {
-    marginBottom: 4,
+  suggestionCard: {
+    elevation: 4,
   },
   reminderTitle: {
     fontSize: 16,
@@ -634,4 +559,86 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 8,
   },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: '#333',
+    flexShrink: 1,
+  },
+  progressPercent: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+  },
+  progressHint: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 8,
+  },
+  primaryButton: {
+    marginBottom: 16,
+    paddingVertical: 6,
+  },
+  primaryButtonLabel: {
+    fontSize: 16,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  pendingButton: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  recentTiles: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingRight: 4,
+  },
+  wordTile: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minHeight: 56,
+    justifyContent: 'center',
+  },
+  wordTileText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1976D2',
+  },
+  wordTileDifficulty: {
+    fontSize: 11,
+    color: '#FF9800',
+    marginTop: 4,
+  },
+  trendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  trendSummary: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  trendMetricValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1976D2',
+  },
+  trendMetricLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
 });
+

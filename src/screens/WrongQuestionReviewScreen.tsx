@@ -7,13 +7,14 @@ import {
   Divider,
   Surface,
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
-import { WrongQuestion, ExamQuestion } from '../types';
+import { WrongQuestion, ExamQuestion, ExamQuestionType } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 
 export default function WrongQuestionReviewScreen() {
-  const navigation = useNavigation();
+  const navigation = useAppNavigation();
   const [wrongQuestions, setWrongQuestions] = useState<WrongQuestion[]>([]);
 
   useFocusEffect(
@@ -31,10 +32,12 @@ export default function WrongQuestionReviewScreen() {
 
   const handleStartReview = () => {
     const questions: ExamQuestion[] = wrongQuestions.map(wq => wq.question);
-    navigation.navigate('ExamAnswer' as never, {
+    // 复习题型沿用首题的真实类型（definition / cloze），避免虚构 'review' 类型
+    const questionType: ExamQuestionType = questions[0]?.type ?? 'definition';
+    navigation.navigate('ExamAnswer', {
       questions,
-      questionType: 'review' as any,
-    } as never);
+      questionType,
+    });
   };
 
   const renderQuestionContent = (wq: WrongQuestion) => {
@@ -83,7 +86,7 @@ export default function WrongQuestionReviewScreen() {
           <Text style={styles.emptyHint}>继续保持，多加练习</Text>
           <Button
             mode="outlined"
-            onPress={() => navigation.navigate('ExamSetup' as never)}
+            onPress={() => navigation.navigate('ExamSetup')}
             style={styles.emptyButton}
           >
             去做一组练习

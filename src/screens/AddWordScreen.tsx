@@ -13,7 +13,7 @@ import {
   SegmentedButtons
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, AIResponse, AppSettings } from '../types';
@@ -27,7 +27,7 @@ type AnalysisSourceBuckets = {
 };
 
 export default function AddWordScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
   const [activeTab, setActiveTab] = useState<AddWordTab>('wordbank');
   const [input, setInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -525,7 +525,7 @@ export default function AddWordScreen() {
             <Button
               mode="contained"
               icon="book-search"
-              onPress={() => navigation.navigate('WordbankPicker' as never)}
+              onPress={() => navigation.navigate('WordbankPicker')}
               style={styles.pickerEntryButton}
             >
               打开本地词库

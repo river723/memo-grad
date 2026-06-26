@@ -11,7 +11,8 @@ import {
   IconButton,
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { Article } from '../types';
 
@@ -25,7 +26,7 @@ const THEME_LABELS: Record<string, string> = {
 };
 
 export default function ArticleListScreen() {
-  const navigation = useNavigation();
+  const navigation = useAppNavigation();
   const [articles, setArticles] = useState<Article[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [articleToDelete, setArticleToDelete] = useState<Article | null>(null);
@@ -79,7 +80,9 @@ export default function ArticleListScreen() {
 
   const renderArticle = ({ item }: { item: Article }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('ArticleDetail' as never, { articleId: item.id } as never)}
+      onPress={() => {
+        if (item.id != null) navigation.navigate('ArticleDetail', { articleId: item.id });
+      }}
       activeOpacity={0.7}
     >
       <Surface style={styles.articleCard}>
@@ -148,7 +151,7 @@ export default function ArticleListScreen() {
         icon="plus"
         style={styles.fab}
         color="#FFF"
-        onPress={() => navigation.navigate('ArticleGenerate' as never)}
+        onPress={() => navigation.navigate('ArticleGenerate')}
         label="生成文章"
       />
 

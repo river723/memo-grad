@@ -6,12 +6,13 @@ import {
   Button,
   IconButton,
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { ExamSession } from '../types';
 
 export default function ExamHistoryScreen() {
-  const navigation = useNavigation();
+  const navigation = useAppNavigation();
   const [sessions, setSessions] = useState<ExamSession[]>([]);
 
   useFocusEffect(
@@ -41,11 +42,11 @@ export default function ExamHistoryScreen() {
   };
 
   const handleRedo = (session: ExamSession) => {
-    navigation.navigate('ExamAnswer' as never, {
+    navigation.navigate('ExamAnswer', {
       questions: session.questions,
       questionType: session.question_type,
       sessionId: session.id,
-    } as never);
+    });
   };
 
   const getAccuracyColor = (rate: number) => {
@@ -72,7 +73,7 @@ export default function ExamHistoryScreen() {
           <Text style={styles.emptyHint}>完成考题练习后可在此复习</Text>
           <Button
             mode="outlined"
-            onPress={() => navigation.navigate('ExamSetup' as never)}
+            onPress={() => navigation.navigate('ExamSetup')}
             style={styles.emptyButton}
           >
             去做一组练习

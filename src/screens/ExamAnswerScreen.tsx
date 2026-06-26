@@ -7,13 +7,13 @@ import {
   ProgressBar,
   Surface,
 } from 'react-native-paper';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { ExamQuestion, ExamAnswer as ExamAnswerType, DefinitionQuestion, ClozeQuestion } from '../types';
 import { EXAM_CONFIG } from '../constants';
 
 export default function ExamAnswerScreen() {
-  const navigation = useNavigation();
-  const route = useRoute<any>();
+  const navigation = useAppNavigation();
+  const route = useAppRoute<'ExamAnswer'>();
   const questions: ExamQuestion[] = route.params?.questions || [];
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -52,12 +52,12 @@ export default function ExamAnswerScreen() {
     autoAdvanceTimer.current = setTimeout(() => {
       if (isLastQuestion) {
         const finalAnswers = [...answers, newAnswer];
-        navigation.navigate('ExamResult' as never, {
+        navigation.navigate('ExamResult', {
           questions,
           answers: finalAnswers,
-          questionType: route.params?.questionType,
-          sessionId: route.params?.sessionId,
-        } as never);
+          questionType: route.params.questionType,
+          sessionId: route.params.sessionId,
+        });
       } else {
         setCurrentIndex(prev => prev + 1);
         setSelectedOption(null);
@@ -69,12 +69,12 @@ export default function ExamAnswerScreen() {
   const handleSkip = () => {
     if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
     if (isLastQuestion) {
-      navigation.navigate('ExamResult' as never, {
+      navigation.navigate('ExamResult', {
         questions,
         answers,
-        questionType: route.params?.questionType,
-        sessionId: route.params?.sessionId,
-      } as never);
+        questionType: route.params.questionType,
+        sessionId: route.params.sessionId,
+      });
     } else {
       setCurrentIndex(prev => prev + 1);
       setSelectedOption(null);
@@ -85,12 +85,12 @@ export default function ExamAnswerScreen() {
   const handleNext = () => {
     if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
     if (isLastQuestion) {
-      navigation.navigate('ExamResult' as never, {
+      navigation.navigate('ExamResult', {
         questions,
         answers,
-        questionType: route.params?.questionType,
-        sessionId: route.params?.sessionId,
-      } as never);
+        questionType: route.params.questionType,
+        sessionId: route.params.sessionId,
+      });
     } else {
       setCurrentIndex(prev => prev + 1);
       setSelectedOption(null);

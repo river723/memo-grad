@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet, Platform } from 'react-native';
 import { Text, Chip, Surface, Button, IconButton, ActivityIndicator } from 'react-native-paper';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAppNavigation, useAppRoute } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, AppSettings } from '../types';
@@ -24,8 +24,8 @@ if (Platform.OS !== 'web') {
 
 // 判断与合并逻辑统一在 utils/wordUtils
 export default function WordDetailScreen() {
-  const route = useRoute<any>();
-  const navigation = useNavigation();
+  const route = useAppRoute<'WordDetail'>();
+  const navigation = useAppNavigation();
   const [word, setWord] = useState<Word | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [settings, setSettings] = useState<AppSettings | null>(null);
