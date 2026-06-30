@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Linking, Platform } from 'react-native';
+import { View, ScrollView, Alert, Linking, Platform } from 'react-native';
 import {
   Card,
   Text,
@@ -16,6 +16,10 @@ import FileService from '../services/FileService';
 import AIService from '../services/AIService';
 import { AI_PROVIDERS, UI_CONFIG } from '../constants';
 import { AppSettings } from '../types';
+import { useAppTheme } from '../theme/theme';
+import { useThemeContext } from '../providers/ThemeProvider';
+import { makeStyles } from '../utils/useStyles';
+import { palette } from '../theme/tokens';
 
 const BACKUP_FIELDS = [
   'words',
@@ -59,6 +63,9 @@ const getBackupValidationError = (jsonData: string): string | null => {
 };
 
 export default function SettingsScreen() {
+  const { colors } = useAppTheme();
+  const { setThemeMode } = useThemeContext();
+  const styles = useStyles();
   const [settings, setSettings] = useState<AppSettings>({
     dailyNewWords: 10,
     reviewInterval: [1, 2, 4, 7, 15],
@@ -325,6 +332,31 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      {/* 外观 */}
+      <Card style={styles.card}>
+        <Card.Title title="🎨 外观" titleStyle={styles.cardTitle} />
+        <Card.Content>
+          <Text style={styles.settingLabel}>主题</Text>
+          <View style={styles.themeRow}>
+            {(['light', 'dark', 'system'] as const).map(mode => (
+              <PaperButton
+                key={mode}
+                mode={settings.theme === mode ? 'contained' : 'outlined'}
+                compact
+                onPress={() => {
+                  saveSettings({ theme: mode });
+                  setThemeMode(mode);
+                }}
+                style={styles.themeBtn}
+                icon={mode === 'light' ? 'white-balance-sunny' : mode === 'dark' ? 'weather-night' : 'theme-light-dark'}
+              >
+                {mode === 'light' ? '浅色' : mode === 'dark' ? '深色' : '跟随系统'}
+              </PaperButton>
+            ))}
+          </View>
+        </Card.Content>
+      </Card>
+
       {/* 学习设置 */}
       <Card style={styles.card}>
         <Card.Title title="⚙️ 学习设置" titleStyle={styles.cardTitle} />
@@ -423,7 +455,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.soundEnabled}
               onValueChange={value => saveSettings({ soundEnabled: value })}
-              color="#1976D2"
+              color={palette.primary}
             />
           </View>
 
@@ -643,7 +675,7 @@ export default function SettingsScreen() {
                 onPress={handleExport}
                 loading={isExporting}
                 disabled={isExporting || isImporting}
-                style={[styles.dataActionBtn, { backgroundColor: '#E8F5E9' }]}
+                style={[styles.dataActionBtn, { backgroundColor: palette.successLight }]}
                 labelStyle={styles.dataActionText}
               >
                 导出备份
@@ -657,7 +689,7 @@ export default function SettingsScreen() {
                 onPress={handleImport}
                 loading={isImporting}
                 disabled={isExporting || isImporting}
-                style={[styles.dataActionBtn, { backgroundColor: '#FFF3E0' }]}
+                style={[styles.dataActionBtn, { backgroundColor: palette.accentLight }]}
                 labelStyle={styles.dataActionText}
               >
                 导入备份
@@ -673,13 +705,13 @@ export default function SettingsScreen() {
         <Card.Title title="⚡ 高级选项" titleStyle={styles.cardTitle} />
         <Card.Content>
           <View style={styles.dangerActions}>
-            <Surface style={[styles.dangerBtn, { backgroundColor: '#FFEBEE' }]}>
+            <Surface style={[styles.dangerBtn, { backgroundColor: palette.dangerLight }]}>
               <Text style={styles.dangerBtnText} onPress={handleResetDefaults}>
                 重置所有设置
               </Text>
             </Surface>
-            <Surface style={[styles.dangerBtn, { backgroundColor: '#FCE4EC' }]}>
-              <Text style={[styles.dangerBtnText, { color: '#F44336' }]} onPress={handleClearData}>
+            <Surface style={[styles.dangerBtn, { backgroundColor: palette.dangerLight }]}>
+              <Text style={[styles.dangerBtnText, { color: palette.danger }]} onPress={handleClearData}>
                 清除所有数据
               </Text>
             </Surface>
@@ -697,10 +729,10 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
     padding: 16,
   },
   card: {
@@ -720,8 +752,15 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: colors.onSurface,
     marginBottom: 8,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  themeBtn: {
+    flex: 1,
   },
   numberInput: {
     alignItems: 'center',
@@ -731,22 +770,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
   },
   numberText: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   sliderContainer: {
     height: 8,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 4,
     overflow: 'hidden',
   },
   sliderFill: {
     height: '100%',
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.primary,
     borderRadius: 4,
   },
   sliderLabels: {
@@ -756,7 +795,7 @@ const styles = StyleSheet.create({
   },
   sliderLabel: {
     fontSize: 12,
-    color: '#999',
+    color: colors.tertiary,
   },
   divider: {
     marginVertical: 8,
@@ -773,15 +812,15 @@ const styles = StyleSheet.create({
   },
   toggleSublabel: {
     fontSize: 12,
-    color: '#999',
+    color: colors.tertiary,
     marginTop: 2,
   },
   disabledText: {
-    color: '#999',
+    color: colors.tertiary,
   },
   apiInfo: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 12,
   },
   apiKeyContainer: {
@@ -803,26 +842,26 @@ const styles = StyleSheet.create({
   },
   apiTestMessage: {
     fontSize: 13,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 10,
     lineHeight: 20,
   },
   apiTestSuccess: {
-    color: '#2E7D32',
+    color: colors.success,
   },
   apiTestError: {
-    color: '#D32F2F',
+    color: colors.error,
   },
   apiTips: {
     marginTop: 8,
   },
   apiTip: {
     fontSize: 13,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
   },
   apiLink: {
-    color: '#1976D2',
+    color: colors.primary,
     fontWeight: 'bold',
   },
   dataActions: {
@@ -844,7 +883,7 @@ const styles = StyleSheet.create({
   },
   dataActionDesc: {
     fontSize: 12,
-    color: '#999',
+    color: colors.tertiary,
     marginTop: 4,
   },
   dangerActions: {
@@ -865,11 +904,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#999',
+    color: colors.tertiary,
   },
   footerSub: {
     fontSize: 12,
-    color: '#CCC',
+    color: colors.onSurfaceVariant,
     marginTop: 2,
   },
   stepperRow: {
@@ -890,7 +929,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
   },
   exportTitle: {
     fontSize: 20,
@@ -900,7 +939,7 @@ const styles = StyleSheet.create({
   },
   exportContent: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
     borderRadius: 8,
     padding: 12,
   },
@@ -914,4 +953,4 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
   },
-});
+}));

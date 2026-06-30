@@ -11,6 +11,9 @@ import {
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import { Word, StudyRecord, WeeklyStudyTrend } from '../types';
@@ -91,6 +94,18 @@ const getDifficultWordIds = (words: Word[], records: StudyRecord[]) => {
     .map(item => item.wordId);
 };
 
+/**
+ * 今日建议链是否会真正读取困难词数据。
+ * 困难词检测是 O(words×records)，绝大多数日子（有待学习计划/有错题等）
+ * 会在更早的分支早退，无需计算，故仅在确实会用到时才跑。
+ */
+const needsDifficultWords = (stats: TodayStats): boolean => {
+  if (stats.totalWords === 0) return false;          // → 早退「先添加生词」
+  if (stats.todayPending > 0) return false;          // → 早退「继续学习」
+  const lowAccuracyBranch = stats.todayStudyCount >= 3 && stats.accuracy < 0.6;
+  return lowAccuracyBranch || stats.wrongQuestionCount === 0;
+};
+
 const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
   if (stats.totalWords === 0) {
     return {
@@ -160,6 +175,8 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
 
 export default function HomeScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [todayStats, setTodayStats] = useState<TodayStats>(DEFAULT_TODAY_STATS);
   const [todaySuggestion, setTodaySuggestion] = useState<TodaySuggestion>(DEFAULT_SUGGESTION);
   const [recentWords, setRecentWords] = useState<Word[]>([]);
@@ -188,9 +205,10 @@ export default function HomeScreen() {
       const accuracy = todayRecords.length > 0
         ? todayCorrectCount / todayRecords.length
         : 0;
-      const difficultWordIds = getDifficultWordIds(allWords, allRecords);
 
-      const nextStats: TodayStats = {
+      // 基础统计（暂不含困难词）。困难词检测是 O(words×records)，
+      // 仅当今日建议链确实会用到时（needsDifficultWords）才计算，避免每次聚焦都跑。
+      const baseStats: TodayStats = {
         totalWords: allWords.length,
         todayTotal: todayPlans.length,
         todayPending,
@@ -200,9 +218,19 @@ export default function HomeScreen() {
         todayStudyCount: todayRecords.length,
         accuracy,
         wrongQuestionCount: wrongQuestions.length,
-        difficultWordIds,
-        difficultWordCount: difficultWordIds.length,
+        difficultWordIds: [],
+        difficultWordCount: 0,
       };
+
+      let nextStats = baseStats;
+      if (needsDifficultWords(baseStats)) {
+        const difficultWordIds = getDifficultWordIds(allWords, allRecords);
+        nextStats = {
+          ...baseStats,
+          difficultWordIds,
+          difficultWordCount: difficultWordIds.length,
+        };
+      }
 
       setTodayStats(nextStats);
       setTodaySuggestion(buildTodaySuggestion(nextStats));
@@ -236,9 +264,9 @@ export default function HomeScreen() {
   );
 
   const getProgressColor = (rate: number) => {
-    if (rate >= 0.8) return '#4CAF50';
-    if (rate >= 0.6) return '#FF9800';
-    return '#F44336';
+    if (rate >= 0.8) return palette.success;
+    if (rate >= 0.6) return palette.accent;
+    return palette.danger;
   };
 
   const totalPlanned = todayStats.todayTotal;
@@ -354,7 +382,7 @@ export default function HomeScreen() {
                 </View>
                 <ProgressBar
                   progress={progress}
-                  color="#1976D2"
+                  color={colors.primary}
                   style={styles.progressBar}
                 />
                 <Text style={styles.progressHint}>
@@ -384,7 +412,7 @@ export default function HomeScreen() {
                     mode="outlined"
                     onPress={() => navigation.navigate('WrongQuestionReview')}
                     icon="alert-circle-outline"
-                    textColor="#F44336"
+                    textColor={palette.danger}
                     style={styles.pendingButton}
                   >
                     错题本 ({todayStats.wrongQuestionCount})
@@ -397,7 +425,7 @@ export default function HomeScreen() {
                       navigation.navigate('Study', { wordIds: todayStats.difficultWordIds })
                     }
                     icon="refresh"
-                    textColor="#FF9800"
+                    textColor={palette.accent}
                     style={styles.pendingButton}
                   >
                     强化复习 ({todayStats.difficultWordCount})
@@ -415,7 +443,7 @@ export default function HomeScreen() {
                   right={() => (
                     <Button
                       onPress={() => navigation.navigate('Main', { screen: 'Words' })}
-                      textColor="#1976D2"
+                      textColor={colors.primary}
                     >
                       查看全部
                     </Button>
@@ -459,7 +487,7 @@ export default function HomeScreen() {
                   <Text style={styles.trendMetricValue}>{avgDailyStudyCount}</Text>
                   <Text style={styles.trendMetricLabel}>日均次数</Text>
                 </View>
-                <IconButton icon="chevron-right" size={24} iconColor="#1976D2" />
+                <IconButton icon="chevron-right" size={24} iconColor={colors.primary} />
               </Card.Content>
             </Card>
           </>
@@ -469,10 +497,10 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   content: {
     padding: 16,
@@ -496,7 +524,7 @@ const styles = StyleSheet.create({
   },
   centerStateText: {
     fontSize: 15,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 12,
   },
   centerStateButton: {
@@ -507,12 +535,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   errorBanner: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: colors.errorContainer,
     elevation: 1,
   },
   errorBannerText: {
     fontSize: 14,
-    color: '#C62828',
+    color: colors.error,
     textAlign: 'center',
   },
   onboarding: {
@@ -522,12 +550,12 @@ const styles = StyleSheet.create({
   onboardingTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     marginBottom: 10,
   },
   onboardingDesc: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 20,
@@ -547,12 +575,12 @@ const styles = StyleSheet.create({
   suggestionSubtitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     marginBottom: 6,
   },
   reminderText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
   },
   suggestionButton: {
@@ -567,7 +595,7 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: 14,
-    color: '#333',
+    color: colors.onSurface,
     flexShrink: 1,
   },
   progressPercent: {
@@ -581,7 +609,7 @@ const styles = StyleSheet.create({
   },
   progressHint: {
     fontSize: 12,
-    color: '#999',
+    color: colors.tertiary,
     marginTop: 8,
   },
   primaryButton: {
@@ -614,11 +642,11 @@ const styles = StyleSheet.create({
   wordTileText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1976D2',
+    color: colors.primary,
   },
   wordTileDifficulty: {
     fontSize: 11,
-    color: '#FF9800',
+    color: colors.accent,
     marginTop: 4,
   },
   trendRow: {
@@ -633,12 +661,12 @@ const styles = StyleSheet.create({
   trendMetricValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   trendMetricLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 4,
   },
-});
+}));
 

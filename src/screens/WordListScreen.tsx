@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { View, TouchableOpacity, FlatList, ScrollView } from 'react-native';
 import {
   Card,
   Text,
@@ -12,14 +12,32 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
 
+type SortMode = 'recent' | 'alpha' | 'diffAsc' | 'diffDesc';
+
+const SORT_LABELS: Record<SortMode, string> = {
+  recent: '最近',
+  alpha: '字母',
+  diffAsc: '难度↑',
+  diffDesc: '难度↓',
+};
+
+const DIFFICULTY_LEVELS = [1, 2, 3, 4, 5] as const;
+
 export default function WordListScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [words, setWords] = useState<Word[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [diffFilter, setDiffFilter] = useState<number | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>('recent');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [wordToDelete, setWordToDelete] = useState<Word | null>(null);
 
@@ -48,17 +66,31 @@ export default function WordListScreen() {
 
   const filteredWords = useMemo(() => {
     const query = debouncedSearchQuery.trim().toLowerCase();
-    const filtered = query
+    let result = query
       ? words.filter(w => w.word.toLowerCase().includes(query))
       : [...words];
 
-    // 按创建时间倒序排列
-    return filtered.sort((a, b) => {
-      const dateA = new Date(a.created_at || 0).getTime();
-      const dateB = new Date(b.created_at || 0).getTime();
-      return dateB - dateA;
+    if (diffFilter !== null) {
+      result = result.filter(w => w.difficulty === diffFilter);
+    }
+
+    return result.sort((a, b) => {
+      switch (sortMode) {
+        case 'alpha':
+          return a.word.localeCompare(b.word);
+        case 'diffAsc':
+          return a.difficulty - b.difficulty;
+        case 'diffDesc':
+          return b.difficulty - a.difficulty;
+        case 'recent':
+        default:
+          return (
+            new Date(b.created_at || 0).getTime() -
+            new Date(a.created_at || 0).getTime()
+          );
+      }
     });
-  }, [words, debouncedSearchQuery]);
+  }, [words, debouncedSearchQuery, diffFilter, sortMode]);
 
   const handleDelete = useCallback((word: Word) => {
     setWordToDelete(word);
@@ -135,14 +167,14 @@ export default function WordListScreen() {
             style={styles.actionBtn}
             onPress={() => handleDelete(item)}
           >
-            <MaterialIcons name="delete-outline" size={20} color="#F44336" />
-            <Text style={[styles.actionText, { color: '#F44336' }]}>删除</Text>
+            <MaterialIcons name="delete-outline" size={20} color={palette.danger} />
+            <Text style={[styles.actionText, { color: palette.danger }]}>删除</Text>
           </TouchableOpacity>
           <View style={styles.frequencyBar}>
             <View style={[styles.frequencyFill, {
               width: `${Math.min(item.frequency * 10, 100)}%`,
-              backgroundColor: item.frequency >= 7 ? '#4CAF50' :
-                              item.frequency >= 4 ? '#FF9800' : '#FF5722'
+              backgroundColor: item.frequency >= 7 ? palette.success :
+                              item.frequency >= 4 ? palette.accent : palette.danger
             }]} />
           </View>
         </View>
@@ -172,6 +204,50 @@ export default function WordListScreen() {
         />
       </Card>
 
+      {/* 筛选与排序 */}
+      <View style={styles.filterRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          <Text style={styles.filterLabel}>难度</Text>
+          <Chip
+            selected={diffFilter === null}
+            showSelectedCheck={false}
+            onPress={() => setDiffFilter(null)}
+            mode="outlined"
+            compact
+            style={styles.filterChip}
+          >
+            全部
+          </Chip>
+          {DIFFICULTY_LEVELS.map(level => (
+            <Chip
+              key={level}
+              selected={diffFilter === level}
+              showSelectedCheck={false}
+              onPress={() => setDiffFilter(level)}
+              mode="outlined"
+              compact
+              style={styles.filterChip}
+            >
+              {level}★
+            </Chip>
+          ))}
+          <Text style={styles.filterLabel}>排序</Text>
+          {(Object.keys(SORT_LABELS) as SortMode[]).map(mode => (
+            <Chip
+              key={mode}
+              selected={sortMode === mode}
+              showSelectedCheck={false}
+              onPress={() => setSortMode(mode)}
+              mode="outlined"
+              compact
+              style={styles.filterChip}
+            >
+              {SORT_LABELS[mode]}
+            </Chip>
+          ))}
+        </ScrollView>
+      </View>
+
       {/* 单词列表 */}
       <FlatList
         data={filteredWords}
@@ -186,7 +262,7 @@ export default function WordListScreen() {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialIcons name="search-off" size={48} color="#CCC" />
+            <MaterialIcons name="search-off" size={48} color={colors.onSurfaceVariant} />
             <Text style={styles.emptyText}>
               {debouncedSearchQuery
                 ? '没有找到匹配的单词'
@@ -230,7 +306,7 @@ export default function WordListScreen() {
               </PaperButton>
               <PaperButton
                 onPress={confirmDelete}
-                style={{ color: '#F44336' }}
+                style={{ color: palette.danger }}
               >
                 删除
               </PaperButton>
@@ -242,20 +318,20 @@ export default function WordListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   header: {
     padding: 20,
     paddingBottom: 16,
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.primary,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#fff',
   },
   headerSubtitle: {
     fontSize: 14,
@@ -269,8 +345,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   searchInput: {
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     borderRadius: 12,
+  },
+  filterRow: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  filterScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    gap: 6,
+    alignItems: 'center',
+  },
+  filterLabel: {
+    fontSize: 12,
+    color: colors.tertiary,
+    marginHorizontal: 4,
+  },
+  filterChip: {
+    height: 28,
   },
   wordList: {
     flex: 1,
@@ -292,17 +386,17 @@ const styles = StyleSheet.create({
   wordText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     flexShrink: 1,
   },
   difficultyText: {
     fontSize: 11,
-    color: '#FF9800',
+    color: palette.accent,
     marginTop: 2,
   },
   meaning: {
     fontSize: 14,
-    color: '#333',
+    color: colors.onSurface,
     lineHeight: 20,
     marginBottom: 4,
   },
@@ -312,14 +406,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   coreTag: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: palette.primaryLight,
   },
   rareTag: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: palette.accentLight,
   },
   etymology: {
     fontSize: 12,
-    color: '#888',
+    color: colors.onSurfaceVariant,
     marginBottom: 8,
   },
   wordActions: {
@@ -340,7 +434,7 @@ const styles = StyleSheet.create({
   frequencyBar: {
     width: 100,
     height: 6,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 3,
   },
   frequencyFill: {
@@ -355,12 +449,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    color: colors.tertiary,
     marginTop: 12,
   },
   emptyHint: {
     fontSize: 13,
-    color: '#CCC',
+    color: colors.onSurfaceVariant,
     marginTop: 4,
   },
   fab: {
@@ -370,7 +464,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 6,
@@ -395,12 +489,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 12,
-    color: '#F44336',
+    color: colors.error,
   },
   modalText: {
     fontSize: 14,
     textAlign: 'center',
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 20,
     lineHeight: 20,
   },
@@ -409,4 +503,4 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 8,
   },
-});
+}));

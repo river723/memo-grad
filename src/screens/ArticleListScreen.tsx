@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, FlatList, TouchableOpacity } from 'react-native';
 import {
   Card,
   Text,
@@ -13,6 +13,9 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { useAppTheme } from '../theme/theme';
+import { makeStyles } from '../utils/useStyles';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { Article } from '../types';
 
@@ -25,8 +28,161 @@ const THEME_LABELS: Record<string, string> = {
   random: '随机',
 };
 
+const useStyles = makeStyles((colors) => ({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 80,
+  },
+  emptyList: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  articleCard: {
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    elevation: 2,
+    backgroundColor: colors.surface,
+  },
+  articleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  articleTitleArea: {
+    flex: 1,
+    marginRight: 8,
+  },
+  articleTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.onSurface,
+    marginBottom: 4,
+  },
+  articleMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  articleDate: {
+    fontSize: 12,
+    color: colors.tertiary,
+  },
+  articleReadCount: {
+    fontSize: 12,
+    color: colors.tertiary,
+  },
+  articleBody: {
+    marginBottom: 10,
+  },
+  articleContent: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    lineHeight: 20,
+  },
+  articleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  themeChip: {
+    backgroundColor: palette.primaryLight,
+    height: 28,
+  },
+  chipText: {
+    fontSize: 11,
+    color: colors.primary,
+  },
+  wordChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    flex: 1,
+  },
+  wordChip: {
+    backgroundColor: palette.accentLight,
+    height: 26,
+  },
+  wordChipText: {
+    fontSize: 11,
+    color: palette.accentDark,
+  },
+  moreWords: {
+    fontSize: 11,
+    color: colors.tertiary,
+  },
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.primary,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.tertiary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyHint: {
+    fontSize: 14,
+    color: colors.outline,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    padding: 24,
+    margin: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  modalIcon: {
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.onSurface,
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 14,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+  },
+  deleteButton: {
+    backgroundColor: palette.danger,
+  },
+}));
+
 export default function ArticleListScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [articles, setArticles] = useState<Article[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [articleToDelete, setArticleToDelete] = useState<Article | null>(null);
@@ -99,7 +255,7 @@ export default function ArticleListScreen() {
           <IconButton
             icon="delete-outline"
             size={20}
-            iconColor="#999"
+            iconColor={colors.tertiary}
             onPress={() => handleDelete(item)}
           />
         </View>
@@ -129,7 +285,7 @@ export default function ArticleListScreen() {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <MaterialIcons name="article" size={64} color="#CCC" />
+      <MaterialIcons name="article" size={64} color={colors.outline} />
       <Text style={styles.emptyTitle}>还没有文章</Text>
       <Text style={styles.emptyHint}>
         点击下方按钮，用你的单词本生成{'\n'}第一篇生动有趣的英文文章吧！
@@ -162,7 +318,7 @@ export default function ArticleListScreen() {
         contentContainerStyle={styles.modalContent}
       >
         <View style={styles.modalIcon}>
-          <MaterialIcons name="delete-outline" size={48} color="#F44336" />
+          <MaterialIcons name="delete-outline" size={48} color={palette.danger} />
         </View>
         <Text style={styles.modalTitle}>确认删除</Text>
         <Text style={styles.modalText}>
@@ -189,154 +345,3 @@ export default function ArticleListScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 80,
-  },
-  emptyList: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  articleCard: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-    backgroundColor: '#FFF',
-  },
-  articleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  articleTitleArea: {
-    flex: 1,
-    marginRight: 8,
-  },
-  articleTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  articleMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  articleDate: {
-    fontSize: 12,
-    color: '#999',
-  },
-  articleReadCount: {
-    fontSize: 12,
-    color: '#999',
-  },
-  articleBody: {
-    marginBottom: 10,
-  },
-  articleContent: {
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 20,
-  },
-  articleFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  themeChip: {
-    backgroundColor: '#E3F2FD',
-    height: 28,
-  },
-  chipText: {
-    fontSize: 11,
-    color: '#1976D2',
-  },
-  wordChips: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4,
-    flex: 1,
-  },
-  wordChip: {
-    backgroundColor: '#FFF3E0',
-    height: 26,
-  },
-  wordChipText: {
-    fontSize: 11,
-    color: '#E65100',
-  },
-  moreWords: {
-    fontSize: 11,
-    color: '#999',
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#1976D2',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#999',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyHint: {
-    fontSize: 14,
-    color: '#BBB',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: 24,
-    margin: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  modalIcon: {
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  modalText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-  },
-  deleteButton: {
-    backgroundColor: '#F44336',
-  },
-});

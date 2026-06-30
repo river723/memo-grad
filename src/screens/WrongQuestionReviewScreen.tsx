@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import {
   Card,
   Text,
@@ -12,10 +12,15 @@ import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { WrongQuestion, ExamQuestion, ExamQuestionType } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
+import { useAppTheme } from '../theme/theme';
+import { makeStyles } from '../utils/useStyles';
+import { palette } from '../theme/tokens';
 
 export default function WrongQuestionReviewScreen() {
   const navigation = useAppNavigation();
   const [wrongQuestions, setWrongQuestions] = useState<WrongQuestion[]>([]);
+  const { colors } = useAppTheme();
+  const styles = useStyles();
 
   useFocusEffect(
     useCallback(() => {
@@ -110,9 +115,9 @@ export default function WrongQuestionReviewScreen() {
               <Card.Content>
                 <View style={styles.cardHeader}>
                   <View style={[styles.typeTag,
-                    { backgroundColor: wq.question.type === 'definition' ? '#E3F2FD' : '#FFF3E0' }]}>
+                    { backgroundColor: wq.question.type === 'definition' ? palette.primaryLight : palette.accentLight }]}>
                     <Text style={[styles.typeTagText,
-                      { color: wq.question.type === 'definition' ? '#1976D2' : '#E65100' }]}>
+                      { color: wq.question.type === 'definition' ? colors.primary : palette.accentDark }]}>
                       {wq.question.type === 'definition' ? '释义单选' : '完形选词'}
                     </Text>
                   </View>
@@ -138,18 +143,18 @@ export default function WrongQuestionReviewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+const useStyles = makeStyles(colors => ({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40 },
   statsBar: {
-    padding: 16, borderRadius: 12, marginBottom: 16, backgroundColor: '#FFF', elevation: 2,
+    padding: 16, borderRadius: 12, marginBottom: 16, backgroundColor: colors.surface, elevation: 2,
   },
-  statsText: { fontSize: 16, fontWeight: '700', color: '#333', marginBottom: 4 },
-  statsDetail: { fontSize: 12, color: '#888' },
+  statsText: { fontSize: 16, fontWeight: '700', color: colors.onSurface, marginBottom: 4 },
+  statsDetail: { fontSize: 12, color: colors.onSurfaceVariant },
   emptyContainer: { alignItems: 'center', paddingVertical: 64 },
   emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 8 },
-  emptyHint: { fontSize: 14, color: '#999', marginBottom: 24 },
+  emptyTitle: { fontSize: 18, fontWeight: '600', color: colors.onSurface, marginBottom: 8 },
+  emptyHint: { fontSize: 14, color: colors.tertiary, marginBottom: 24 },
   emptyButton: { borderRadius: 12 },
   reviewButton: { marginBottom: 16, borderRadius: 12, paddingVertical: 6 },
   reviewCard: { borderRadius: 12, elevation: 2, marginBottom: 10 },
@@ -157,12 +162,12 @@ const styles = StyleSheet.create({
   typeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   typeTagText: { fontSize: 11, fontWeight: '600' },
   attemptInfo: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  attemptText: { fontSize: 12, color: '#F44336', fontWeight: '500' },
-  correctCountText: { fontSize: 12, color: '#4CAF50', fontWeight: '500' },
-  divider: { marginVertical: 10, backgroundColor: '#EEE' },
-  qSentence: { fontSize: 15, color: '#444', lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
-  qWordTag: { fontSize: 13, color: '#1565C0', fontWeight: '600', marginBottom: 4 },
-  qHint: { fontSize: 12, color: '#999', marginBottom: 6 },
-  qCorrectAnswer: { fontSize: 14, color: '#2E7D32', fontWeight: '500', marginTop: 4 },
-  qWrongAnswer: { fontSize: 14, color: '#C62828', marginTop: 2 },
-});
+  attemptText: { fontSize: 12, color: palette.danger, fontWeight: '500' },
+  correctCountText: { fontSize: 12, color: palette.success, fontWeight: '500' },
+  divider: { marginVertical: 10, backgroundColor: colors.outline },
+  qSentence: { fontSize: 15, color: colors.onSurfaceVariant, lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
+  qWordTag: { fontSize: 13, color: colors.primary, fontWeight: '600', marginBottom: 4 },
+  qHint: { fontSize: 12, color: colors.tertiary, marginBottom: 6 },
+  qCorrectAnswer: { fontSize: 14, color: palette.successDark, fontWeight: '500', marginTop: 4 },
+  qWrongAnswer: { fontSize: 14, color: palette.dangerDark, marginTop: 2 },
+}));

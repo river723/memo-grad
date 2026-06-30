@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, Platform } from 'react-native';
 import { Card, Text, Button, Chip, IconButton } from 'react-native-paper';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
+import DifficultyDots from './DifficultyDots';
+import { useAppTheme } from '../theme/theme';
+import { makeStyles } from '../utils/useStyles';
 
 // Web 平台兼容性处理
 let Speech: any = null;
@@ -22,6 +25,8 @@ interface WordCardProps {
 }
 
 export default function WordCard({ word, onEdit, onDelete, showActions = true }: WordCardProps) {
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [isFlipped, setIsFlipped] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -54,17 +59,6 @@ export default function WordCard({ word, onEdit, onDelete, showActions = true }:
       utterance.rate = 0.8;
       utterance.pitch = 1.0;
       window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  const getDifficultyColor = (difficulty: number) => {
-    switch (difficulty) {
-      case 1: return '#4CAF50'; // 绿色
-      case 2: return '#8BC34A';
-      case 3: return '#FF9800'; // 橙色
-      case 4: return '#FF5722';
-      case 5: return '#F44336'; // 红色
-      default: return '#9E9E9E';
     }
   };
 
@@ -119,21 +113,7 @@ export default function WordCard({ word, onEdit, onDelete, showActions = true }:
         <View style={styles.meta}>
           <View style={styles.difficulty}>
             <Text style={styles.difficultyLabel}>难度:</Text>
-            <View style={styles.difficultyDots}>
-              {[1, 2, 3, 4, 5].map(level => (
-                <View
-                  key={level}
-                  style={[
-                    styles.difficultyDot,
-                    {
-                      backgroundColor: level <= word.difficulty
-                        ? getDifficultyColor(level)
-                        : '#E0E0E0'
-                    }
-                  ]}
-                />
-              ))}
-            </View>
+            <DifficultyDots difficulty={word.difficulty} gap={1} />
           </View>
         </View>
 
@@ -197,7 +177,7 @@ export default function WordCard({ word, onEdit, onDelete, showActions = true }:
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   card: {
     margin: 8,
     elevation: 2,
@@ -213,14 +193,14 @@ const styles = StyleSheet.create({
   },
   word: {
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   pronunciation: {
     marginTop: 4,
   },
   pronunciationText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginRight: 8,
   },
   actions: {
@@ -238,16 +218,11 @@ const styles = StyleSheet.create({
   },
   difficultyLabel: {
     fontSize: 12,
+    color: colors.onSurfaceVariant,
     marginRight: 8,
   },
   difficultyDots: {
     flexDirection: 'row',
-  },
-  difficultyDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 1,
   },
   definitions: {
     marginBottom: 12,
@@ -256,7 +231,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingLeft: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#E3F2FD',
+    borderLeftColor: colors.primaryContainer,
   },
   definitionHeader: {
     flexDirection: 'row',
@@ -265,29 +240,30 @@ const styles = StyleSheet.create({
   },
   partOfSpeech: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginRight: 8,
   },
   coreLabel: {
     fontSize: 10,
-    color: '#1976D2',
+    color: colors.primary,
   },
   rareLabel: {
     fontSize: 10,
-    color: '#F57C00',
+    color: colors.warning,
   },
   meaning: {
     fontSize: 14,
     lineHeight: 20,
+    color: colors.onSurface,
   },
   example: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     fontStyle: 'italic',
     marginTop: 2,
   },
   etymology: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.surfaceVariant,
     padding: 8,
     borderRadius: 4,
     marginBottom: 8,
@@ -295,14 +271,16 @@ const styles = StyleSheet.create({
   etymologyLabel: {
     fontSize: 12,
     fontWeight: 'bold',
+    color: colors.onSurface,
     marginBottom: 4,
   },
   etymologyText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
   },
   similarWords: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: colors.warning,
+    opacity: 0.15,
     padding: 8,
     borderRadius: 4,
     marginBottom: 8,
@@ -310,6 +288,7 @@ const styles = StyleSheet.create({
   similarWordsLabel: {
     fontSize: 12,
     fontWeight: 'bold',
+    color: colors.onSurface,
     marginBottom: 4,
   },
   similarWord: {
@@ -317,9 +296,9 @@ const styles = StyleSheet.create({
   },
   similarWordText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
   },
   flipButton: {
     marginTop: 8,
   },
-});
+}));

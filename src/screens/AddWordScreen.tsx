@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, ScrollView, Alert } from 'react-native';
 import {
   TextInput,
   Button,
@@ -14,10 +14,14 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppNavigation } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, AIResponse, AppSettings } from '../types';
 import { getLocalWordDictResult, mergeAIResultIntoWord } from '../utils/wordUtils';
+import DifficultyDots from '../components/DifficultyDots';
 
 type AddWordTab = 'wordbank' | 'manual';
 
@@ -28,6 +32,8 @@ type AnalysisSourceBuckets = {
 
 export default function AddWordScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [activeTab, setActiveTab] = useState<AddWordTab>('wordbank');
   const [input, setInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -242,18 +248,6 @@ export default function AddWordScreen() {
     return difficulty <= 2 ? '简单' : difficulty <= 3 ? '中等' : difficulty <= 4 ? '困难' : '极难';
   };
 
-  // 获取难度颜色
-  const getDifficultyColor = (difficulty: number): string => {
-    switch (difficulty) {
-      case 1: return '#4CAF50';
-      case 2: return '#8BC34A';
-      case 3: return '#FF9800';
-      case 4: return '#FF5722';
-      case 5: return '#F44336';
-      default: return '#9E9E9E';
-    }
-  };
-
   const canSave = (): boolean => {
     if (parsedWords.length === 0) return false;
     return parsedWords.some(word => getAnalysisFor(word));
@@ -299,21 +293,7 @@ export default function AddWordScreen() {
     return (
       <View style={compact ? styles.difficultyInlineCompact : styles.difficultyInline}>
         <Text style={styles.difficultyInlineLabel}>难度</Text>
-        <View style={styles.difficultyDots}>
-          {[1, 2, 3, 4, 5].map(level => (
-            <View
-              key={level}
-              style={[
-                styles.difficultyDot,
-                {
-                  backgroundColor: level <= difficulty
-                    ? getDifficultyColor(level)
-                    : '#E0E0E0'
-                }
-              ]}
-            />
-          ))}
-        </View>
+        <DifficultyDots difficulty={difficulty} style={styles.difficultyDots} />
         <Text style={styles.difficultyText}>{getDifficultyLabel(difficulty)}</Text>
       </View>
     );
@@ -516,7 +496,7 @@ export default function AddWordScreen() {
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.pickerEntryRow}>
-              <MaterialIcons name="library-books" size={40} color="#1976D2" />
+              <MaterialIcons name="library-books" size={40} color={colors.primary} />
               <View style={styles.pickerEntryText}>
                 <Text style={styles.pickerEntryTitle}>从本地词库选词</Text>
                 <Text style={styles.pickerEntryHint}>4801 个考研词，已含词根、例句和易混词，勾选即可加入生词本</Text>
@@ -750,7 +730,7 @@ export default function AddWordScreen() {
         <Dialog.Content>
           <Text style={{ lineHeight: 20 }}>
             「{overwriteDialog.word}」已在生词本中，是否用最新内容覆盖？{'\n'}
-            <Text style={{ fontSize: 12, color: '#666' }}>
+            <Text style={{ fontSize: 12, color: colors.onSurfaceVariant }}>
               覆盖会更新释义、词根、形近词、难度、音标，不影响学习记录。
             </Text>
           </Text>
@@ -763,8 +743,8 @@ export default function AddWordScreen() {
           </Button>
           <Button
             mode="contained"
-            buttonColor="#D32F2F"
-            textColor="#FFF"
+            buttonColor={palette.danger}
+            textColor="#fff"
             onPress={() => {
               const { existing, analysis } = overwriteDialog;
               setOverwriteDialog({ visible: false, word: '', existing: null, analysis: null });
@@ -782,10 +762,10 @@ export default function AddWordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
     padding: 16,
   },
   card: {
@@ -798,12 +778,12 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     marginBottom: 6,
   },
   pageSubtitle: {
     fontSize: 13,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
   },
   tabButtons: {
@@ -821,12 +801,12 @@ const styles = StyleSheet.create({
   pickerEntryTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     marginBottom: 2,
   },
   pickerEntryHint: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     lineHeight: 18,
   },
   pickerEntryButton: {
@@ -838,7 +818,7 @@ const styles = StyleSheet.create({
   },
   helperText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 8,
   },
   input: {
@@ -849,7 +829,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 8,
     elevation: 1,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
   },
   previewHeader: {
     flexDirection: 'row',
@@ -860,23 +840,23 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   wordCountChip: {
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.primary,
   },
   chipText: {
-    color: '#FFF',
+    color: colors.onPrimaryContainer,
     fontSize: 12,
   },
   previewWords: {
     fontSize: 12,
-    color: '#333',
+    color: colors.onSurface,
     lineHeight: 18,
   },
   warningText: {
     fontSize: 11,
-    color: '#D32F2F',
+    color: palette.danger,
     marginTop: 8,
     fontStyle: 'italic',
   },
@@ -884,7 +864,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 8,
-    color: '#1976D2',
+    color: colors.primary,
   },
   segmentedButtons: {
     marginBottom: 16,
@@ -907,7 +887,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 8,
-    color: '#1976D2',
+    color: colors.primary,
   },
   definitionItem: {
     padding: 12,
@@ -922,16 +902,16 @@ const styles = StyleSheet.create({
   },
   partOfSpeech: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginRight: 8,
   },
   meaning: {
     fontSize: 14,
-    color: '#333',
+    color: colors.onSurface,
   },
   example: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 4,
     fontStyle: 'italic',
   },
@@ -942,7 +922,7 @@ const styles = StyleSheet.create({
   },
   etymologyText: {
     fontSize: 14,
-    color: '#333',
+    color: colors.onSurface,
   },
   similarWordItem: {
     padding: 12,
@@ -952,7 +932,7 @@ const styles = StyleSheet.create({
   },
   similarWord: {
     fontSize: 14,
-    color: '#333',
+    color: colors.onSurface,
   },
   textArea: {
     marginBottom: 16,
@@ -964,7 +944,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#FFF7E6',
+    backgroundColor: palette.accentLight,
     marginBottom: 12,
   },
   difficultyInlineCompact: {
@@ -974,7 +954,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: '#FFF7E6',
+    backgroundColor: palette.accentLight,
   },
   difficultyInlineLabel: {
     fontSize: 12,
@@ -986,15 +966,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 8,
   },
-  difficultyDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 2,
-  },
   difficultyText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     minWidth: 50,
     textAlign: 'right',
   },
@@ -1022,22 +996,22 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   batchDefinition: {
     marginBottom: 4,
   },
   batchPartOfSpeech: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
   },
   batchMeaning: {
     fontSize: 14,
-    color: '#333',
+    color: colors.onSurface,
   },
   batchNoAnalysis: {
     fontSize: 14,
-    color: '#999',
+    color: colors.tertiary,
     fontStyle: 'italic',
   },
-});
+}));

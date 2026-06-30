@@ -3,6 +3,9 @@ import { View, ScrollView, StyleSheet } from 'react-native';
 import { Card, Text, Button } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { Word, StudyRecord } from '../types';
 
@@ -37,12 +40,13 @@ const countMastered = (words: Word[], records: StudyRecord[]) => {
 function StatMetric({
   value,
   label,
-  color = '#1976D2',
+  color,
 }: {
   value: number;
   label: string;
-  color?: string;
+  color: string;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.statItem}>
       <Text style={[styles.statNumber, { color }]}>{value}</Text>
@@ -53,6 +57,8 @@ function StatMetric({
 
 export default function ProfileScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [summary, setSummary] = useState<Summary>(DEFAULT_SUMMARY);
 
   useFocusEffect(
@@ -86,9 +92,9 @@ export default function ProfileScreen() {
           <Card.Title title="学习统计" titleStyle={styles.cardTitle} />
           <Card.Content>
             <View style={styles.statsRow}>
-              <StatMetric value={summary.totalWords} label="总词数" />
-              <StatMetric value={summary.mastered} label="已掌握" color="#4CAF50" />
-              <StatMetric value={summary.examCount} label="练习次数" />
+              <StatMetric value={summary.totalWords} label="总词数" color={colors.primary} />
+              <StatMetric value={summary.mastered} label="已掌握" color={palette.success} />
+              <StatMetric value={summary.examCount} label="练习次数" color={colors.primary} />
             </View>
             <Button
               mode="outlined"
@@ -124,10 +130,10 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   content: {
     padding: 16,
@@ -151,11 +157,11 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 4,
   },
   entryButton: {
@@ -168,15 +174,15 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: colors.outline,
   },
   aboutLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
   },
   aboutValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: colors.onSurface,
   },
-});
+}));

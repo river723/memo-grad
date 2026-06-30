@@ -51,7 +51,7 @@ export interface AppSettings {
   reviewInterval: number[];
   soundEnabled: boolean;
   autoPlaySound: boolean;
-  theme: string;
+  theme: 'light' | 'dark' | 'system';  // 支持浅色/深色/跟随系统三种模式
   fontSize: number;
   showRareSense: boolean;
   showEtymology: boolean;

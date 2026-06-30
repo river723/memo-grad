@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import {
   Card,
   Text,
@@ -7,11 +7,16 @@ import {
   Divider,
 } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
+import { useAppTheme } from '../theme/theme';
+import { makeStyles } from '../utils/useStyles';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { ExamQuestion, ExamAnswer as ExamAnswerType, ExamQuestionType } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 
 export default function ExamResultScreen() {
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const navigation = useAppNavigation();
   const route = useAppRoute<'ExamResult'>();
   const questions: ExamQuestion[] = route.params?.questions || [];
@@ -86,9 +91,9 @@ export default function ExamResultScreen() {
   }, [saved]);
 
   const getAccuracyColor = (rate: number) => {
-    if (rate >= 0.8) return '#4CAF50';
-    if (rate >= 0.6) return '#FF9800';
-    return '#F44336';
+    if (rate >= 0.8) return palette.success;
+    if (rate >= 0.6) return palette.accent;
+    return palette.danger;
   };
 
   const typeLabel = questionType === 'definition' ? '释义单选' : '完形选词';
@@ -122,20 +127,20 @@ export default function ExamResultScreen() {
               <View style={styles.reviewHeaderRow}>
                 <View style={styles.reviewTagRow}>
                   <View style={[styles.reviewTypeTag,
-                    { backgroundColor: question.type === 'definition' ? '#E3F2FD' : '#FFF3E0' }]}>
+                    { backgroundColor: question.type === 'definition' ? palette.primaryLight : palette.accentLight }]}>
                     <Text style={[styles.reviewTypeText,
-                      { color: question.type === 'definition' ? '#1976D2' : '#E65100' }]}>
+                      { color: question.type === 'definition' ? colors.primary : palette.accentDark }]}>
                       {question.type === 'definition' ? '释义单选' : '完形选词'}
                     </Text>
                   </View>
                   <Text style={styles.reviewNumber}>第 {idx + 1} 题</Text>
                 </View>
                 {isAnswered ? (
-                  <Text style={[styles.reviewVerdict, { color: isCorrect ? '#4CAF50' : '#F44336' }]}>
+                  <Text style={[styles.reviewVerdict, { color: isCorrect ? palette.success : palette.danger }]}>
                     {isCorrect ? '✓ 正确' : '✗ 错误'}
                   </Text>
                 ) : (
-                  <Text style={[styles.reviewVerdict, { color: '#999' }]}>未作答</Text>
+                  <Text style={[styles.reviewVerdict, { color: colors.tertiary }]}>未作答</Text>
                 )}
               </View>
 
@@ -216,28 +221,28 @@ export default function ExamResultScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+const useStyles = makeStyles((colors) => ({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40 },
-  summaryCard: { borderRadius: 16, elevation: 3, marginBottom: 16, backgroundColor: '#FFF' },
+  summaryCard: { borderRadius: 16, elevation: 3, marginBottom: 16, backgroundColor: colors.surface },
   summaryContent: { alignItems: 'center', paddingVertical: 24 },
-  summaryLabel: { fontSize: 16, color: '#666', marginBottom: 8 },
+  summaryLabel: { fontSize: 16, color: colors.onSurfaceVariant, marginBottom: 8 },
   summaryAccuracy: { fontSize: 56, fontWeight: '800', marginBottom: 8 },
-  summaryDetail: { fontSize: 14, color: '#888' },
-  reviewHeader: { fontSize: 17, fontWeight: '700', color: '#333', marginBottom: 12 },
+  summaryDetail: { fontSize: 14, color: colors.tertiary },
+  reviewHeader: { fontSize: 17, fontWeight: '700', color: colors.onSurface, marginBottom: 12 },
   reviewCard: { borderRadius: 12, elevation: 2, marginBottom: 10 },
   reviewHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   reviewTagRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   reviewTypeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   reviewTypeText: { fontSize: 11, fontWeight: '600' },
-  reviewNumber: { fontSize: 13, color: '#888' },
+  reviewNumber: { fontSize: 13, color: colors.tertiary },
   reviewVerdict: { fontSize: 14, fontWeight: '700' },
-  reviewDivider: { marginVertical: 10, backgroundColor: '#EEE' },
-  reviewSentence: { fontSize: 15, color: '#444', lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
-  reviewWordTag: { fontSize: 13, color: '#1565C0', fontWeight: '600', marginBottom: 4 },
-  reviewHint: { fontSize: 12, color: '#999', marginBottom: 6 },
-  reviewCorrectAnswer: { fontSize: 14, color: '#2E7D32', fontWeight: '500', marginTop: 4 },
-  reviewUserAnswer: { fontSize: 14, color: '#C62828', marginTop: 2 },
+  reviewDivider: { marginVertical: 10, backgroundColor: colors.outline },
+  reviewSentence: { fontSize: 15, color: colors.onSurfaceVariant, lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
+  reviewWordTag: { fontSize: 13, color: colors.primaryDark, fontWeight: '600', marginBottom: 4 },
+  reviewHint: { fontSize: 12, color: colors.tertiary, marginBottom: 6 },
+  reviewCorrectAnswer: { fontSize: 14, color: palette.successDark, fontWeight: '500', marginTop: 4 },
+  reviewUserAnswer: { fontSize: 14, color: palette.dangerDark, marginTop: 2 },
   actions: { marginTop: 8, gap: 10 },
   actionButton: { borderRadius: 12, paddingVertical: 4 },
-});
+}));

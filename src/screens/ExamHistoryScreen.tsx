@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import {
   Card,
   Text,
@@ -8,10 +8,15 @@ import {
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { useAppTheme } from '../theme/theme';
+import { makeStyles } from '../utils/useStyles';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { ExamSession } from '../types';
 
 export default function ExamHistoryScreen() {
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const navigation = useAppNavigation();
   const [sessions, setSessions] = useState<ExamSession[]>([]);
 
@@ -50,9 +55,9 @@ export default function ExamHistoryScreen() {
   };
 
   const getAccuracyColor = (rate: number) => {
-    if (rate >= 0.8) return '#4CAF50';
-    if (rate >= 0.6) return '#FF9800';
-    return '#F44336';
+    if (rate >= 0.8) return palette.success;
+    if (rate >= 0.6) return palette.accent;
+    return palette.danger;
   };
 
   const formatDate = (iso: string) => {
@@ -111,7 +116,7 @@ export default function ExamHistoryScreen() {
                 </Card.Content>
                 <IconButton
                   icon="delete"
-                  iconColor="#999"
+                  iconColor={colors.tertiary}
                   size={18}
                   style={styles.deleteIcon}
                   onPress={() => handleDelete(session.id!)}
@@ -125,21 +130,21 @@ export default function ExamHistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+const useStyles = makeStyles(colors => ({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40 },
   emptyContainer: { alignItems: 'center', paddingVertical: 64 },
   emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 8 },
-  emptyHint: { fontSize: 14, color: '#999', marginBottom: 24 },
+  emptyTitle: { fontSize: 18, fontWeight: '600', color: colors.onSurface, marginBottom: 8 },
+  emptyHint: { fontSize: 14, color: colors.tertiary, marginBottom: 24 },
   emptyButton: { borderRadius: 12 },
   sessionCard: { borderRadius: 12, elevation: 2, marginBottom: 10, position: 'relative' },
   sessionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: 32 },
   sessionInfo: { flex: 1 },
-  sessionDate: { fontSize: 15, fontWeight: '600', color: '#333' },
-  sessionType: { fontSize: 12, color: '#888', marginTop: 2 },
+  sessionDate: { fontSize: 15, fontWeight: '600', color: colors.onSurface },
+  sessionType: { fontSize: 12, color: colors.onSurfaceVariant, marginTop: 2 },
   sessionScoreRow: { alignItems: 'flex-end' },
   sessionScore: { fontSize: 24, fontWeight: '800' },
-  sessionCount: { fontSize: 12, color: '#888', marginTop: 1 },
+  sessionCount: { fontSize: 12, color: colors.onSurfaceVariant, marginTop: 1 },
   deleteIcon: { position: 'absolute', top: 4, right: 4 },
-});
+}));

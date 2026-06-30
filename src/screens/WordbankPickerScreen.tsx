@@ -25,23 +25,26 @@ import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
 import { getLocalWordDictWords } from '../utils/wordUtils';
+import { palette } from '../theme/tokens';
 
 type WordbankEntry = Omit<Word, 'id' | 'created_at' | 'updated_at'>;
 
-type SortMode = 'alpha' | 'diffAsc' | 'diffDesc';
+type SortMode = 'alpha' | 'diffAsc' | 'diffDesc' | 'freqAsc' | 'freqDesc';
 
 const SORT_LABEL: Record<SortMode, string> = {
   alpha: '字母',
   diffAsc: '难度↑',
   diffDesc: '难度↓',
+  freqAsc: '频度↑',
+  freqDesc: '频度↓',
 };
 
 const DIFF_COLORS: Record<number, string> = {
-  1: '#4CAF50',
-  2: '#8BC34A',
-  3: '#FF9800',
-  4: '#FF5722',
-  5: '#F44336',
+  1: palette.success,
+  2: palette.accent,
+  3: palette.accent,
+  4: palette.danger,
+  5: palette.danger,
 };
 
 const ROW_HEIGHT = 72;
@@ -202,6 +205,10 @@ export default function WordbankPickerScreen() {
       items = items.slice().sort((a, b) => a.difficulty - b.difficulty);
     } else if (sortMode === 'diffDesc') {
       items = items.slice().sort((a, b) => b.difficulty - a.difficulty);
+    } else if (sortMode === 'freqAsc') {
+      items = items.slice().sort((a, b) => a.frequency - b.frequency);
+    } else if (sortMode === 'freqDesc') {
+      items = items.slice().sort((a, b) => b.frequency - a.frequency);
     }
     // sortMode==='alpha' 维持 JSON 内置字母序
 
@@ -317,6 +324,13 @@ export default function WordbankPickerScreen() {
     );
   }, [ignored]);
 
+  // 上一组
+  const prevGroup = useCallback(() => {
+    if (group <= 0) return;
+    setGroup((g) => Math.max(0, g - 1));
+    flatRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [group]);
+
   // 下一组
   const nextGroup = useCallback(() => {
     if (isLastGroup) return;
@@ -431,7 +445,7 @@ export default function WordbankPickerScreen() {
       <View style={styles.chipRow}>
         <View style={styles.chipGroup}>
           <Text style={styles.chipGroupLabel}>排序</Text>
-          {(['alpha', 'diffAsc', 'diffDesc'] as SortMode[]).map(
+          {(['alpha', 'diffAsc', 'diffDesc', 'freqAsc', 'freqDesc'] as SortMode[]).map(
             (v) => (
               <Chip
                 key={v}
@@ -516,10 +530,21 @@ export default function WordbankPickerScreen() {
         <View style={styles.bottomBtnRow}>
           <Button
             mode="outlined"
+            onPress={prevGroup}
+            disabled={group === 0 || saving}
+            style={styles.pageBtn}
+            icon="arrow-left"
+            contentStyle={styles.pageBtnContent}
+          >
+            上一组
+          </Button>
+          <Button
+            mode="outlined"
             onPress={nextGroup}
             disabled={isLastGroup || saving}
-            style={styles.nextBtn}
+            style={styles.pageBtn}
             icon="arrow-right"
+            contentStyle={styles.pageBtnContent}
           >
             下一组
           </Button>
@@ -737,10 +762,13 @@ const styles = StyleSheet.create({
   bottomBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
-  nextBtn: {
+  pageBtn: {
     borderRadius: 8,
+  },
+  pageBtnContent: {
+    flexDirection: 'row-reverse',
   },
   addBtn: {
     flex: 1,

@@ -8,11 +8,16 @@ import {
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { ExamSession, WrongQuestion } from '../types';
 
 export default function PracticeHubScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [examSessions, setExamSessions] = useState<ExamSession[]>([]);
   const [wrongQuestions, setWrongQuestions] = useState<WrongQuestion[]>([]);
 
@@ -58,7 +63,7 @@ export default function PracticeHubScreen() {
               <View style={styles.statItem}>
                 <Text style={[
                   styles.statNumber,
-                  { color: avgAccuracy >= 70 ? '#4CAF50' : totalExams === 0 ? '#999' : '#FF9800' }
+                  { color: avgAccuracy >= 70 ? palette.success : totalExams === 0 ? colors.tertiary : palette.accent }
                 ]}>
                   {totalExams > 0 ? `${avgAccuracy}%` : '-'}
                 </Text>
@@ -67,7 +72,7 @@ export default function PracticeHubScreen() {
               <View style={styles.statItem}>
                 <Text style={[
                   styles.statNumber,
-                  { color: wrongQuestions.length > 0 ? '#F44336' : '#4CAF50' }
+                  { color: wrongQuestions.length > 0 ? palette.danger : palette.success }
                 ]}>
                   {wrongQuestions.length}
                 </Text>
@@ -155,7 +160,7 @@ export default function PracticeHubScreen() {
                   </View>
                   <Text style={[
                     styles.sessionAccuracy,
-                    { color: (session.accuracy || 0) >= 0.7 ? '#4CAF50' : '#F44336' }
+                    { color: (session.accuracy || 0) >= 0.7 ? palette.success : palette.danger }
                   ]}>
                     {Math.round((session.accuracy || 0) * 100)}%
                   </Text>
@@ -185,10 +190,10 @@ export default function PracticeHubScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -216,11 +221,11 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 4,
   },
   primaryButton: {
@@ -257,7 +262,7 @@ const styles = StyleSheet.create({
   },
   sessionType: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 2,
   },
   sessionAccuracy: {
@@ -275,13 +280,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 8,
   },
   emptyHint: {
     fontSize: 13,
-    color: '#999',
+    color: colors.tertiary,
     textAlign: 'center',
     lineHeight: 20,
   },
-});
+}));
