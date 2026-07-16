@@ -39,7 +39,7 @@ export default function RealExamListScreen() {
   }
 
   /** 渲染某一侧（英语一/二）的入口 */
-  const renderSet = (label: string, reading: NonNullable<RealExamYear['english1']>['reading'], cloze: RealExamYear['english1']['cloze'], setId: 'english1' | 'english2') => (
+  const renderSet = (label: string, reading: NonNullable<RealExamYear['english1']>['reading'], cloze: RealExamYear['english1']['cloze'], setId: 'english1' | 'english2', yearObj: RealExamYear) => (
     <View style={styles.setGroup}>
       <Text style={styles.setTitle}>{label}</Text>
       {reading.length > 0 && (
@@ -49,7 +49,7 @@ export default function RealExamListScreen() {
               key={passage.id}
               mode="outlined"
               icon="book-open-variant"
-              onPress={() => goReading(years.find(y => y.year === parseInt(passage.id.slice(0, 4)))!.year, setId, passage.id)}
+              onPress={() => goReading(yearObj.year, setId, passage.id)}
               style={styles.actionButton}
             >
               {passage.title || `Text ${idx + 1}`} ({passage.questions.length}题)
@@ -61,10 +61,7 @@ export default function RealExamListScreen() {
         <Button
           mode="outlined"
           icon="format-letter-matches"
-          onPress={() => {
-            const y = years.find(y => y.english1?.cloze?.id === cloze.id || y.english2?.cloze?.id === cloze.id);
-            if (y) goCloze(y.year, setId, cloze.id);
-          }}
+          onPress={() => goCloze(yearObj.year, setId, cloze.id)}
           style={styles.actionButton}
         >
           完形填空 (20空)
@@ -87,8 +84,8 @@ export default function RealExamListScreen() {
               subtitle="考研英语一 / 英语二"
             />
             <Card.Content>
-              {renderSet('英语一', year.english1.reading, year.english1.cloze, 'english1')}
-              {renderSet('英语二', year.english2.reading, year.english2.cloze, 'english2')}
+              {renderSet('英语一', year.english1.reading, year.english1.cloze, 'english1', year)}
+              {renderSet('英语二', year.english2.reading, year.english2.cloze, 'english2', year)}
             </Card.Content>
           </Card>
         ))}
