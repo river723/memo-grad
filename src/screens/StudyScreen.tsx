@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, StyleSheet, TextInput, Platform, Alert } from 'react-native';
+import { View, ScrollView, TextInput, Platform, Alert } from 'react-native';
 import {
   Card,
   Text,
@@ -19,6 +19,9 @@ import { REVIEW_INTERVALS } from '../constants';
 import { format, addDays } from 'date-fns';
 import AIService from '../services/AIService';
 import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 
 type StudyScreenMode = 'flashcard' | 'listening' | 'quiz' | 'article';
 
@@ -79,6 +82,8 @@ if (Platform.OS !== 'web') {
 export default function StudyScreen() {
   const navigation = useAppNavigation();
   const route = useAppRoute<'Study'>();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const customWordIds = Array.isArray(route.params?.wordIds)
     ? route.params.wordIds.filter((id: unknown): id is number => typeof id === 'number')
     : [];
@@ -790,6 +795,14 @@ export default function StudyScreen() {
                   </Surface>
                 )}
 
+                {/* 记忆口诀 */}
+                {currentWord.memory_tip && (
+                  <Surface style={styles.etymologyBox}>
+                    <Text style={styles.etymologyTitle}>💡 记忆口诀</Text>
+                    <Text style={styles.etymologyText}>{currentWord.memory_tip}</Text>
+                  </Surface>
+                )}
+
                 {/* 释义列表 */}
                 {currentWord.definitions.map((def, index) => (
                   <Surface key={index} style={styles.definitionItem}>
@@ -1262,6 +1275,13 @@ export default function StudyScreen() {
               </View>
             ) : null}
 
+            {selectedArticleWord.memory_tip ? (
+              <View style={styles.articleWordEtymologySection}>
+                <Text style={styles.articleWordSectionLabel}>记忆口诀</Text>
+                <Text style={styles.articleWordEtymologyText}>{selectedArticleWord.memory_tip}</Text>
+              </View>
+            ) : null}
+
             {Array.isArray(selectedArticleWord.similar_words) && selectedArticleWord.similar_words.length > 0 && (
               <View style={styles.articleWordSimilarSection}>
                 <Text style={styles.articleWordSectionLabel}>易混词提醒</Text>
@@ -1279,10 +1299,10 @@ export default function StudyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
     padding: 16,
   },
   modeSelector: {
@@ -1308,11 +1328,11 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   accuracyText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
   },
   progressBar: {
     height: 8,
@@ -1348,11 +1368,11 @@ const styles = StyleSheet.create({
   cardBackWord: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   cardBackPronunciation: {
     fontSize: 13,
-    color: '#888',
+    color: colors.tertiary,
     marginBottom: 12,
   },
   etymologyBox: {
@@ -1360,29 +1380,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: 8,
     elevation: 1,
-    backgroundColor: '#F5F0FF',
+    backgroundColor: colors.surfaceVariant,
   },
   etymologyTitle: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#7C4DFF',
+    color: colors.primary,
     marginBottom: 4,
   },
   etymologyText: {
     fontSize: 13,
-    color: '#555',
+    color: colors.onSurfaceVariant,
     lineHeight: 18,
   },
   wordText: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     textAlign: 'center',
     marginBottom: 8,
   },
   pronunciation: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -1391,7 +1411,7 @@ const styles = StyleSheet.create({
   },
   flipHint: {
     fontSize: 14,
-    color: '#999',
+    color: colors.tertiary,
     fontStyle: 'italic',
   },
   flipButton: {
@@ -1409,7 +1429,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: 8,
     elevation: 1,
-    backgroundColor: '#F0FFF0',
+    backgroundColor: colors.surfaceVariant,
   },
   definitionHeader: {
     flexDirection: 'row',
@@ -1418,14 +1438,14 @@ const styles = StyleSheet.create({
   },
   partOfSpeech: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginRight: 8,
   },
   coreTag: {
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.primary,
   },
   rareTag: {
-    backgroundColor: '#FF9800',
+    backgroundColor: palette.accent,
   },
   meaning: {
     fontSize: 16,
@@ -1434,7 +1454,7 @@ const styles = StyleSheet.create({
   },
   example: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     fontStyle: 'italic',
   },
   enhanceBtn: {
@@ -1449,7 +1469,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 24,
-    color: '#1976D2',
+    color: colors.primary,
   },
   soundIcon: {
     width: 80,
@@ -1457,7 +1477,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
     marginBottom: 16,
   },
   soundEmoji: {
@@ -1465,7 +1485,7 @@ const styles = StyleSheet.create({
   },
   listeningHint: {
     fontSize: 16,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -1497,7 +1517,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 16,
-    color: '#1976D2',
+    color: colors.primary,
   },
   quizWord: {
     fontSize: 28,
@@ -1511,23 +1531,23 @@ const styles = StyleSheet.create({
   optionItem: {
     borderRadius: 8,
     elevation: 1,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.outline,
   },
   selectedOption: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#1976D2',
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
     borderWidth: 2,
   },
   correctOption: {
-    backgroundColor: '#E8F5E8',
-    borderColor: '#4CAF50',
+    backgroundColor: palette.successLight,
+    borderColor: palette.success,
     borderWidth: 2,
   },
   incorrectOption: {
-    backgroundColor: '#FFEBEE',
-    borderColor: '#F44336',
+    backgroundColor: palette.dangerLight,
+    borderColor: palette.danger,
     borderWidth: 2,
   },
   optionButton: {
@@ -1541,12 +1561,12 @@ const styles = StyleSheet.create({
   articleTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     marginBottom: 8,
   },
   articleSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -1557,30 +1577,30 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   articleWordChip: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
   },
   articleLimitChip: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: palette.accentLight,
   },
   articleSectionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#333',
+    color: colors.onSurface,
     marginBottom: 10,
   },
   articleAutoLengthText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
     marginBottom: 12,
   },
   articleError: {
-    color: '#F44336',
+    color: palette.danger,
     fontSize: 14,
     marginBottom: 12,
   },
   articleInfo: {
-    color: '#2E7D32',
+    color: palette.successDark,
     fontSize: 14,
     marginBottom: 12,
   },
@@ -1594,7 +1614,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   articleLoadingText: {
-    color: '#666',
+    color: colors.onSurfaceVariant,
   },
   articlePreviewCard: {
     marginBottom: 16,
@@ -1604,38 +1624,38 @@ const styles = StyleSheet.create({
   articlePreviewTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#333',
+    color: colors.onSurface,
     marginBottom: 14,
   },
   articleContentText: {
     fontSize: 16,
     lineHeight: 28,
-    color: '#333',
+    color: colors.onSurface,
   },
   articleHighlight: {
-    color: '#1565C0',
+    color: colors.primary,
     fontWeight: '800',
     textDecorationLine: 'underline',
-    textDecorationColor: '#1565C0',
+    textDecorationColor: colors.primary,
     textDecorationStyle: 'solid',
   },
   articleTapHint: {
     fontSize: 12,
-    color: '#BBB',
+    color: colors.tertiary,
     textAlign: 'center',
     marginTop: 12,
   },
   articleTapHintHighlight: {
-    color: '#1976D2',
+    color: colors.primary,
     fontWeight: '600',
   },
   articleTranslationButton: {
     marginTop: 16,
-    borderColor: '#1976D2',
+    borderColor: colors.primary,
   },
   articleTranslationBox: {
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: colors.outline,
     paddingTop: 16,
     marginTop: 16,
     backgroundColor: 'transparent',
@@ -1644,10 +1664,10 @@ const styles = StyleSheet.create({
   articleTranslationText: {
     fontSize: 15,
     lineHeight: 26,
-    color: '#555',
+    color: colors.onSurfaceVariant,
   },
   articleWordModal: {
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     padding: 20,
     margin: 24,
     borderRadius: 16,
@@ -1662,11 +1682,11 @@ const styles = StyleSheet.create({
   articleWordModalTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1976D2',
+    color: colors.primary,
   },
   articleWordPronunciation: {
     fontSize: 13,
-    color: '#999',
+    color: colors.tertiary,
     marginBottom: 16,
   },
   articleWordDefinitions: {
@@ -1676,7 +1696,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: colors.outline,
   },
   articleWordDefHeader: {
     flexDirection: 'row',
@@ -1686,38 +1706,38 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   articleWordPosChip: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.surfaceVariant,
     height: 22,
   },
   articleWordPosChipText: {
     fontSize: 10,
-    color: '#666',
+    color: colors.onSurfaceVariant,
   },
   articleWordDefMeaning: {
     fontSize: 15,
-    color: '#333',
+    color: colors.onSurface,
     fontWeight: '500',
     flex: 1,
   },
   articleWordCoreChip: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
     height: 22,
   },
   articleWordCoreChipText: {
     fontSize: 10,
-    color: '#1976D2',
+    color: colors.primary,
   },
   articleWordRareChip: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: palette.accentLight,
     height: 22,
   },
   articleWordRareChipText: {
     fontSize: 10,
-    color: '#E65100',
+    color: palette.accentDark,
   },
   articleWordDefExample: {
     fontSize: 13,
-    color: '#888',
+    color: colors.tertiary,
     fontStyle: 'italic',
     marginTop: 2,
     marginLeft: 4,
@@ -1730,12 +1750,12 @@ const styles = StyleSheet.create({
   articleWordSectionLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 4,
   },
   articleWordEtymologyText: {
     fontSize: 13,
-    color: '#555',
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
   },
   articleWordSimilarSection: {
@@ -1743,7 +1763,7 @@ const styles = StyleSheet.create({
   },
   articleWordSimilarText: {
     fontSize: 13,
-    color: '#555',
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
     marginBottom: 2,
   },
@@ -1762,11 +1782,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 16,
-    color: '#1976D2',
+    color: colors.primary,
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -1791,7 +1811,7 @@ const styles = StyleSheet.create({
   completionTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -1807,16 +1827,16 @@ const styles = StyleSheet.create({
   completionStatNumber: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
   },
   completionStatLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 4,
   },
   completionDetail: {
     fontSize: 14,
-    color: '#888',
+    color: colors.tertiary,
     marginBottom: 28,
   },
   completionActions: {
@@ -1847,12 +1867,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 12,
-    color: '#333',
+    color: colors.onSurface,
   },
   modalText: {
     fontSize: 14,
     textAlign: 'center',
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 20,
     lineHeight: 22,
   },
@@ -1884,9 +1904,9 @@ const styles = StyleSheet.create({
     minWidth: 200,
   },
   correctColor: {
-    color: '#4CAF50',
+    color: palette.success,
   },
   incorrectColor: {
-    color: '#F44336',
+    color: palette.danger,
   },
-});
+}));

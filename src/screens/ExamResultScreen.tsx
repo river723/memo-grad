@@ -204,7 +204,12 @@ export default function ExamResultScreen() {
         )}
         <Button
           mode="outlined"
-          onPress={() => navigation.navigate('Main', { screen: 'Words' })}
+          onPress={() => {
+            navigation.navigate('Main', { screen: 'Home' as any });
+            setTimeout(() => {
+              navigation.navigate('Home' as any, { screen: 'WordList' as any });
+            }, 100);
+          }}
           style={styles.actionButton}
           icon="book"
         >
@@ -212,7 +217,7 @@ export default function ExamResultScreen() {
         </Button>
         <Button
           mode="text"
-          onPress={() => navigation.navigate('Main', { screen: 'Home' })}
+          onPress={() => navigation.navigate('Main', { screen: 'Home' as any })}
         >
           返回首页
         </Button>
@@ -239,7 +244,7 @@ const useStyles = makeStyles((colors) => ({
   reviewVerdict: { fontSize: 14, fontWeight: '700' },
   reviewDivider: { marginVertical: 10, backgroundColor: colors.outline },
   reviewSentence: { fontSize: 15, color: colors.onSurfaceVariant, lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
-  reviewWordTag: { fontSize: 13, color: colors.primaryDark, fontWeight: '600', marginBottom: 4 },
+  reviewWordTag: { fontSize: 13, color: palette.primaryDark, fontWeight: '600', marginBottom: 4 },
   reviewHint: { fontSize: 12, color: colors.tertiary, marginBottom: 6 },
   reviewCorrectAnswer: { fontSize: 14, color: palette.successDark, fontWeight: '500', marginTop: 4 },
   reviewUserAnswer: { fontSize: 14, color: palette.dangerDark, marginTop: 2 },

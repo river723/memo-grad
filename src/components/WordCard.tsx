@@ -150,6 +150,14 @@ export default function WordCard({ word, onEdit, onDelete, showActions = true }:
           </View>
         )}
 
+        {/* 记忆口诀 */}
+        {word.memory_tip && (
+          <View style={styles.etymology}>
+            <Text style={styles.etymologyLabel}>记忆口诀:</Text>
+            <Text style={styles.etymologyText}>{word.memory_tip}</Text>
+          </View>
+        )}
+
         {/* 形近词 */}
         {Array.isArray(word.similar_words) && word.similar_words.length > 0 && (
           <View style={styles.similarWords}>

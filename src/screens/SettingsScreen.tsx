@@ -675,7 +675,9 @@ export default function SettingsScreen() {
                 onPress={handleExport}
                 loading={isExporting}
                 disabled={isExporting || isImporting}
-                style={[styles.dataActionBtn, { backgroundColor: palette.successLight }]}
+                style={styles.dataActionBtn}
+                buttonColor={colors.primaryContainer}
+                textColor={colors.onPrimaryContainer}
                 labelStyle={styles.dataActionText}
               >
                 导出备份
@@ -689,7 +691,9 @@ export default function SettingsScreen() {
                 onPress={handleImport}
                 loading={isImporting}
                 disabled={isExporting || isImporting}
-                style={[styles.dataActionBtn, { backgroundColor: palette.accentLight }]}
+                style={styles.dataActionBtn}
+                buttonColor={colors.primaryContainer}
+                textColor={colors.onPrimaryContainer}
                 labelStyle={styles.dataActionText}
               >
                 导入备份
@@ -705,13 +709,13 @@ export default function SettingsScreen() {
         <Card.Title title="⚡ 高级选项" titleStyle={styles.cardTitle} />
         <Card.Content>
           <View style={styles.dangerActions}>
-            <Surface style={[styles.dangerBtn, { backgroundColor: palette.dangerLight }]}>
-              <Text style={styles.dangerBtnText} onPress={handleResetDefaults}>
+            <Surface style={[styles.dangerBtn, { backgroundColor: colors.errorContainer }]}>
+              <Text style={[styles.dangerBtnText, { color: colors.error }]} onPress={handleResetDefaults}>
                 重置所有设置
               </Text>
             </Surface>
-            <Surface style={[styles.dangerBtn, { backgroundColor: palette.dangerLight }]}>
-              <Text style={[styles.dangerBtnText, { color: palette.danger }]} onPress={handleClearData}>
+            <Surface style={[styles.dangerBtn, { backgroundColor: colors.errorContainer }]}>
+              <Text style={[styles.dangerBtnText, { color: colors.error }]} onPress={handleClearData}>
                 清除所有数据
               </Text>
             </Surface>

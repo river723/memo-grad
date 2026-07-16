@@ -1,33 +1,51 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigatorScreenParams, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import type { ExamQuestion, ExamAnswer, ExamQuestionType } from '../types';
+import type {
+  ExamQuestion,
+  ExamAnswer,
+  ExamQuestionType,
+  RealExamSession,
+  RealExamReadingPassage,
+  RealExamClozePaper,
+} from '../types';
 
 /**
  * 主 Tab 路由参数表。路由名统一为英文 PascalCase，中文仅作 tabBarLabel。
+ * 四个 Tab 分别对应：学习（词汇）、阅读（文章）、练习（考题）、我的（数据+设置）。
  */
 export type MainTabParamList = {
   Home: undefined;
-  Words: undefined;
+  Read: undefined;
   Practice: undefined;
-  Profile: undefined;
+  Stats: undefined;
 };
 
 /**
- * 根 Stack 路由参数表。路由名统一为英文 PascalCase，中文仅作 header title。
- * `Main` 是承载 Tab 导航的栈屏，接受嵌套导航参数（如 { screen: 'Words' }）。
+ * 根 Stack 路由参数表。目前只包含 Main（Tab Navigator）。
  */
 export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
-  AddWord: undefined;
-  WordbankPicker: undefined;
+};
+
+/** 各 Tab 内 Stack 的路由参数表 */
+export type LearnStackParamList = {
+  Home: undefined;
   Study: { wordIds?: number[] } | undefined;
   WordDetail: { wordId: number };
-  Stats: undefined;
-  Settings: undefined;
+  AddWord: undefined;
+  WordbankPicker: undefined;
+  WordList: undefined;
+};
+
+export type ReadStackParamList = {
   ArticleList: undefined;
   ArticleGenerate: undefined;
   ArticleDetail: { articleId: number };
+};
+
+export type PracticeStackParamList = {
+  PracticeHub: undefined;
   ExamSetup: undefined;
   ExamAnswer: {
     questions: ExamQuestion[];
@@ -42,22 +60,56 @@ export type RootStackParamList = {
   };
   WrongQuestionReview: undefined;
   ExamHistory: undefined;
+  RealExamList: undefined;
+  RealExamReading: { year: number; setId: 'english1' | 'english2'; passageId: string };
+  RealExamCloze: { year: number; setId: 'english1' | 'english2'; paperId: string };
+  RealExamResult: {
+    session: RealExamSession;
+    passage?: RealExamReadingPassage;
+    paper?: RealExamClozePaper;
+  };
 };
 
-/** 所有屏幕的导航类型：根栈导航即可覆盖全部跳转目标（含 Main 嵌套跳转）。 */
-export type AppNavigation = StackNavigationProp<RootStackParamList>;
+export type StatsStackParamList = {
+  Stats: undefined;
+  StatsDetail: undefined;
+  Settings: undefined;
+};
 
-export type AppRouteProp<T extends keyof RootStackParamList> = RouteProp<
-  RootStackParamList,
-  T
->;
+/** 根栈导航类型（用于跨 Tab 导航到 Main）。 */
+export type RootNavigation = StackNavigationProp<RootStackParamList>;
 
-/** 类型安全的导航 hook，替代 useNavigation<any>()。 */
-export const useAppNavigation = () => useNavigation<AppNavigation>();
+/** 学习 Tab 内导航类型。 */
+export type LearnNavigation = StackNavigationProp<LearnStackParamList>;
+
+/** 阅读 Tab 内导航类型。 */
+export type ReadNavigation = StackNavigationProp<ReadStackParamList>;
+
+/** 练习 Tab 内导航类型。 */
+export type PracticeNavigation = StackNavigationProp<PracticeStackParamList>;
+
+/** 统计 Tab 内导航类型。 */
+export type StatsNavigation = StackNavigationProp<StatsStackParamList>;
+
+/** 所有屏幕名联合。 */
+export type AllScreenNames =
+  | keyof RootStackParamList
+  | keyof LearnStackParamList
+  | keyof ReadStackParamList
+  | keyof PracticeStackParamList
+  | keyof StatsStackParamList;
 
 /**
- * 类型安全的路由 hook，替代 useRoute<any>()。
- * 用法：const route = useAppRoute<'WordDetail'>(); route.params.wordId
+ * 类型安全的导航 hook。
+ * 使用 any 是因为 React Navigation 的类型系统在嵌套导航场景下，
+ * union/intersection 类型会导致 navigate() 签名无法调和。
+ * 运行时一切正常，类型上我们信任 navigate(screenName, params) 的调用。
  */
-export const useAppRoute = <T extends keyof RootStackParamList>() =>
-  useRoute<AppRouteProp<T>>();
+export const useAppNavigation = () => useNavigation<any>();
+
+/**
+ * 类型安全的路由 hook。
+ * 使用 any 同理，避免嵌套栈参数类型无法推断的问题。
+ */
+export const useAppRoute = <T extends AllScreenNames>() =>
+  useRoute<RouteProp<Record<T, any>, T>>();

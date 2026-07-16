@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import {
   Card,
   Text,
@@ -12,6 +12,9 @@ import {
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, ExamQuestion, ExamQuestionType, DefinitionQuestion, ClozeQuestion } from '../types';
@@ -20,6 +23,8 @@ import { EXAM_CONFIG } from '../constants';
 
 export default function ExamSetupScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
   const [coverage, setCoverage] = useState<Map<number, number>>(new Map());
@@ -390,42 +395,42 @@ export default function ExamSetupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+const useStyles = makeStyles(colors => ({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40 },
   settingsBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, marginBottom: 12,
-    backgroundColor: '#E3F2FD', elevation: 1,
+    backgroundColor: colors.primaryContainer, elevation: 1,
   },
-  settingsText: { fontSize: 13, color: '#1976D2' },
+  settingsText: { fontSize: 13, color: colors.primary },
   countStepper: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
   },
   countStepperBtn: { fontSize: 18, fontWeight: 'bold' },
-  countText: { fontSize: 14, fontWeight: 'bold', color: '#1976D2', minWidth: 44, textAlign: 'center' },
+  countText: { fontSize: 14, fontWeight: 'bold', color: colors.primary, minWidth: 44, textAlign: 'center' },
   card: { marginBottom: 12, borderRadius: 12, elevation: 2 },
   cardTitle: { fontSize: 16, fontWeight: '600' },
   segmentButtons: { marginBottom: 12 },
-  typeHint: { fontSize: 12, color: '#999', marginTop: 4, lineHeight: 18 },
-  sectionLabel: { fontSize: 14, color: '#666', marginBottom: 10 },
+  typeHint: { fontSize: 12, color: colors.tertiary, marginTop: 4, lineHeight: 18 },
+  sectionLabel: { fontSize: 14, color: colors.onSurfaceVariant, marginBottom: 10 },
   selectedArea: { marginTop: 4 },
   manualArea: { marginTop: 4 },
-  searchBar: { marginBottom: 12, backgroundColor: '#F5F5F5', borderRadius: 8, elevation: 0, height: 40 },
+  searchBar: { marginBottom: 12, backgroundColor: colors.background, borderRadius: 8, elevation: 0, height: 40 },
   searchInput: { fontSize: 13, minHeight: 0 },
   wordGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   wordItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  selectedWordChip: { backgroundColor: '#E3F2FD' },
+  selectedWordChip: { backgroundColor: colors.primaryContainer },
   wordChipText: { fontSize: 12 },
-  wordChipTextSelected: { color: '#FFF' },
+  wordChipTextSelected: { color: colors.surface },
   coverageBadge: { fontSize: 10, fontWeight: '500', marginLeft: 2 },
-  noWordsHint: { fontSize: 13, color: '#FF9800', marginBottom: 10 },
+  noWordsHint: { fontSize: 13, color: palette.accent, marginBottom: 10 },
   manualWordItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  manualWordChip: { backgroundColor: '#F5F5F5' },
-  manualWordChipSelected: { backgroundColor: '#1976D2' },
+  manualWordChip: { backgroundColor: colors.background },
+  manualWordChipSelected: { backgroundColor: colors.primary },
   startButton: { marginTop: 8, paddingVertical: 8, borderRadius: 12 },
   startButtonDisabled: { opacity: 0.5 },
   loadingArea: { alignItems: 'center', paddingVertical: 32 },
-  loadingText: { fontSize: 15, color: '#666', marginTop: 16 },
-  loadingHint: { fontSize: 12, color: '#999', marginTop: 4 },
-});
+  loadingText: { fontSize: 15, color: colors.onSurfaceVariant, marginTop: 16 },
+  loadingHint: { fontSize: 12, color: colors.tertiary, marginTop: 4 },
+}));

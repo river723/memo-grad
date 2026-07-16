@@ -438,8 +438,10 @@ export default function AddWordScreen() {
             ],
             etymology: analysis?.etymology || '',
             similar_words: Array.isArray(analysis?.similar_words) ? analysis!.similar_words : [],
+            memory_tip: analysis?.memoryTip || '',
             difficulty,
-            frequency: 1
+            frequency:
+              typeof analysis?.examFrequency === 'number' ? analysis.examFrequency : 1
           };
 
           await StorageService.addWord(wordData);
@@ -629,6 +631,16 @@ export default function AddWordScreen() {
                 <Text style={styles.sectionTitle}>🔍 词根词缀</Text>
                 <Surface style={styles.etymologyContainer}>
                   <Text style={styles.etymologyText}>{(analysisResult as AIResponse).etymology}</Text>
+                </Surface>
+              </View>
+            )}
+
+            {/* 记忆口诀 */}
+            {(analysisResult as AIResponse).memoryTip && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>💡 记忆口诀</Text>
+                <Surface style={styles.etymologyContainer}>
+                  <Text style={styles.etymologyText}>{(analysisResult as AIResponse).memoryTip}</Text>
                 </Surface>
               </View>
             )}

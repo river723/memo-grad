@@ -1,4 +1,4 @@
-import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId } from '../types';
+import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId, RealExamSession } from '../types';
 import { AI_PROVIDERS } from '../constants';
 
 // 跨平台存储接口
@@ -74,7 +74,8 @@ class StorageService {
     ARTICLES: 'kaoyan_articles',
     EXAM_SESSIONS: 'kaoyan_exam_sessions',
     WRONG_QUESTIONS: 'kaoyan_wrong_questions',
-    IGNORED_WORDBANK_WORDS: 'kaoyan_ignored_wordbank_words'
+    IGNORED_WORDBANK_WORDS: 'kaoyan_ignored_wordbank_words',
+    REAL_EXAM_SESSIONS: 'kaoyan_real_exam_sessions'
   };
 
   // 生词操作
@@ -382,6 +383,23 @@ class StorageService {
     await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(filtered));
   }
 
+  // 真题练习记录操作
+  async saveRealExamSession(session: RealExamSession): Promise<void> {
+    const sessions = await this.getRealExamSessions();
+    sessions.push(session);
+    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_SESSIONS, JSON.stringify(sessions));
+  }
+
+  async getRealExamSessions(): Promise<RealExamSession[]> {
+    try {
+      const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_SESSIONS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Get real exam sessions error:', error);
+      return [];
+    }
+  }
+
   async getWordArticleCoverage(): Promise<Map<number, number>> {
     const articles = await this.getArticles();
     const coverage = new Map<number, number>();
@@ -441,6 +459,7 @@ class StorageService {
       examSessions: await this.getExamSessions(),
       wrongQuestions: await this.getWrongQuestions(),
       ignoredWordbankWords: await this.getIgnoredWordbankWords(),
+      realExamSessions: await this.getRealExamSessions(),
       settings: {
         ...settings,
         apiKey: '',
@@ -486,6 +505,12 @@ class StorageService {
           JSON.stringify(data.ignoredWordbankWords)
         );
       }
+      if (data.realExamSessions) {
+        await AsyncStorage.setItem(
+          this.KEYS.REAL_EXAM_SESSIONS,
+          JSON.stringify(data.realExamSessions)
+        );
+      }
     } catch (error) {
       console.error('Import data error:', error);
       throw new Error('数据导入失败');
@@ -502,6 +527,7 @@ class StorageService {
       this.KEYS.EXAM_SESSIONS,
       this.KEYS.WRONG_QUESTIONS,
       this.KEYS.IGNORED_WORDBANK_WORDS,
+      this.KEYS.REAL_EXAM_SESSIONS,
       this.KEYS.SETTINGS
     ]);
   }

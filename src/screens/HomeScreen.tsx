@@ -33,15 +33,18 @@ type TodayStats = {
   difficultWordCount: number;
 };
 
-type SuggestionRoute = 'Study' | 'AddWord' | 'WrongQuestionReview' | 'ExamSetup';
+type SuggestionRoute =
+  | { tab: 'Home'; screen: 'Study'; params?: { wordIds?: number[] } }
+  | { tab: 'Home'; screen: 'AddWord' }
+  | { tab: 'Practice'; screen: 'WrongQuestionReview' }
+  | { tab: 'Practice'; screen: 'ExamSetup' };
 
 type TodaySuggestion = {
   title: string;
   description: string;
   actionLabel: string;
   icon: string;
-  routeName: SuggestionRoute;
-  params?: { wordIds?: number[] };
+  route: SuggestionRoute;
 };
 
 const DEFAULT_TODAY_STATS: TodayStats = {
@@ -63,7 +66,7 @@ const DEFAULT_SUGGESTION: TodaySuggestion = {
   description: '今天暂无固定计划，也可以先背几个单词保持状态。',
   actionLabel: '开始背诵',
   icon: 'book-open-variant',
-  routeName: 'Study',
+  route: { tab: 'Home', screen: 'Study' },
 };
 
 const getDifficultWordIds = (words: Word[], records: StudyRecord[]) => {
@@ -113,7 +116,7 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       description: '生词本还是空的，先添加几个考研词开始吧。',
       actionLabel: '添加生词',
       icon: 'plus',
-      routeName: 'AddWord',
+      route: { tab: 'Home', screen: 'AddWord' },
     };
   }
 
@@ -123,7 +126,7 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       description: `其中 ${stats.newPending} 个新词、${stats.reviewPending} 个复习词，建议先完成今日计划。`,
       actionLabel: '继续学习',
       icon: 'book-open-variant',
-      routeName: 'Study',
+      route: { tab: 'Home', screen: 'Study' },
     };
   }
 
@@ -134,8 +137,11 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       description: `当前正确率约 ${Math.round(stats.accuracy * 100)}%，建议先复习错词和困难词。`,
       actionLabel: hasDifficultWords ? '强化复习' : '继续学习',
       icon: hasDifficultWords ? 'refresh' : 'book-open-variant',
-      routeName: 'Study',
-      params: hasDifficultWords ? { wordIds: stats.difficultWordIds } : undefined,
+      route: {
+        tab: 'Home',
+        screen: 'Study',
+        params: hasDifficultWords ? { wordIds: stats.difficultWordIds } : undefined,
+      },
     };
   }
 
@@ -145,7 +151,7 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       description: '趁热复盘错题，可以减少重复犯错。',
       actionLabel: '复习错题',
       icon: 'alert-circle-outline',
-      routeName: 'WrongQuestionReview',
+      route: { tab: 'Practice', screen: 'WrongQuestionReview' },
     };
   }
 
@@ -155,8 +161,11 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       description: '这些词历史正确率偏低，建议单独练一轮。',
       actionLabel: '强化复习',
       icon: 'refresh',
-      routeName: 'Study',
-      params: { wordIds: stats.difficultWordIds },
+      route: {
+        tab: 'Home',
+        screen: 'Study',
+        params: { wordIds: stats.difficultWordIds },
+      },
     };
   }
 
@@ -166,7 +175,7 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       description: '学习节奏不错，可以做一组考题巩固一下。',
       actionLabel: '考题练习',
       icon: 'pencil',
-      routeName: 'ExamSetup',
+      route: { tab: 'Practice', screen: 'ExamSetup' },
     };
   }
 
@@ -274,20 +283,21 @@ export default function HomeScreen() {
   const accuracyPercent = Math.round(todayStats.accuracy * 100);
 
   const handleSuggestionPress = () => {
-    const { routeName, params } = todaySuggestion;
-    switch (routeName) {
-      case 'Study':
-        navigation.navigate('Study', params);
-        break;
-      case 'AddWord':
-        navigation.navigate('AddWord');
-        break;
-      case 'WrongQuestionReview':
-        navigation.navigate('WrongQuestionReview');
-        break;
-      case 'ExamSetup':
-        navigation.navigate('ExamSetup');
-        break;
+    const { route } = todaySuggestion;
+    // 跨 Tab 导航：先切换到目标 Tab
+    if (route.tab !== 'Home') {
+      navigation.navigate('Main', { screen: route.tab as any });
+      // 延迟到目标 Tab 的 Stack 中导航到具体屏幕
+      setTimeout(() => {
+        navigation.navigate(route.tab as any, { screen: route.screen });
+      }, 100);
+      return;
+    }
+    // 同 Tab（Home/Learn）内导航
+    if (route.screen === 'AddWord') {
+      navigation.navigate('AddWord');
+    } else {
+      navigation.navigate('Study', route.params as any);
     }
   };
 
@@ -410,7 +420,12 @@ export default function HomeScreen() {
                 {todayStats.wrongQuestionCount > 0 && (
                   <Button
                     mode="outlined"
-                    onPress={() => navigation.navigate('WrongQuestionReview')}
+                    onPress={() => {
+                      navigation.navigate('Main', { screen: 'Practice' as any });
+                      setTimeout(() => {
+                        navigation.navigate('Practice' as any, { screen: 'WrongQuestionReview' as any });
+                      }, 100);
+                    }}
                     icon="alert-circle-outline"
                     textColor={palette.danger}
                     style={styles.pendingButton}
@@ -442,7 +457,7 @@ export default function HomeScreen() {
                   titleStyle={styles.cardTitle}
                   right={() => (
                     <Button
-                      onPress={() => navigation.navigate('Main', { screen: 'Words' })}
+                      onPress={() => navigation.navigate('WordList')}
                       textColor={colors.primary}
                     >
                       查看全部
@@ -476,7 +491,9 @@ export default function HomeScreen() {
             {/* 6. 一周趋势（折叠为摘要 + 箭头） */}
             <Card
               style={[styles.card, styles.lastCard]}
-              onPress={() => navigation.navigate('Stats')}
+              onPress={() => {
+                navigation.navigate('Main', { screen: 'Stats' as any });
+              }}
             >
               <Card.Content style={styles.trendRow}>
                 <View style={styles.trendSummary}>

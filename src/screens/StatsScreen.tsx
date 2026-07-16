@@ -1,416 +1,398 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
-import {
-  Card,
-  Text,
-  Surface,
-  Chip,
-  Button
-} from 'react-native-paper';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ScrollView } from 'react-native';
+import { Card, Text, Button, Divider } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { useAppTheme } from '../theme/theme';
+import { makeStyles } from '../utils/useStyles';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
-import { Word, StudyRecord, WeeklyStudyTrend } from '../types';
+import { AppSettings, Word, StudyRecord } from '../types';
 import { format } from 'date-fns';
 
+/**
+ * “我的”Tab 入口页：两张功能卡片。
+ * - 学习统计：显示关键预览指标 → 点击进入 StatsDetail
+ * - 应用设置：显示核心配置摘要 → 点击进入 Settings
+ */
 export default function StatsScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
+
   const [stats, setStats] = useState({
     totalWords: 0,
+    masteredWords: 0,
+    weeklyStudyCount: 0,
     todayStudyCount: 0,
-    todayCorrectCount: 0,
     todayAccuracy: 0,
-    weeklyTrend: [] as WeeklyStudyTrend[],
-    difficultWords: [] as Word[],
-    masteredWords: 0
+  });
+  const [settings, setSettings] = useState<AppSettings>({
+    dailyNewWords: 10,
+    reviewInterval: [1, 2, 4, 7, 15],
+    soundEnabled: true,
+    theme: 'light',
+    fontSize: 14,
+    autoPlaySound: false,
+    showRareSense: true,
+    showEtymology: true,
+    articleWordCount: 10,
+    articleLength: 200,
+    examQuestionCount: 10,
+    aiProvider: 'deepseek',
+    aiModel: 'deepseek-chat',
+    apiKey: '',
   });
 
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  const handleReinforceReview = () => {
-    const wordIds = stats.difficultWords
-      .map(word => word.id)
-      .filter((id): id is number => typeof id === 'number');
-
-    if (wordIds.length === 0) return;
-
-    navigation.navigate('Study', { wordIds });
-  };
-
-  const loadStats = async () => {
+  const load = useCallback(async () => {
     try {
-      const allWords = await StorageService.getWords();
+      const [allWords, allRecords, savedSettings] = await Promise.all([
+        StorageService.getWords(),
+        StorageService.getStudyRecords(),
+        StorageService.getSettings(),
+      ]);
       const today = format(new Date(), 'yyyy-MM-dd');
       const todayRecords = await StorageService.getStudyRecordsByDate(today);
-      const allRecords = await StorageService.getStudyRecords();
-
-      // 今日统计
       const todayStudyCount = todayRecords.length;
       const todayCorrectCount = todayRecords.filter(r => r.result === 1).length;
       const todayAccuracy = todayStudyCount > 0 ? (todayCorrectCount / todayStudyCount) * 100 : 0;
 
-      // 一周统计
       const studyPlanService = new StudyPlanService();
       const weeklyTrend = await studyPlanService.getWeeklyStudyTrend();
+      const weeklyStudyCount = weeklyTrend.reduce((sum, day) => sum + day.studyCount, 0);
 
-      // 困难单词（正确率低）
-      const wordStats = calculateWordStats(allWords, allRecords);
-      const difficultWords = wordStats
-        .filter(ws => ws.correctRate < 0.5)
-        .sort((a, b) => a.correctRate - b.correctRate)
-        .map(ws => ws.word);
-
-      // 已掌握单词（正确率 >= 80%）
-      const masteredWords = wordStats.filter(ws => ws.correctRate >= 0.8).length;
+      const masteredWords = countMastered(allWords, allRecords);
 
       setStats({
         totalWords: allWords.length,
+        masteredWords,
+        weeklyStudyCount,
         todayStudyCount,
-        todayCorrectCount,
         todayAccuracy,
-        weeklyTrend,
-        difficultWords: difficultWords.slice(0, 5),
-        masteredWords
       });
+      setSettings(prev => ({ ...prev, ...savedSettings }));
     } catch (error) {
-      console.error('Failed to load stats:', error);
+      console.error('Failed to load overview:', error);
     }
-  };
+  }, []);
 
-  const calculateWordStats = (words: Word[], records: StudyRecord[]) => {
-    return words.map(word => {
-      const wordRecords = records.filter(r => r.word_id === word.id);
-      const correctCount = wordRecords.filter(r => r.result === 1).length;
-      const totalCount = wordRecords.length;
-      const correctRate = totalCount > 0 ? correctCount / totalCount : 0;
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-      return { word, correctRate, totalCount };
-    });
-  };
+  const masteryPercent = stats.totalWords > 0
+    ? (stats.masteredWords / stats.totalWords) * 100
+    : 0;
 
-  const getProgressColor = (value: number) => {
-    if (value >= 80) return '#4CAF50';
-    if (value >= 60) return '#FF9800';
-    return '#F44336';
-  };
-
-  const renderProgressBar = (value: number, color: string = '#1976D2') => (
-    <View style={styles.progressBarContainer}>
-      <View style={[styles.progressBarFill, { width: `${Math.min(value, 100)}%`, backgroundColor: color }]} />
-    </View>
-  );
-
-  const weeklyStudyCount = stats.weeklyTrend.reduce((sum, day) => sum + day.studyCount, 0);
-  const weeklyStudiedWordCount = stats.weeklyTrend.reduce((sum, day) => sum + day.studiedWordCount, 0);
-  const weeklyCorrectCount = stats.weeklyTrend.reduce((sum, day) => sum + day.correctCount, 0);
-  const weeklyPlannedCount = stats.weeklyTrend.reduce((sum, day) => sum + day.plannedCount, 0);
-  const weeklyCompletedCount = stats.weeklyTrend.reduce((sum, day) => sum + day.completedCount, 0);
-  const weeklyAccuracy = weeklyStudyCount > 0 ? (weeklyCorrectCount / weeklyStudyCount) * 100 : null;
-  const weeklyCompletionRate = weeklyPlannedCount > 0 ? (weeklyCompletedCount / weeklyPlannedCount) * 100 : null;
-  const maxStudyCount = Math.max(...stats.weeklyTrend.map(day => day.studyCount), 1);
+  const themeLabel =
+    settings.theme === 'light' ? '浅色' :
+    settings.theme === 'dark' ? '深色' : '跟随系统';
 
   return (
-    <ScrollView style={styles.container}>
-      {/* 今日概览 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>📅 今日概览</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{stats.todayStudyCount}</Text>
-              <Text style={styles.statLabel}>今日学习</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* ============ 卡片一：学习统计 ============ */}
+      <Card style={styles.card} elevation={2}>
+        <Card.Content style={styles.cardInner}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconBadge, { backgroundColor: colors.primaryContainer }]}>
+              <MaterialIcons name="bar-chart" size={22} color={colors.primary} />
             </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: '#4CAF50' }]}>
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardTitle}>学习统计</Text>
+              <Text style={styles.cardSubtitle}>掌握进度 · 学习趋势 · 困难单词</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryNumber}>{stats.totalWords}</Text>
+              <Text style={styles.summaryLabel}>总词数</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryNumber, { color: colors.success }]}>{stats.masteredWords}</Text>
+              <Text style={styles.summaryLabel}>已掌握</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryNumber, { color: colors.accent }]}>{stats.weeklyStudyCount}</Text>
+              <Text style={styles.summaryLabel}>本周学习</Text>
+            </View>
+          </View>
+
+          {stats.totalWords > 0 && (
+            <>
+              <View style={styles.masteryRow}>
+                <Text style={styles.masteryLabel}>掌握进度</Text>
+                <Text style={styles.masteryValue}>{masteryPercent.toFixed(0)}%</Text>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBarFill, { width: `${Math.min(masteryPercent, 100)}%`, backgroundColor: colors.success }]} />
+              </View>
+            </>
+          )}
+
+          <Divider style={styles.divider} />
+
+          <View style={styles.miniRow}>
+            <View style={styles.miniItem}>
+              <MaterialIcons name="today" size={16} color={colors.tertiary} />
+              <Text style={styles.miniLabel}>今日学习</Text>
+              <Text style={styles.miniValue}>{stats.todayStudyCount}</Text>
+            </View>
+            <View style={styles.miniItem}>
+              <MaterialIcons name="check-circle-outline" size={16} color={colors.tertiary} />
+              <Text style={styles.miniLabel}>今日正确率</Text>
+              <Text style={[styles.miniValue, { color: colors.success }]}>
                 {stats.todayAccuracy.toFixed(0)}%
               </Text>
-              <Text style={styles.statLabel}>今日正确率</Text>
-            </View>
-          </View>
-          {renderProgressBar(stats.todayAccuracy, '#4CAF50')}
-        </Card.Content>
-      </Card>
-
-      {/* 词汇统计 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>📚 词汇统计</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: '#1976D2' }]}>{stats.totalWords}</Text>
-              <Text style={styles.statLabel}>总单词数</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: '#4CAF50' }]}>{stats.masteredWords}</Text>
-              <Text style={styles.statLabel}>已掌握</Text>
-            </View>
-          </View>
-          {stats.totalWords > 0 && renderProgressBar((stats.masteredWords / stats.totalWords) * 100)}
-        </Card.Content>
-      </Card>
-
-      {/* 一周趋势 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>📈 一周学习趋势</Text>
-          <View style={styles.trendSummary}>
-            <View style={styles.trendMetric}>
-              <Text style={styles.trendMetricValue}>{weeklyStudyCount}</Text>
-              <Text style={styles.trendMetricLabel}>学习次数</Text>
-            </View>
-            <View style={styles.trendMetric}>
-              <Text style={[styles.trendMetricValue, { color: weeklyAccuracy === null ? '#9E9E9E' : getProgressColor(weeklyAccuracy) }]}>
-                {weeklyAccuracy === null ? '--' : `${weeklyAccuracy.toFixed(0)}%`}
-              </Text>
-              <Text style={styles.trendMetricLabel}>平均正确率</Text>
-            </View>
-            <View style={styles.trendMetric}>
-              <Text style={[styles.trendMetricValue, { color: weeklyCompletionRate === null ? '#9E9E9E' : getProgressColor(weeklyCompletionRate) }]}>
-                {weeklyCompletionRate === null ? '--' : `${weeklyCompletionRate.toFixed(0)}%`}
-              </Text>
-              <Text style={styles.trendMetricLabel}>计划完成</Text>
             </View>
           </View>
 
-          <View style={styles.weeklyChart}>
-            {stats.weeklyTrend.map(day => {
-              const accuracy = day.accuracy === null ? null : day.accuracy * 100;
-              const accuracyColor = accuracy === null ? '#BDBDBD' : getProgressColor(accuracy);
-              const studyRatio = day.studyCount > 0 ? day.studyCount / maxStudyCount : 0;
-              const completionText = day.completionRate === null
-                ? '无计划'
-                : `完${Math.round(day.completionRate * 100)}%`;
+          <Button
+            mode="contained"
+            icon="chart-line"
+            onPress={() => navigation.navigate('StatsDetail')}
+            style={styles.cardCta}
+            contentStyle={styles.cardCtaContent}
+          >
+            查看完整统计
+          </Button>
+        </Card.Content>
+      </Card>
 
-              return (
-                <View key={day.date} style={styles.chartItem}>
-                  <Surface style={[styles.chartBar, { height: Math.max(studyRatio * 70, 4), backgroundColor: accuracyColor }]}>
-                    <View />
-                  </Surface>
-                  <Text style={styles.chartLabel}>{day.dayLabel}</Text>
-                  <Text style={styles.chartValue}>{day.studyCount}次</Text>
-                  <Text style={[styles.chartSubValue, { color: accuracyColor }]}>
-                    {accuracy === null ? '--' : `${accuracy.toFixed(0)}%`}
-                  </Text>
-                  <Text style={styles.chartPlanValue}>{completionText}</Text>
-                </View>
-              );
-            })}
+      {/* ============ 卡片二：应用设置 ============ */}
+      <Card style={styles.card} elevation={2}>
+        <Card.Content style={styles.cardInner}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconBadge, { backgroundColor: colors.secondaryContainer }]}>
+              <MaterialIcons name="settings" size={22} color={colors.secondary} />
+            </View>
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardTitle}>应用设置</Text>
+              <Text style={styles.cardSubtitle}>外观 · 学习偏好 · AI · 数据备份</Text>
+            </View>
           </View>
-          <Text style={styles.trendHint}>柱高代表学习量，颜色代表正确率，底部显示计划完成率。</Text>
-        </Card.Content>
-      </Card>
 
-      {/* 困难单词 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>⚠️ 困难单词</Text>
-          {stats.difficultWords.length > 0 ? (
-            <>
-              {stats.difficultWords.slice(0, 5).map((word, index) => (
-                <Surface key={index} style={styles.difficultWordItem}>
-                  <Text style={styles.difficultWordText}>{word.word}</Text>
-                  <Chip mode="flat" compact style={styles.difficultChip}>
-                    需加强
-                  </Chip>
-                </Surface>
-              ))}
-              <Button
-                mode="contained"
-                onPress={handleReinforceReview}
-                style={styles.reinforceButton}
-                icon="refresh"
-              >
-                强化复习
-              </Button>
-            </>
-          ) : (
-            <Text style={styles.noDataText}>暂无困难单词，继续加油！</Text>
-          )}
-        </Card.Content>
-      </Card>
-
-      {/* 学习里程碑 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>🏆 学习里程碑</Text>
-          <View style={styles.milestones}>
-            {stats.totalWords >= 10 && (
-              <View style={styles.milestoneItem}>
-                <Text style={styles.milestoneEmoji}>🌟</Text>
-                <Text style={styles.milestoneText}>已学习 {stats.totalWords} 个单词</Text>
-              </View>
-            )}
-            {stats.masteredWords >= 5 && (
-              <View style={styles.milestoneItem}>
-                <Text style={styles.milestoneEmoji}>🎯</Text>
-                <Text style={styles.milestoneText}>已掌握 {stats.masteredWords} 个单词</Text>
-              </View>
-            )}
-            {stats.todayAccuracy >= 90 && (
-              <View style={styles.milestoneItem}>
-                <Text style={styles.milestoneEmoji}>🔥</Text>
-                <Text style={styles.milestoneText}>今日正确率 {stats.todayAccuracy.toFixed(0)}%</Text>
-              </View>
-            )}
+          <View style={styles.settingPreview}>
+            <SettingRow icon="brightness-6" label="主题" value={themeLabel} colors={colors} />
+            <SettingRow icon="school-outline" label="每日新词" value={`${settings.dailyNewWords} 个`} colors={colors} />
+            <SettingRow icon="format-list-numbered" label="考题题数" value={`${settings.examQuestionCount} 题`} colors={colors} />
+            <SettingRow
+              icon={settings.apiKey ? 'lock-open-variant' : 'lock-outline'}
+              label="AI API Key"
+              value={settings.apiKey ? '已配置' : '未配置'}
+              valueColor={settings.apiKey ? colors.success : colors.tertiary}
+              colors={colors}
+            />
           </View>
+
+          <Button
+            mode="contained"
+            icon="cog"
+            onPress={() => navigation.navigate('Settings')}
+            style={styles.cardCta}
+            contentStyle={styles.cardCtaContent}
+          >
+            进入设置
+          </Button>
         </Card.Content>
       </Card>
+
+      {/* 底部版本信息 */}
+      <View style={styles.footer}>
+        <MaterialIcons name="menu-book" size={22} color={colors.tertiary} />
+        <Text style={styles.footerText}>考研英语生词本</Text>
+        <Text style={styles.footerSub}>v1.0.0 · 专注考研 · 科学背词</Text>
+      </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+/* ---- helpers ---- */
+
+function countMastered(words: Word[], records: StudyRecord[]) {
+  let count = 0;
+  for (const w of words) {
+    const wr = records.filter(r => r.word_id === w.id);
+    if (wr.length === 0) continue;
+    const correct = wr.filter(r => r.result === 1).length;
+    if (correct / wr.length >= 0.8) count++;
+  }
+  return count;
+}
+
+function SettingRow({
+  icon,
+  label,
+  value,
+  valueColor,
+  colors,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  valueColor?: string;
+  colors: ReturnType<typeof useAppTheme>['colors'];
+}) {
+  return (
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <MaterialIcons name={icon as any} size={18} color={colors.onSurfaceVariant} />
+        <Text style={{ fontSize: 14, color: colors.onSurface }}>{label}</Text>
+      </View>
+      <Text style={{ fontSize: 13, color: valueColor ?? colors.onSurfaceVariant }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
+  },
+  content: {
     padding: 16,
+    paddingBottom: 8,
   },
   card: {
     marginBottom: 16,
-    elevation: 2,
+    borderRadius: 16,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1976D2',
-    marginBottom: 16,
+  cardInner: {
+    paddingVertical: 8,
   },
-  statsRow: {
+  cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    alignItems: 'center',
+    gap: 12,
     marginBottom: 16,
   },
-  statItem: {
+  iconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardHeaderText: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.onSurface,
+    letterSpacing: 0.2,
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    color: colors.tertiary,
+    marginTop: 2,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  summaryItem: {
+    flex: 1,
     alignItems: 'center',
   },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1976D2',
+  summaryDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: colors.outline,
+    opacity: 0.4,
   },
-  statLabel: {
-    fontSize: 14,
-    color: '#666',
+  summaryNumber: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.primary,
+    letterSpacing: -0.5,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: colors.tertiary,
     marginTop: 4,
   },
+  masteryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  masteryLabel: {
+    fontSize: 12,
+    color: colors.tertiary,
+  },
+  masteryValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.success,
+  },
   progressBarContainer: {
-    height: 8,
-    backgroundColor: '#E3F2FD',
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: colors.primaryContainer,
+    borderRadius: 3,
     overflow: 'hidden',
-    marginTop: 8,
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
-  trendSummary: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+  divider: {
+    marginVertical: 14,
+    backgroundColor: colors.outline,
+    opacity: 0.4,
   },
-  trendMetric: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    backgroundColor: '#F5F7FA',
-    borderRadius: 8,
-    marginHorizontal: 3,
-  },
-  trendMetricValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1976D2',
-  },
-  trendMetricLabel: {
-    fontSize: 11,
-    color: '#666',
-    marginTop: 3,
-  },
-  weeklyChart: {
+  miniRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    minHeight: 145,
-    paddingTop: 8,
+    marginBottom: 4,
   },
-  chartItem: {
+  miniItem: {
     alignItems: 'center',
-    flex: 1,
+    gap: 4,
   },
-  chartBar: {
-    width: 24,
-    borderRadius: 4,
-  },
-  chartLabel: {
-    fontSize: 10,
-    color: '#666',
-    marginTop: 8,
-  },
-  chartValue: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginTop: 4,
-  },
-  chartSubValue: {
+  miniLabel: {
     fontSize: 11,
-    fontWeight: 'bold',
-    marginTop: 2,
+    color: colors.tertiary,
   },
-  chartPlanValue: {
-    fontSize: 9,
-    color: '#777',
-    marginTop: 2,
+  miniValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.onSurface,
   },
-  trendHint: {
-    fontSize: 11,
-    color: '#888',
-    textAlign: 'center',
-    marginTop: 8,
+  settingPreview: {
+    marginBottom: 6,
   },
-  difficultWordItem: {
-    flexDirection: 'row',
+  cardCta: {
+    marginTop: 16,
+    borderRadius: 12,
+  },
+  cardCtaContent: {
+    paddingVertical: 4,
+  },
+  footer: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
-    marginBottom: 8,
-    borderRadius: 8,
-    backgroundColor: '#FFF8E1',
+    paddingVertical: 24,
+    gap: 6,
   },
-  difficultWordText: {
-    fontSize: 16,
-    color: '#F57C00',
+  footerText: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
     fontWeight: '500',
   },
-  difficultChip: {
-    backgroundColor: '#FFE0B2',
+  footerSub: {
+    fontSize: 11,
+    color: colors.tertiary,
   },
-  reinforceButton: {
-    marginTop: 8,
-    borderRadius: 8,
-  },
-  noDataText: {
-    textAlign: 'center',
-    color: '#9E9E9E',
-    padding: 16,
-    fontSize: 14,
-  },
-  milestones: {
-    gap: 12,
-  },
-  milestoneItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 8,
-  },
-  milestoneEmoji: {
-    fontSize: 20,
-  },
-  milestoneText: {
-    fontSize: 14,
-    color: '#333',
-  },
-});
+}));

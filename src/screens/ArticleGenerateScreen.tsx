@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import {
   Card,
   Text,
@@ -12,6 +12,9 @@ import {
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, Article, AppSettings } from '../types';
@@ -63,6 +66,8 @@ const THEMES = [
 
 export default function ArticleGenerateScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
   const [coverage, setCoverage] = useState<Map<number, number>>(new Map());
@@ -577,10 +582,10 @@ export default function ArticleGenerateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   content: {
     padding: 16,
@@ -591,7 +596,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     marginBottom: 12,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
     elevation: 1,
   },
   stepperRow: {
@@ -602,11 +607,11 @@ const styles = StyleSheet.create({
   },
   stepperLabel: {
     fontSize: 13,
-    color: '#1976D2',
+    color: colors.primary,
   },
   stepperDivider: {
     height: 1,
-    backgroundColor: '#BBDEFB',
+    backgroundColor: colors.primaryContainer,
     marginVertical: 6,
   },
   countStepper: {
@@ -621,7 +626,7 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     minWidth: 44,
     textAlign: 'center',
   },
@@ -639,7 +644,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 10,
   },
   selectedArea: {
@@ -650,7 +655,7 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     marginBottom: 12,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
     borderRadius: 8,
     elevation: 0,
     height: 40,
@@ -670,13 +675,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   selectedWordChip: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
   },
   wordChipText: {
     fontSize: 12,
   },
   wordChipTextSelected: {
-    color: '#FFF',
+    color: colors.surface,
   },
   coverageBadge: {
     fontSize: 10,
@@ -685,7 +690,7 @@ const styles = StyleSheet.create({
   },
   noWordsHint: {
     fontSize: 13,
-    color: '#FF9800',
+    color: palette.accent,
     marginBottom: 10,
   },
   manualWordItem: {
@@ -694,10 +699,10 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   manualWordChip: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   manualWordChipSelected: {
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.primary,
   },
   themeGrid: {
     flexDirection: 'row',
@@ -705,10 +710,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   themeChip: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   themeChipSelected: {
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.primary,
   },
   generateButton: {
     marginTop: 8,
@@ -721,12 +726,12 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 15,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginTop: 16,
   },
   loadingHint: {
     fontSize: 12,
-    color: '#999',
+    color: colors.tertiary,
     marginTop: 4,
   },
   statusArea: {
@@ -735,13 +740,13 @@ const styles = StyleSheet.create({
   },
   statusWarn: {
     fontSize: 13,
-    color: '#FF9800',
+    color: palette.accent,
     textAlign: 'center',
     lineHeight: 20,
   },
   statusError: {
     fontSize: 13,
-    color: '#F44336',
+    color: palette.danger,
     textAlign: 'center',
     marginTop: 4,
   },
@@ -754,22 +759,22 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#333',
+    color: colors.onSurface,
   },
   previewScroll: {
     maxHeight: 280,
   },
   previewContent: {
     fontSize: 15,
-    color: '#444',
+    color: colors.onSurfaceVariant,
     lineHeight: 24,
     fontFamily: undefined,
   },
   previewHighlightedWord: {
-    color: '#1565C0',
+    color: colors.primary,
     fontWeight: '800',
     textDecorationLine: 'underline',
-    textDecorationColor: '#1565C0',
+    textDecorationColor: colors.primary,
     textDecorationStyle: 'solid',
   },
   previewActions: {
@@ -779,18 +784,18 @@ const styles = StyleSheet.create({
   },
   translationDivider: {
     height: 1,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: colors.outline,
     marginVertical: 16,
   },
   translationLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1976D2',
+    color: colors.primary,
     marginBottom: 8,
   },
   translationContent: {
     fontSize: 15,
-    color: '#555',
+    color: colors.onSurfaceVariant,
     lineHeight: 26,
   },
-});
+}));

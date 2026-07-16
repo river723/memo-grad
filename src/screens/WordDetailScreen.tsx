@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, Platform } from 'react-native';
+import { View, ScrollView, Platform } from 'react-native';
 import { Text, Chip, Surface, Button, IconButton, ActivityIndicator } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Word, AppSettings } from '../types';
@@ -26,6 +29,8 @@ if (Platform.OS !== 'web') {
 export default function WordDetailScreen() {
   const route = useAppRoute<'WordDetail'>();
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const [word, setWord] = useState<Word | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -147,6 +152,13 @@ export default function WordDetailScreen() {
         </Surface>
       ) : null}
 
+      {word.memory_tip ? (
+        <Surface style={styles.card}>
+          <Text style={styles.sectionTitle}>记忆口诀</Text>
+          <Text style={styles.sectionText}>{word.memory_tip}</Text>
+        </Surface>
+      ) : null}
+
       {Array.isArray(word.similar_words) && word.similar_words.length > 0 ? (
         <Surface style={styles.card}>
           <Text style={styles.sectionTitle}>易混词 / 相似词</Text>
@@ -184,10 +196,10 @@ export default function WordDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   content: {
     padding: 16,
@@ -201,7 +213,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   emptyText: {
     fontSize: 18,
@@ -222,7 +234,7 @@ const styles = StyleSheet.create({
   },
   pronunciation: {
     fontSize: 14,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     marginBottom: 4,
   },
   sectionTitle: {
@@ -233,7 +245,7 @@ const styles = StyleSheet.create({
   definitionItem: {
     padding: 12,
     marginBottom: 12,
-    backgroundColor: '#FFF',
+    backgroundColor: colors.surface,
     borderRadius: 8,
   },
   definitionHeader: {
@@ -251,16 +263,16 @@ const styles = StyleSheet.create({
   },
   definitionMeaning: {
     fontSize: 14,
-    color: '#333',
+    color: colors.onSurface,
     marginBottom: 6,
   },
   definitionExample: {
     fontSize: 13,
-    color: '#555',
+    color: colors.onSurfaceVariant,
   },
   sectionText: {
     fontSize: 14,
-    color: '#333',
+    color: colors.onSurface,
     lineHeight: 22,
   },
   similarItem: {
@@ -272,7 +284,7 @@ const styles = StyleSheet.create({
   },
   similarDescription: {
     fontSize: 13,
-    color: '#555',
+    color: colors.onSurfaceVariant,
   },
   backButton: {
     marginTop: 16,
@@ -283,16 +295,16 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 12,
     marginBottom: 16,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
     borderRadius: 8,
   },
   enhancingText: {
     fontSize: 13,
-    color: '#1976D2',
+    color: colors.primary,
     marginLeft: 4,
   },
   enhanceBtn: {
     marginBottom: 12,
     borderRadius: 8,
   },
-});
+}));

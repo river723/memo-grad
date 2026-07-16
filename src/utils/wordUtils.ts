@@ -32,8 +32,9 @@ export function canWordBeEnhanced(
 /**
  * 把 AIResponse 合并到既有 Word 里，按规则覆盖：
  *  - definitions / difficulty: AI 优先覆盖，AI 缺失则保留原值
- *  - etymology / similar_words: AI 优先，回落原值
- *  - pronunciation_uk/us / frequency / id / word: 不改
+ *  - etymology / similar_words / memory_tip: AI 优先，回落原值
+ *  - difficulty / frequency: AI 提供则覆盖，缺失保留原值
+ *  - pronunciation_uk/us / id / word: 不改
  */
 export function mergeAIResultIntoWord(
   w: Word,
@@ -48,10 +49,15 @@ export function mergeAIResultIntoWord(
     similar_words: Array.isArray(result.similar_words)
       ? result.similar_words
       : w.similar_words,
+    memory_tip: result.memoryTip || w.memory_tip,
     difficulty:
       typeof result.suggestedDifficulty === 'number'
         ? clampDifficulty(result.suggestedDifficulty)
         : w.difficulty,
+    frequency:
+      typeof result.examFrequency === 'number'
+        ? clampDifficulty(result.examFrequency)
+        : w.frequency,
   };
 }
 
@@ -71,6 +77,8 @@ export function getLocalWordDictResult(word: string): AIResponse | null {
     etymology: entry.etymology,
     similar_words: entry.similar_words,
     suggestedDifficulty: entry.suggestedDifficulty,
+    examFrequency: entry.examFrequency,
+    memoryTip: entry.memoryTip,
   };
 }
 
@@ -84,8 +92,12 @@ export function wordDictEntryToWord(
     definitions: entry.definitions,
     etymology: entry.etymology,
     similar_words: Array.isArray(entry.similar_words) ? entry.similar_words : [],
+    memory_tip: entry.memoryTip,
     difficulty: clampDifficulty(entry.suggestedDifficulty),
-    frequency: 2,
+    frequency:
+      typeof entry.examFrequency === 'number'
+        ? clampDifficulty(entry.examFrequency)
+        : 2,
   };
 }
 

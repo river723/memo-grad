@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity } from 'react-native';
 import {
   Card,
   Text,
@@ -8,13 +8,22 @@ import {
   Surface,
 } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import { ExamQuestion, ExamAnswer as ExamAnswerType, DefinitionQuestion, ClozeQuestion } from '../types';
 import { EXAM_CONFIG } from '../constants';
 
 export default function ExamAnswerScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const route = useAppRoute<'ExamAnswer'>();
   const questions: ExamQuestion[] = route.params?.questions || [];
+
+  const routeParams = route.params || {};
+  const questionType = routeParams.questionType || 'definition';
+  const sessionId = routeParams.sessionId;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<ExamAnswerType[]>([]);
@@ -55,8 +64,8 @@ export default function ExamAnswerScreen() {
         navigation.navigate('ExamResult', {
           questions,
           answers: finalAnswers,
-          questionType: route.params.questionType,
-          sessionId: route.params.sessionId,
+          questionType,
+          sessionId,
         });
       } else {
         setCurrentIndex(prev => prev + 1);
@@ -72,8 +81,8 @@ export default function ExamAnswerScreen() {
       navigation.navigate('ExamResult', {
         questions,
         answers,
-        questionType: route.params.questionType,
-        sessionId: route.params.sessionId,
+        questionType,
+        sessionId,
       });
     } else {
       setCurrentIndex(prev => prev + 1);
@@ -88,8 +97,8 @@ export default function ExamAnswerScreen() {
       navigation.navigate('ExamResult', {
         questions,
         answers,
-        questionType: route.params.questionType,
-        sessionId: route.params.sessionId,
+        questionType,
+        sessionId,
       });
     } else {
       setCurrentIndex(prev => prev + 1);
@@ -186,6 +195,7 @@ function DefinitionQuestionCard({
   isRevealed: boolean;
   onSelect: (option: string) => void;
 }) {
+  const styles = useStyles();
   // 解析 *word* 标记
   const sentenceParts = parseWordHighlight(question.sentence, question.word);
 
@@ -215,7 +225,7 @@ function DefinitionQuestionCard({
           {question.options.map((option, idx) => {
             const isSelected = selectedOption === option;
             const isCorrect = option === question.correct_definition;
-            return renderOption(idx, option, isSelected, isCorrect, isRevealed, onSelect);
+            return renderOption(styles, idx, option, isSelected, isCorrect, isRevealed, onSelect);
           })}
         </View>
       </Card.Content>
@@ -235,6 +245,7 @@ function ClozeQuestionCard({
   isRevealed: boolean;
   onSelect: (option: string) => void;
 }) {
+  const styles = useStyles();
   const sentenceParts = question.sentence.split('[BLANK]');
 
   return (
@@ -264,7 +275,7 @@ function ClozeQuestionCard({
           {question.options.map((option, idx) => {
             const isSelected = selectedOption === option;
             const isCorrect = option === question.correct_answer;
-            return renderOption(idx, option, isSelected, isCorrect, isRevealed, onSelect);
+            return renderOption(styles, idx, option, isSelected, isCorrect, isRevealed, onSelect);
           })}
         </View>
       </Card.Content>
@@ -274,6 +285,7 @@ function ClozeQuestionCard({
 
 // ---- 共享：选项渲染 ----
 function renderOption(
+  styles: any,
   idx: number,
   option: string,
   isSelected: boolean,
@@ -353,42 +365,42 @@ function getCorrectAnswer(question: ExamQuestion): string {
   return question.correct_answer;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+const useStyles = makeStyles(colors => ({
+  container: { flex: 1, backgroundColor: colors.background },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyText: { fontSize: 16, color: '#999', marginBottom: 16 },
-  progressBar: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFF', elevation: 2 },
+  emptyText: { fontSize: 16, color: colors.tertiary, marginBottom: 16 },
+  progressBar: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: colors.surface, elevation: 2 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  progressText: { fontSize: 14, fontWeight: '600', color: '#333' },
-  accuracyText: { fontSize: 13, color: '#1976D2', fontWeight: '500' },
+  progressText: { fontSize: 14, fontWeight: '600', color: colors.onSurface },
+  accuracyText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
   bar: { height: 6, borderRadius: 3 },
   questionArea: { flex: 1 },
   questionContent: { padding: 16, paddingBottom: 32 },
   questionCard: { borderRadius: 16, elevation: 3 },
-  typeTag: { alignSelf: 'flex-start', backgroundColor: '#E3F2FD', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 16 },
-  typeTagText: { fontSize: 12, color: '#1976D2', fontWeight: '600' },
-  promptText: { fontSize: 15, color: '#555', marginBottom: 16, marginTop: 4 },
-  sentenceBox: { backgroundColor: '#FAFAFA', padding: 16, borderRadius: 12, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: '#1976D2' },
-  sentenceText: { fontSize: 16, color: '#333', lineHeight: 26, fontStyle: 'italic' },
-  underlinedWord: { color: '#1565C0', fontWeight: '800', textDecorationLine: 'underline', textDecorationColor: '#1565C0', textDecorationStyle: 'solid' },
-  blankMarker: { color: '#1976D2', fontWeight: '800', fontSize: 20, textDecorationLine: 'underline' },
-  chineseHint: { fontSize: 13, color: '#888', marginBottom: 16, lineHeight: 20 },
+  typeTag: { alignSelf: 'flex-start', backgroundColor: colors.primaryContainer, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 16 },
+  typeTagText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
+  promptText: { fontSize: 15, color: colors.onSurfaceVariant, marginBottom: 16, marginTop: 4 },
+  sentenceBox: { backgroundColor: colors.background, padding: 16, borderRadius: 12, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: colors.primary },
+  sentenceText: { fontSize: 16, color: colors.onSurface, lineHeight: 26, fontStyle: 'italic' },
+  underlinedWord: { color: colors.primary, fontWeight: '800', textDecorationLine: 'underline', textDecorationColor: colors.primary, textDecorationStyle: 'solid' },
+  blankMarker: { color: colors.primary, fontWeight: '800', fontSize: 20, textDecorationLine: 'underline' },
+  chineseHint: { fontSize: 13, color: colors.tertiary, marginBottom: 16, lineHeight: 20 },
   optionsGrid: { gap: 10 },
-  optionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E0E0E0', minHeight: 48 },
-  optionSelected: { borderColor: '#1976D2', backgroundColor: '#E3F2FD' },
-  optionCorrect: { borderColor: '#4CAF50', backgroundColor: '#E8F5E9' },
-  optionIncorrect: { borderColor: '#F44336', backgroundColor: '#FFEBEE' },
-  optionIndex: { fontSize: 15, fontWeight: '700', color: '#999', width: 28, textAlign: 'center' },
-  optionText: { fontSize: 15, color: '#333', flex: 1 },
-  optionTextSelected: { color: '#1565C0', fontWeight: '600' },
-  optionTextCorrect: { color: '#2E7D32', fontWeight: '600' },
-  optionTextIncorrect: { color: '#C62828' },
-  checkIcon: { fontSize: 20, color: '#4CAF50', fontWeight: '800', marginLeft: 4 },
-  crossIcon: { fontSize: 20, color: '#F44336', fontWeight: '800', marginLeft: 4 },
-  bottomBar: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', elevation: 4 },
+  optionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.outline, minHeight: 48 },
+  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primaryContainer },
+  optionCorrect: { borderColor: palette.success, backgroundColor: palette.successLight },
+  optionIncorrect: { borderColor: palette.danger, backgroundColor: palette.dangerLight },
+  optionIndex: { fontSize: 15, fontWeight: '700', color: colors.tertiary, width: 28, textAlign: 'center' },
+  optionText: { fontSize: 15, color: colors.onSurface, flex: 1 },
+  optionTextSelected: { color: colors.primary, fontWeight: '600' },
+  optionTextCorrect: { color: palette.successDark, fontWeight: '600' },
+  optionTextIncorrect: { color: palette.dangerDark },
+  checkIcon: { fontSize: 20, color: palette.success, fontWeight: '800', marginLeft: 4 },
+  crossIcon: { fontSize: 20, color: palette.danger, fontWeight: '800', marginLeft: 4 },
+  bottomBar: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, elevation: 4 },
   feedbackRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   feedbackText: { fontSize: 17, fontWeight: '700' },
   bottomActions: { flexDirection: 'row', gap: 8 },
   waitingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  waitingText: { fontSize: 14, color: '#999' },
-});
+  waitingText: { fontSize: 14, color: colors.tertiary },
+}));

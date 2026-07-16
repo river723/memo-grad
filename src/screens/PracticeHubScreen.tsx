@@ -95,15 +95,16 @@ export default function PracticeHubScreen() {
             >
               开始练习
             </Button>
+            <Button
+              mode="contained-tonal"
+              onPress={() => navigation.navigate('RealExamList')}
+              style={styles.primaryButton}
+              icon="book-open-page-variant"
+              labelStyle={styles.primaryButtonLabel}
+            >
+              真题练习
+            </Button>
             <View style={styles.actionRow}>
-              <Button
-                mode="outlined"
-                onPress={() => navigation.navigate('ArticleList')}
-                style={styles.actionButton}
-                icon="file-document"
-              >
-                趣味文章
-              </Button>
               <Button
                 mode="outlined"
                 onPress={() => navigation.navigate('ExamHistory')}
@@ -112,8 +113,6 @@ export default function PracticeHubScreen() {
               >
                 练习历史
               </Button>
-            </View>
-            <View style={styles.actionRow}>
               <Button
                 mode="outlined"
                 onPress={() => navigation.navigate('WrongQuestionReview')}

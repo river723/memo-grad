@@ -6,6 +6,7 @@ export interface Word {
   definitions: WordDefinition[];
   etymology?: string;
   similar_words?: SimilarWord[];
+  memory_tip?: string; // 记忆口诀/技巧
   difficulty: number; // 1-5
   frequency: number; // 考研频次
   created_at?: string;
@@ -42,7 +43,7 @@ export interface StudyPlan {
   completed: boolean;
 }
 
-export type StudyMode = 'flashcard' | 'listening' | 'quiz' | 'exam_quiz';
+export type StudyMode = 'flashcard' | 'listening' | 'quiz' | 'exam_quiz' | 'real_exam';
 
 export type AIProviderId = 'deepseek';
 
@@ -88,6 +89,8 @@ export interface AIResponse {
   similar_words?: SimilarWord[];
   examples?: string[];
   suggestedDifficulty?: number; // AI建议难度 1-5
+  examFrequency?: number; // 考研频次 1-5
+  memoryTip?: string; // 记忆口诀/技巧
 }
 
 export interface WordDictEntry {
@@ -95,6 +98,8 @@ export interface WordDictEntry {
   etymology?: string;
   similar_words?: SimilarWord[];
   suggestedDifficulty?: number; // 本地词典建议难度 1-5
+  examFrequency?: number; // 考研频次 1-5
+  memoryTip?: string; // 记忆口诀/技巧
 }
 
 export interface WordDictJson {
@@ -164,4 +169,80 @@ export interface WrongQuestion {
   wrong_count: number;          // 累计做错次数
   last_attempt_at: string;      // 最后尝试时间
   created_at: string;
+}
+
+// ==================== 真题练习相关类型 ====================
+// 与考题练习完全独立：真题是"整篇文章挂多题"的结构，字段与 ExamQuestion 差异较大。
+
+export type RealExamLetter = 'A' | 'B' | 'C' | 'D';
+
+/** 阅读理解单题 */
+export interface RealExamReadingQuestion {
+  id: string;                 // 如 '2023-text1-q1'
+  stem: string;               // 题干（英文）
+  options: string[];          // 4 项，字符串已含 "A) ..." 前缀
+  answer: RealExamLetter;     // 正确答案字母
+  explanation?: string;       // 中文解析（可选）
+}
+
+/** 阅读理解一整篇 passage + 挂 4-5 题 */
+export interface RealExamReadingPassage {
+  id: string;                 // 如 '2023-text1'
+  title?: string;             // 可选标题（如 "Text 1"）
+  passage: string;            // 文章正文（英文原文）
+  questions: RealExamReadingQuestion[];
+}
+
+/** 完形填空单空 */
+export interface RealExamClozeBlank {
+  index: number;              // 1..20
+  options: string[];          // 4 项，字符串已含 "A) ..." 前缀
+  answer: RealExamLetter;
+}
+
+/** 完形填空整篇 passage + 20 空 */
+export interface RealExamClozePaper {
+  id: string;                 // 如 '2023-cloze'
+  passage: string;            // 含 "[1] ... [2] ..." 占位符的正文
+  blanks: RealExamClozeBlank[];
+}
+
+/** 按年份组织的真题集（英语一 + 英语二） */
+export interface RealExamYear {
+  year: number;
+  english1: {
+    reading: RealExamReadingPassage[];    // 英语一通常 5 篇
+    cloze: RealExamClozePaper | null;     // 英语一 1 篇完形
+  };
+  english2: {
+    reading: RealExamReadingPassage[];    // 英语二通常 4 篇
+    cloze: RealExamClozePaper | null;     // 英语二 1 篇完形
+  };
+}
+
+/** 获取某套试卷的阅读 passage 列表（用于 RealExamListScreen 展示计数） */
+export interface RealExamPaperSet {
+  reading: RealExamReadingPassage[];
+  cloze: RealExamClozePaper | null;
+}
+
+export type RealExamMode = 'reading' | 'cloze';
+
+/** 单题作答记录（阅读题 questionId 为 question.id；完形题 questionId 为 `${paperId}-b${index}`） */
+export interface RealExamAnswerItem {
+  questionId: string;
+  selected: RealExamLetter | null;
+  correct: boolean;
+}
+
+/** 一次真题练习会话 */
+export interface RealExamSession {
+  id: number;                       // 时间戳作为 id，避免依赖数据库自增
+  year: number;
+  mode: RealExamMode;
+  paperId: string;                  // reading: passage.id；cloze: paper.id
+  answers: RealExamAnswerItem[];
+  score: number;                    // 正确数
+  total: number;
+  createdAt: string;                // ISO 时间串
 }

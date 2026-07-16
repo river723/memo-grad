@@ -6,7 +6,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
-  StyleSheet,
   FlatList,
   Platform,
   TouchableOpacity,
@@ -26,6 +25,8 @@ import StorageService from '../services/StorageService';
 import { Word } from '../types';
 import { getLocalWordDictWords } from '../utils/wordUtils';
 import { palette } from '../theme/tokens';
+import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
 
 type WordbankEntry = Omit<Word, 'id' | 'created_at' | 'updated_at'>;
 
@@ -49,6 +50,7 @@ const DIFF_COLORS: Record<number, string> = {
 
 const ROW_HEIGHT = 72;
 const PAGE_SIZE = 10;
+const FREQ_MAX = 5;
 
 const confirmAction = (
   title: string,
@@ -85,6 +87,10 @@ const WordRow = React.memo(function WordRow({
   onToggle,
   onIgnore,
 }: WordRowProps) {
+  const styles = useStyles();
+  // frequency / difficulty 均可能超出徽章档位，钳制后再 repeat，避免负数抛 RangeError
+  const freqFilled = Math.max(0, Math.min(FREQ_MAX, entry.frequency || 0));
+  const diffFilled = Math.max(0, Math.min(5, entry.difficulty || 0));
   return (
     <View style={[styles.row, isSelected && styles.rowSelected]}>
       <TouchableOpacity
@@ -118,10 +124,10 @@ const WordRow = React.memo(function WordRow({
         {/* 难度 + 频率 */}
         <View style={styles.metaCol}>
           <Text style={[styles.diffBadge, { color: DIFF_COLORS[entry.difficulty] || '#999' }]}>
-            {'★'.repeat(entry.difficulty)}{'☆'.repeat(5 - entry.difficulty)}
+            {'★'.repeat(diffFilled)}{'☆'.repeat(5 - diffFilled)}
           </Text>
           <Text style={styles.freqBadge}>
-            {'■'.repeat(entry.frequency)}{'□'.repeat(3 - entry.frequency)}
+            {'■'.repeat(freqFilled)}{'□'.repeat(FREQ_MAX - freqFilled)}
           </Text>
         </View>
       </TouchableOpacity>
@@ -141,6 +147,8 @@ const WordRow = React.memo(function WordRow({
 
 export default function WordbankPickerScreen() {
   const navigation = useAppNavigation();
+  const { colors } = useAppTheme();
+  const styles = useStyles();
   const flatRef = useRef<FlatList>(null);
 
   // 数据
@@ -569,10 +577,10 @@ export default function WordbankPickerScreen() {
 // -----------------------------------------------------------------------
 // StyleSheet
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(colors => ({
   screen: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
 
   // 状态栏
@@ -583,9 +591,9 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'web' ? 8 : 4,
     paddingBottom: 6,
   },
-  statusText: { fontSize: 13, color: '#666' },
-  statusSelected: { fontSize: 13, color: '#1976D2' },
-  statusExisting: { fontSize: 13, color: '#999' },
+  statusText: { fontSize: 13, color: colors.onSurfaceVariant },
+  statusSelected: { fontSize: 13, color: colors.primary },
+  statusExisting: { fontSize: 13, color: colors.tertiary },
   statusIgnored: { fontSize: 13, color: '#F57C00' },
 
   // 搜索
@@ -613,12 +621,12 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 4,
   },
-  chipGroupLabel: { fontSize: 12, color: '#999', marginRight: 2 },
+  chipGroupLabel: { fontSize: 12, color: colors.tertiary, marginRight: 2 },
   chip: {
     height: 28,
   },
   chipSelected: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
   },
 
   // 列表
@@ -634,7 +642,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
     borderRadius: 8,
-    backgroundColor: '#FFF',
+    backgroundColor: colors.surface,
     elevation: 1,
     overflow: 'hidden',
   },
@@ -647,7 +655,7 @@ const styles = StyleSheet.create({
     paddingRight: 6,
   },
   rowSelected: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryContainer,
     elevation: 2,
   },
   checkCol: {
@@ -659,17 +667,17 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderWidth: 2,
-    borderColor: '#9E9E9E',
+    borderColor: colors.tertiary,
     borderRadius: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#1976D2',
-    borderColor: '#1976D2',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   checkmark: {
-    color: '#FFF',
+    color: colors.surface,
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -686,16 +694,16 @@ const styles = StyleSheet.create({
   word: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.onSurface,
   },
   phonetic: {
     fontSize: 12,
-    color: '#999',
+    color: colors.tertiary,
     fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
   },
   meaning: {
     fontSize: 13,
-    color: '#666',
+    color: colors.onSurfaceVariant,
     lineHeight: 18,
   },
   metaCol: {
@@ -709,14 +717,14 @@ const styles = StyleSheet.create({
   },
   freqBadge: {
     fontSize: 10,
-    color: '#AAA',
+    color: colors.tertiary,
     marginTop: 2,
   },
   ignorePill: {
     alignSelf: 'stretch',
     justifyContent: 'center',
     paddingHorizontal: 12,
-    backgroundColor: '#FFF3E0',
+    backgroundColor: palette.accentLight,
   },
   ignorePillText: {
     fontSize: 12,
@@ -734,12 +742,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
-    color: '#999',
+    color: colors.tertiary,
     marginTop: 12,
   },
   emptyHint: {
     fontSize: 13,
-    color: '#CCC',
+    color: colors.tertiary,
     marginTop: 4,
   },
 
@@ -748,15 +756,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: '#FFF',
+    borderTopColor: colors.outline,
+    backgroundColor: colors.surface,
   },
   bottomHintWrap: {
     marginBottom: 8,
   },
   bottomHint: {
     fontSize: 12,
-    color: '#888',
+    color: colors.tertiary,
     textAlign: 'center',
   },
   bottomBtnRow: {
@@ -785,6 +793,6 @@ const styles = StyleSheet.create({
   },
   groupHeaderText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.onSurfaceVariant,
   },
-});
+}));

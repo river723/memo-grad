@@ -620,6 +620,8 @@ ${wordList}
 3. 每个单词提供1-2个重要释义，释义必须使用中文
 4. 其他字段如词根词缀分析、相似词提醒也请用中文
 5. 提供难度等级(1-5)
+6. 提供考研频次等级(1-5，出现频率越高数字越大)
+7. 提供一句便于记忆的口诀/技巧（谐音、拆词、联想皆可，中文）
 
 提示：如果字段值中需要引用单词或短语，请使用中文书名号「」或单引号，避免未转义的双引号。
 
@@ -637,7 +639,9 @@ ${wordList}
         }
       ],
       "etymology": "词根词缀分析",
-      "suggestedDifficulty": 3
+      "suggestedDifficulty": 3,
+      "examFrequency": 3,
+      "memoryTip": "记忆口诀/技巧"
     }
   }
 `;
@@ -651,6 +655,8 @@ ${wordList}
 3. 1-2个形近词或易混词提醒
 4. 简单的词根词缀分析（帮助记忆）
 5. 难度等级建议（1-5）
+6. 考研频次等级（1-5，出现频率越高数字越大）
+7. 一句便于记忆的口诀/技巧（谐音、拆词、联想皆可）
 
 难度等级说明：
 - 1-2: 高频基础词，考研必掌握
@@ -676,7 +682,9 @@ ${wordList}
       "description": "区别说明"
     }
   ],
-  "suggestedDifficulty": 3
+  "suggestedDifficulty": 3,
+  "examFrequency": 3,
+  "memoryTip": "记忆口诀/技巧"
 }
 
 要求：
@@ -686,6 +694,8 @@ ${wordList}
 - 例句要符合考研真题风格
 - 形近词要真正容易混淆的
 - 难度等级要根据单词的考研重要性和理解难度综合判断
+- 考研频次要根据该词在历年真题中的出现频率判断
+- 记忆口诀要简短生动，一句话即可
 - 如果字段值中需要引用，请使用中文书名号「」或单引号，避免未转义的双引号
 - 只返回JSON，不要任何额外说明或文本`;
   }
@@ -803,7 +813,9 @@ ${wordList}
             definitions: data.definitions || [],
             etymology: data.etymology || '',
             similar_words: Array.isArray(data.similar_words) ? data.similar_words : [],
-            suggestedDifficulty: data.suggestedDifficulty || 3
+            suggestedDifficulty: data.suggestedDifficulty || 3,
+            examFrequency: data.examFrequency,
+            memoryTip: data.memoryTip
           });
         });
         console.log('成功解析单词数量:', results.size);
