@@ -39,6 +39,8 @@ export type LearnStackParamList = {
 };
 
 export type ReadStackParamList = {
+  StoryList: undefined;
+  StoryDetail: { chapterId: number };
   ArticleList: undefined;
   ArticleGenerate: undefined;
   ArticleDetail: { articleId: number };

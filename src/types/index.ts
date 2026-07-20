@@ -220,6 +220,24 @@ export interface RealExamYear {
   };
 }
 
+/** 系列故事数据 */
+export interface StoryChapter {
+  id: number;
+  title: string;
+  content: string;           // 英文正文
+  translation: string;       // 中文翻译
+  words: string[];           // 本章目标词列表
+  word_count: number;        // 正文字数
+  theme: string;             // 主题
+}
+
+export interface StorySeries {
+  series_title: string;
+  total_chapters: number;
+  total_words: number;
+  chapters: StoryChapter[];
+}
+
 /** 获取某套试卷的阅读 passage 列表（用于 RealExamListScreen 展示计数） */
 export interface RealExamPaperSet {
   reading: RealExamReadingPassage[];
