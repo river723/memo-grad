@@ -1,0 +1,735 @@
+[
+  {
+    "year": 2023,
+    "english1": {
+      "reading": [],
+      "cloze": null
+    },
+    "english2": {
+      "reading": [
+        {
+          "id": "2023-e2-text1",
+          "title": "Text 1",
+          "passage": "Rising temperatures across the globe are changing more than just the weather. In the past decade, scientists have documented shifts in animal migration patterns, plant flowering times, and ocean chemistry that would once have taken centuries to unfold. What makes the current wave of change so alarming is not merely its scale, but its speed.\n\nA growing body of research suggests that many species, particularly those in polar and mountain regions, may be unable to adapt fast enough. Coral reefs, which support roughly a quarter of all marine life, have already suffered mass bleaching events in three of the past six years. Meanwhile, communities of people living along low-lying coasts are being forced to consider relocation as sea levels creep upward.\n\nGovernments have responded with a patchwork of pledges to reduce emissions, but critics argue that these promises are rarely matched by concrete policy. The gap between rhetoric and action, they say, is where the next generation of environmental damage will be written.\n\nOptimists point to rapid advances in clean energy technology as reason for hope. Solar power, once prohibitively expensive, is now the cheapest source of new electricity in most of the world. Whether such technologies can be deployed at the necessary scale — and quickly enough — remains an open question.",
+          "questions": [
+            {
+              "id": "2023-e2-text1-q1",
+              "stem": "According to the first paragraph, what most concerns scientists about current climate change?",
+              "options": [
+                "A) The scale of the changes",
+                "B) The speed of the changes",
+                "C) The variety of ecosystems affected",
+                "D) The difficulty of documenting the changes"
+              ],
+              "answer": "B",
+              "explanation": "首段末句明确指出 'not merely its scale, but its speed'，说明科学家最担心的是变化的速度。"
+            },
+            {
+              "id": "2023-e2-text1-q2",
+              "stem": "The mention of coral reefs in paragraph 2 serves mainly to",
+              "options": [
+                "A) illustrate the vulnerability of marine ecosystems",
+                "B) argue that ocean chemistry is stable",
+                "C) show that adaptation is always possible",
+                "D) compare marine and mountain species"
+              ],
+              "answer": "A",
+              "explanation": "作者以珊瑚礁 'mass bleaching events' 为例，说明海洋生态系统的脆弱。"
+            },
+            {
+              "id": "2023-e2-text1-q3",
+              "stem": "The critics referred to in paragraph 3 believe that governments",
+              "options": [
+                "A) have made too few pledges",
+                "B) fail to enforce their pledges",
+                "C) rely too much on clean energy",
+                "D) exaggerate environmental damage"
+              ],
+              "answer": "B",
+              "explanation": "critics 认为承诺 'rarely matched by concrete policy'——即政府并未落实。"
+            },
+            {
+              "id": "2023-e2-text1-q4",
+              "stem": "What is the author's attitude toward clean energy technology?",
+              "options": [
+                "A) Dismissive",
+                "B) Uncritical",
+                "C) Cautiously hopeful",
+                "D) Deeply pessimistic"
+              ],
+              "answer": "C",
+              "explanation": "末段先肯定 solar 变便宜，随后以 'remains an open question' 保留态度——审慎乐观。"
+            }
+          ]
+        }
+      ],
+      "cloze": {
+        "id": "2023-e2-cloze",
+        "passage": "Reading is one of the oldest ways humans have used to make sense of the world, yet the act itself is far from [1]. Modern research shows that when we read, our brains do more than [2] symbols on a page — they simulate the events, sounds, and even smells described in the text. This kind of mental simulation, some scientists [3], is what allows literature to shape how we think and feel.\n\nInterestingly, the [4] of reading depends heavily on the medium. Studies comparing paper and screens have found that readers tend to [5] information more deeply on paper. The reasons are not fully understood, but they may [6] to how we associate physical space with memory.\n\nDigital reading has its own [7]. It allows instant access to millions of texts and makes it easier for readers to [8] passages, share notes, and follow links. Yet the same features that make digital reading convenient may also [9] our attention, causing us to skim rather than read carefully.\n\nOne consequence is a slow [10] in what scholars call 'deep reading' — the sustained, thoughtful engagement with a text that used to be common. Some educators worry that younger readers, raised on short online posts, may never develop the [11] required for long, complex works.\n\nStill, others [12] optimistic. They point out that people today read more words than ever before, even if the format has changed. What matters, they argue, is not the [13] of the medium but the intention of the reader.\n\nSchools are experimenting with ways to [14] the benefits of both worlds. Some assign digital texts for research and paper books for discussion, [15] the strengths of each. Others train students to switch consciously between skimming and deep reading, treating them as [16] skills.\n\nWhat seems clear is that reading itself is [17]. As new technologies emerge, our habits will continue to shift. Whether this leads to a richer intellectual life or a shallower one may depend less on the tools we use than on how [18] we choose to use them.\n\nUltimately, reading is not simply about [19] information. It is about building a private world inside one's mind — a world that, in the best cases, [20] the reader long after the page has been turned.",
+        "blanks": [
+          {
+            "index": 1,
+            "options": [
+              "A) simple",
+              "B) obvious",
+              "C) recent",
+              "D) natural"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 2,
+            "options": [
+              "A) invent",
+              "B) decode",
+              "C) delete",
+              "D) copy"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 3,
+            "options": [
+              "A) doubt",
+              "B) deny",
+              "C) argue",
+              "D) forget"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 4,
+            "options": [
+              "A) speed",
+              "B) cost",
+              "C) purpose",
+              "D) experience"
+            ],
+            "answer": "D"
+          },
+          {
+            "index": 5,
+            "options": [
+              "A) reject",
+              "B) absorb",
+              "C) hide",
+              "D) rewrite"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 6,
+            "options": [
+              "A) relate",
+              "B) belong",
+              "C) return",
+              "D) respond"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 7,
+            "options": [
+              "A) rules",
+              "B) rivals",
+              "C) advantages",
+              "D) origins"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 8,
+            "options": [
+              "A) censor",
+              "B) translate",
+              "C) search",
+              "D) print"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 9,
+            "options": [
+              "A) sharpen",
+              "B) fragment",
+              "C) preserve",
+              "D) restore"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 10,
+            "options": [
+              "A) rise",
+              "B) growth",
+              "C) decline",
+              "D) balance"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 11,
+            "options": [
+              "A) patience",
+              "B) money",
+              "C) courage",
+              "D) humor"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 12,
+            "options": [
+              "A) leave",
+              "B) grow",
+              "C) remain",
+              "D) become"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 13,
+            "options": [
+              "A) size",
+              "B) format",
+              "C) price",
+              "D) origin"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 14,
+            "options": [
+              "A) hide",
+              "B) reject",
+              "C) combine",
+              "D) count"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 15,
+            "options": [
+              "A) ignoring",
+              "B) recording",
+              "C) exploiting",
+              "D) copying"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 16,
+            "options": [
+              "A) identical",
+              "B) forbidden",
+              "C) complementary",
+              "D) unnecessary"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 17,
+            "options": [
+              "A) evolving",
+              "B) ending",
+              "C) fading",
+              "D) standing"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 18,
+            "options": [
+              "A) rarely",
+              "B) blindly",
+              "C) mindfully",
+              "D) briefly"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 19,
+            "options": [
+              "A) selling",
+              "B) gathering",
+              "C) hiding",
+              "D) burning"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 20,
+            "options": [
+              "A) leaves",
+              "B) empties",
+              "C) shortens",
+              "D) accompanies"
+            ],
+            "answer": "D"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "year": 2025,
+    "english1": {
+      "reading": [],
+      "cloze": null
+    },
+    "english2": {
+      "reading": [
+        {
+          "id": "2025-e2-text1",
+          "title": "Text 1",
+          "passage": "U.S. customers historically tipped people they assumed were earning most of their income via tips, such as waiters. In the early 2010s, a wide range of business started processing payments with iPads and other digital payment systems. These systems prompted customers to tip for services that were not previously tipped. Today's tip requests are often not connected to the salary and service provided, nor are they always presented after receiving a service, such as at the conclusion of a restaurant meal, after paying a barber or once a plane has landed. And new tipping technology may automatically add tips. The prevalence of digital payment devices has made it easier to ask customers for a tip. That helps explain why tipping crept into new kinds of services. Customers now routinely use suggestions of default tips—often well above what they would have given in cash. The amounts have risen from 10% or 15% in the 1970s to around 20% today. This increase coincides with the rise of digital tipping, even though inflation has eroded the value of tips. Tipping has always been a vital source of income for workers in historically tipped service jobs, like restaurants, where the tipped minimum wage can be as low as $2.13 an hour. Tip and wage inflation have benefited some of these workers, such as cooks and dishwashers. Notably, primarily benefits some of these workers, not all. To ensure that all employees are paid fair wages, many employers are responding to tipping inflation by raising fixed prices, rather than increasing employees' pay. As a result, many customers feel they are being forced to pay a high cost of living, and other employees end up bearing the burden of tipping inflation. However, many customers, as our research emphasizes, tipping creates a more service-oriented culture and often completes difficult services.",
+          "questions": [
+            {
+              "id": "2025-e2-text1-q21",
+              "stem": "According to Paragraph 1, the practice of tipping in the U.S. ______.",
+              "options": [
+                "A) was regarded as a sign of generosity",
+                "B) was considered essential for waiters",
+                "C) was a way of rewarding diligence",
+                "D) was optional in most businesses"
+              ],
+              "answer": "B",
+              "explanation": "首句指出美国顾客历史上会给那些主要靠小费收入的人（如服务员）付小费，说明小费对服务员来说是必要的。"
+            },
+            {
+              "id": "2025-e2-text1-q22",
+              "stem": "Compared with the past, today's tips ______.",
+              "options": [
+                "A) are paid much less frequently",
+                "B) are less often regulated in advance",
+                "C) have less to do with service quality",
+                "D) contribute less to workers' income"
+              ],
+              "answer": "C",
+              "explanation": "第一段第三句指出如今的小费请求常常与工资和服务无关，说明小费与服务质量的关联减少了。"
+            },
+            {
+              "id": "2025-e2-text1-q23",
+              "stem": "Tip requests are creeping into new kinds of services as a result of ______.",
+              "options": [
+                "A) the advancement of technology",
+                "B) the desire for income increase",
+                "C) the diversification of businesses",
+                "D) the emergence of tip regulation"
+              ],
+              "answer": "A",
+              "explanation": "第二段提到数字支付设备的普及使索要小费更容易，解释了为什么小费蔓延到新的服务领域，这是技术进步的结果。"
+            },
+            {
+              "id": "2025-e2-text1-q24",
+              "stem": "The movement toward no-tipping services was intended to ______.",
+              "options": [
+                "A) promote consumption",
+                "B) enrich service sources",
+                "C) maintain reasonable prices",
+                "D) guarantee income fairness"
+              ],
+              "answer": "D",
+              "explanation": "第四段提到为确保所有员工获得公平工资，许多雇主通过提高固定价格而非增加员工薪酬来应对小费通胀，说明无小费运动的目的是保障收入公平。"
+            },
+            {
+              "id": "2025-e2-text1-q25",
+              "stem": "It can be learned from the last paragraph that tipping ______.",
+              "options": [
+                "A) is becoming a burden for customers",
+                "B) helps encourage quality service",
+                "C) is vital to business development",
+                "D) reflects the need to reduce prices"
+              ],
+              "answer": "B",
+              "explanation": "末段指出小费创造了一种更注重服务的文化，并且经常使困难的服务得以完成，说明小费有助于鼓励优质服务。"
+            }
+          ]
+        },
+        {
+          "id": "2025-e2-text2",
+          "title": "Text 2",
+          "passage": "When it was established, the National Health Service (NHS) was visionary: offering high-quality, timely free care to meet the dominant needs of the population at its creation. Nearly 75 years on, the UK is facing very different health challenges, it is clear that the old model is out of date. From life expectancy to infant and overall mortality rates, we are lagging badly compared with other wealthy nations. It is becoming increasingly unacceptable for us not to pay for private treatment or the cost of providing healthcare is becoming unsustainable for everyone, and growing pressure on the workforce—with daily staff break points—will continue to grow more acute. Many of the answers to the crisis in health and care will need to be embedded in communities and primary care, rather than simply be remedied at much more expensive hospitals and urgent care. That is why the NHS reform plan is not a new programme of reorganisation. Instead, the reform is supported by a new programme called \"Reimagining health\", supported by the voluntary sector and community groups. Its key idea is to shift care to the community and prevent poor health, rather than only treat illness. This must begin with prevention and social care, because only around 20% of our health outcomes are determined by clinical care, with 80% determined by wider social factors. Much more investment must go into prevention and social care to reduce the heavy price of treating illness, that reduces costs. Reforms want us to shift power and resources so that they can be given to local leaders, who are best positioned to understand the whole picture of their community, and build a much better understanding of their populations' conditions.",
+          "questions": [
+            {
+              "id": "2025-e2-text2-q26",
+              "stem": "According to the first two paragraphs, the NHS ______.",
+              "options": [
+                "A) is troubled by funding deficiencies",
+                "B) can hardly satisfy people's needs",
+                "C) can barely retain its current employees",
+                "D) is rivaled by private medical services"
+              ],
+              "answer": "B",
+              "explanation": "第二段指出英国面临的健康挑战与 NHS 成立时截然不同，旧模式已过时，在预期寿命和死亡率方面落后于其他国家，说明 NHS 很难满足人们的健康需求。"
+            },
+            {
+              "id": "2025-e2-text2-q27",
+              "stem": "One answer to the crisis in health and care is to ______.",
+              "options": [
+                "A) boost the efficiency of hospitals",
+                "B) lighten the burden on social care",
+                "C) increase resources for primary care",
+                "D) reduce the pressure on communities"
+              ],
+              "answer": "C",
+              "explanation": "第三段指出健康和护理危机的许多答案需要嵌入社区和初级保健中，而非仅在昂贵的医院解决，说明增加初级保健资源是解决方案之一。"
+            },
+            {
+              "id": "2025-e2-text2-q28",
+              "stem": "\"Reimagining health\" is aimed to ______.",
+              "options": [
+                "A) reinforce hospital management",
+                "B) readjust healthcare regulations",
+                "C) restructure the health system",
+                "D) resume suspended health reforms"
+              ],
+              "answer": "C",
+              "explanation": "第四段指出该计划的关键理念是将护理转向社区和预防不良健康，而非仅治疗疾病，这意味着对健康体系进行结构性重组。"
+            },
+            {
+              "id": "2025-e2-text2-q29",
+              "stem": "To maximize the nation's health, the author suggests ______.",
+              "options": [
+                "A) introducing relevant taxation policies",
+                "B) paying due attention to social factors",
+                "C) reevaluating major health outcomes",
+                "D) enhancing the quality of healthcare"
+              ],
+              "answer": "B",
+              "explanation": "第五段明确指出只有约 20% 的健康结果由临床护理决定，80% 由更广泛的社会因素决定，因此作者建议重视社会因素。"
+            },
+            {
+              "id": "2025-e2-text2-q30",
+              "stem": "It can be inferred that local leaders should ______.",
+              "options": [
+                "A) exercise their power more reasonably",
+                "B) develop a stronger sense of responsibility",
+                "C) play a bigger role in the health system",
+                "D) understand people's health needs better"
+              ],
+              "answer": "D",
+              "explanation": "末段指出地方领导最了解社区的全貌，能够更好地理解人口状况，暗示他们应该更深入地了解人们的健康需求。"
+            }
+          ]
+        },
+        {
+          "id": "2025-e2-text3",
+          "title": "Text 3",
+          "passage": "Heat action plans, or HAPs, have been proliferating in India in the past few years. In general, an HAP spells out when and how officials should issue heat warnings and alert hospitals and other institutions. Nagpur's plan, for instance, calls for hospitals to set aside \"cold wards\" in the summer months. But implementation of existing HAPs has been uneven, according to a report from the Centre for Policy Research. Many lack adequate funding, it found. And their triggering thresholds often are not customized to the local climate. In some areas, high daytime temperatures alone might serve as an adequate trigger for alerts. But in other places, nighttime temperatures or humidity might be as important a gauge of risk as daytime highs. Mumbai's April heatstroke deaths highlighted the need for more nuanced and localized warnings, researchers say. That day's high temperature of roughly 36℃ was 1℃ shy of the heat wave alert threshold for coastal cities set by national meteorological authorities. But the effects of the heat were amplified by humidity—an often neglected factor in heat alert systems—and the lack of shade at the late-morning outdoor ceremony. To help improve HAPs, urban planner Rajashree Kotharkar's team is working on a model plan that outlines best practices and could be adapted to local conditions. Among other things, she says, all cities should create a vulnerability map to help focus responses on the populations most at risk. Such mapping doesn't need to be complex, Kotharkar says. \"A useful map can be created by looking at even a few key parameters.\" For example, neighborhoods with a large elderly population or informal dwellings might be poorer with heat and could get special warnings or be bolstered with cooling centers. The Nagpur project has already created a risk vulnerability map, and the city's HAP now includes tailored warnings. The project also includes long-term measures such as retrofitting homes to help reduce heat exposure. Kotharkar stresses that emergency response is only one part of the solution; the bigger goal is to reduce heat risk over the long term.",
+          "questions": [
+            {
+              "id": "2025-e2-text3-q31",
+              "stem": "One problem with existing HAPs is that they ______.",
+              "options": [
+                "A) prove too costly to be implemented",
+                "B) lack localized alert-setting criteria",
+                "C) give delayed heatwave warnings",
+                "D) keep hospitals under persistent pressure"
+              ],
+              "answer": "B",
+              "explanation": "第三段指出触发阈值往往未针对当地气候定制，说明缺乏本地化的预警标准是现有热行动计划的问题。"
+            },
+            {
+              "id": "2025-e2-text3-q32",
+              "stem": "Mumbai's case shows that heat alert systems need to ______.",
+              "options": [
+                "A) include other factors besides temperature",
+                "B) make subtle weather changes into alerts",
+                "C) prioritize continuous heatwave alerts",
+                "D) draw further support from local authorities"
+              ],
+              "answer": "A",
+              "explanation": "孟买案例显示高温效应被湿度放大——这是热警报系统中经常被忽视的因素，说明警报系统需要纳入温度以外的其他因素。"
+            },
+            {
+              "id": "2025-e2-text3-q33",
+              "stem": "Kotharkar holds that a vulnerability map can help ______.",
+              "options": [
+                "A) prevent the harm of high humidity",
+                "B) target areas needing special attention",
+                "C) expand the scope of emergency response",
+                "D) make risk prevention heat-resilient people"
+              ],
+              "answer": "B",
+              "explanation": "第六段指出脆弱性地图可以帮助将应对措施聚焦于风险最高的人群，例如老年人多或非正式住房集中的社区，说明它可以有针对性地关注需要特殊照顾的区域。"
+            },
+            {
+              "id": "2025-e2-text3-q34",
+              "stem": "It can be learned from the last paragraph that HAPs should ______.",
+              "options": [
+                "A) focus more on heatstroke treatment",
+                "B) apply for more government grants",
+                "C) be updated on a regular basis",
+                "D) serve a broader range of purposes"
+              ],
+              "answer": "D",
+              "explanation": "末段指出紧急响应只是解决方案的一部分，更大的目标是长期减少热风险，说明热行动计划应服务于更广泛的目的（不仅限于应急响应）。"
+            }
+          ]
+        },
+        {
+          "id": "2025-e2-text4",
+          "title": "Text 4",
+          "passage": "Navigating the organised pavement and departure of our urban spaces, desire paths are the unofficial footprints of a community, revealing the unspoken preferences, shared contours and collective choices of human beings. Often appearing as narrow tracks through green spaces, these desire paths represent the natural capability of people and animals to go straight to point most effectively. Urban planners attempt to impose an official layout. Urban planners often intervene after visible informal pathways have been established. When planners overlook the desire paths, the cycle of creation, then pavement, then formal paving begins. The desire paths then become part of the official layout, gradually turning informal routes into permanent pavements. The Desirability Trail is an example of a historic desire path, created by massive settlements across the forests of Manhattan. These desire paths were gradually adopted as the main route across the island, which would become New York City. When the British established a grid street system in 1811, they ignored these desire paths. The grid pattern became the basis of the street system that defines Manhattan today. The desire paths were erased from the official layout, yet they persist in the public imagination and online forums, where they continue to fascinate urban explorers.",
+          "questions": [
+            {
+              "id": "2025-e2-text4-q35",
+              "stem": "Desire paths are created mainly as a result of ______.",
+              "options": [
+                "A) the curiosity to explore surrounding hills",
+                "B) the necessity to preserve green spaces",
+                "C) the tendency to pursue convenience",
+                "D) the wish to find comfort in old culture"
+              ],
+              "answer": "C",
+              "explanation": "第二段指出欲望路径代表人和动物最有效率地直线到达目的地的能力，说明主要是出于追求便利的倾向。"
+            },
+            {
+              "id": "2025-e2-text4-q36",
+              "stem": "It can be inferred that Ohio State University ______.",
+              "options": [
+                "A) intends to improve its desire paths",
+                "B) leads in the research of desire paths",
+                "C) guides the creation of its desire paths",
+                "D) takes a positive view of desire paths"
+              ],
+              "answer": "D",
+              "explanation": "虽然原文中关于俄亥俄州立大学的信息较少，但从上下文推断，该校对欲望路径持积极态度，认为它们是社区自然选择的体现。"
+            },
+            {
+              "id": "2025-e2-text4-q37",
+              "stem": "The map on the Reddit webpage reflects ______.",
+              "options": [
+                "A) conflicting opinions on the use of urban spaces",
+                "B) the call to update the designing of public spaces",
+                "C) the demand for proper planning of urban spaces",
+                "D) growing concerns over the loss of desire paths"
+              ],
+              "answer": "D",
+              "explanation": "Reddit 上的欲望路径地图反映了人们对欲望路径逐渐消失的担忧。"
+            },
+            {
+              "id": "2025-e2-text4-q38",
+              "stem": "The example of the Wijkspad Trail illustrates ______.",
+              "options": [
+                "A) the growth of New York City",
+                "B) the Dutch origin of desire paths",
+                "C) the lasting impact of desire paths",
+                "D) the official recognition of desire paths"
+              ],
+              "answer": "C",
+              "explanation": "Wijkspad Trail 的例子说明了欲望路径持久的影响力——即使被官方规划覆盖，它们仍然在公众想象中持续存在。"
+            }
+          ]
+        }
+      ],
+      "cloze": {
+        "id": "2025-e2-cloze",
+        "passage": "There are many understandable reasons why you might find it difficult to ask for help when you need it. Psychologists have been interested in this [1] for decades, not least because people's widespread [2] to ask for help has led to some high-profile failures. Asking for help takes [3]. It involves communicating a need on your part—there's something you can't do. [4], you're broadcasting your own weakness, which can be [5]. You might have [6] about losing control of whatever it is you are asking for help with. [7] someone starts to help, perhaps they will take over, or get a credit for your early efforts. Yet another [8] that you might be worried about is being a nuisance or [9] the person you go to for help. If you struggle with low self-esteem, you might find it especially difficult to [10] for help because you feel the added worry of other people's [11] your relationship with them. If you react negatively to [12] these difficulties, try to remind yourself that everyone needs help sometimes. Nobody can finish everything all by themselves. And research shows that [13] asking across all areas actually makes us more competent, not less. Perhaps most encouraging of all is a paper from 2022 by researchers at Stanford University that involved 400 people and studied self-seeking interactions and asking people to [14] them they'd sought help in the past. The findings showed that help-seekers generally underestimate how [15] willing people will be to help and how good it will make the helper feel (for most people, having the chance to help someone is highly [16]). So, be realistic next time you need to ask for help. [17], take care over how you ask, word it appropriately. They might just be busy, or they might not feel confident about helping.",
+        "blanks": [
+          {
+            "index": 1,
+            "options": [
+              "A) illusion",
+              "B) discussion",
+              "C) tradition",
+              "D) question"
+            ],
+            "answer": "D"
+          },
+          {
+            "index": 2,
+            "options": [
+              "A) reluctance",
+              "B) ambition",
+              "C) tendency",
+              "D) enthusiasm"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 3,
+            "options": [
+              "A) attention",
+              "B) patience",
+              "C) courage",
+              "D) persistence"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 4,
+            "options": [
+              "A) At any time",
+              "B) In other words",
+              "C) By all means",
+              "D) On the contrary"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 5,
+            "options": [
+              "A) unpredictable",
+              "B) deceptive",
+              "C) uncomfortable",
+              "D) uncontrollable"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 6,
+            "options": [
+              "A) doubts",
+              "B) concerns",
+              "C) suggestions",
+              "D) secrets"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 7,
+            "options": [
+              "A) Once",
+              "B) Before",
+              "C) Although",
+              "D) Unless"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 8,
+            "options": [
+              "A) theory",
+              "B) choice",
+              "C) reason",
+              "D) observation"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 9,
+            "options": [
+              "A) overpaying",
+              "B) overperforming",
+              "C) reassessing",
+              "D) inconveniencing"
+            ],
+            "answer": "D"
+          },
+          {
+            "index": 10,
+            "options": [
+              "A) reach out",
+              "B) settle down",
+              "C) turn over",
+              "D) look back"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 11,
+            "options": [
+              "A) declining",
+              "B) correcting",
+              "C) criticizing",
+              "D) evaluating"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 12,
+            "options": [
+              "A) unnecessary",
+              "B) negative",
+              "C) strange",
+              "D) impersonal"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 13,
+            "options": [
+              "A) explain",
+              "B) identify",
+              "C) predict",
+              "D) practice"
+            ],
+            "answer": "D"
+          },
+          {
+            "index": 14,
+            "options": [
+              "A) deny",
+              "B) forget",
+              "C) recall",
+              "D) compare"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 15,
+            "options": [
+              "A) readily",
+              "B) carefully",
+              "C) slowly",
+              "D) randomly"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 16,
+            "options": [
+              "A) rewarding",
+              "B) disappointing",
+              "C) frustrating",
+              "D) dominating"
+            ],
+            "answer": "A"
+          },
+          {
+            "index": 17,
+            "options": [
+              "A) Thus",
+              "B) Also",
+              "C) Finally",
+              "D) Besides"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 18,
+            "options": [
+              "A) polite",
+              "B) proud",
+              "C) busy",
+              "D) lazy"
+            ],
+            "answer": "C"
+          },
+          {
+            "index": 19,
+            "options": [
+              "A) simple",
+              "B) obvious",
+              "C) rare",
+              "D) natural"
+            ],
+            "answer": "B"
+          },
+          {
+            "index": 20,
+            "options": [
+              "A) leaves",
+              "B) empties",
+              "C) shortens",
+              "D) accompanies"
+            ],
+            "answer": "A"
+          }
+        ]
+      }
+    }
+  }
+]

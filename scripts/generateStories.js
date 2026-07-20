@@ -32,7 +32,7 @@ const ROOT = path.resolve(__dirname, '..');
 const DICT_PATH = path.join(ROOT, 'src/data/worddict.json');
 const OUT_PATH = path.join(ROOT, 'src/data/stories.json');
 
-const API_KEY = process.env.API_KEY || 'sk-c59ca0cd52c846db98715b81c385c82d';
+const API_KEY = process.env.API_KEY || '';
 const API_BASE = process.env.API_BASE || 'https://api.deepseek.com/v1';
 const API_MODEL = process.env.API_MODEL || 'deepseek-chat';
 const CHAPTERS = Number(process.env.CHAPTERS || 20);
