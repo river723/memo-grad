@@ -36,6 +36,9 @@ export type LearnStackParamList = {
   AddWord: undefined;
   WordbankPicker: undefined;
   WordList: undefined;
+  Dictionary: undefined;
+  DictionaryBrowse: { dictId: string };
+  DictionaryWordDetail: { word: string };
 };
 
 export type ReadStackParamList = {

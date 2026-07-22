@@ -13,6 +13,9 @@ import StudyScreen from '../screens/StudyScreen';
 import WordListScreen from '../screens/WordListScreen';
 import WordDetailScreen from '../screens/WordDetailScreen';
 import WordbankPickerScreen from '../screens/WordbankPickerScreen';
+import DictionaryScreen from '../screens/DictionaryScreen';
+import DictionaryBrowseScreen from '../screens/DictionaryBrowseScreen';
+import DictionaryWordDetailScreen from '../screens/DictionaryWordDetailScreen';
 
 // --- 阅读 Tab 组件 ---
 import StoryListScreen from '../screens/StoryListScreen';
@@ -73,6 +76,9 @@ function LearnStack() {
       <Stack.Screen name="AddWord" component={AddWordScreen} options={headerOptions('添加生词', 'plus')} />
       <Stack.Screen name="WordbankPicker" component={WordbankPickerScreen} options={headerOptions('从词库选词', 'menu-book')} />
       <Stack.Screen name="WordList" component={WordListScreen} options={headerOptions('生词本', 'menu-book')} />
+      <Stack.Screen name="Dictionary" component={DictionaryScreen} options={headerOptions('词库', 'menu-book')} />
+      <Stack.Screen name="DictionaryBrowse" component={DictionaryBrowseScreen} options={headerOptions('浏览词库', 'menu-book')} />
+      <Stack.Screen name="DictionaryWordDetail" component={DictionaryWordDetailScreen} options={headerOptions('单词详情', 'menu-book')} />
     </Stack.Navigator>
   );
 }

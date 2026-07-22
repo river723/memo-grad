@@ -414,6 +414,16 @@ export default function HomeScreen() {
               开始今日学习
             </Button>
 
+            {/* 3b. 浏览词库 */}
+            <Button
+              mode="outlined"
+              onPress={() => navigation.navigate('Dictionary')}
+              style={styles.secondaryButton}
+              icon="book-plus"
+            >
+              浏览词库
+            </Button>
+
             {/* 4. 待办行（条件渲染，为 0 即隐藏） */}
             {(todayStats.wrongQuestionCount > 0 || todayStats.difficultWordCount > 0) && (
               <View style={styles.pendingRow}>
@@ -635,6 +645,10 @@ const useStyles = makeStyles(colors => ({
   },
   primaryButtonLabel: {
     fontSize: 16,
+  },
+  secondaryButton: {
+    marginBottom: 16,
+    paddingVertical: 6,
   },
   pendingRow: {
     flexDirection: 'row',

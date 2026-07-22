@@ -107,3 +107,23 @@ export function getLocalWordDictWords(): Omit<Word, 'id' | 'created_at' | 'updat
     wordDictEntryToWord(word, entry)
   );
 }
+
+/**
+ * 基于种子的确定性乱序（Fisher–Yates + 线性同余伪随机）。
+ * 同一 seed 得到同一顺序，便于「再点乱序」时用新 seed 重洗，
+ * 且不依赖 Math.random，渲染可复现。不修改入参，返回新数组。
+ */
+export function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const out = arr.slice();
+  let s = (seed || 1) >>> 0;
+  const next = () => {
+    // LCG 参数（Numerical Recipes）
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0xffffffff;
+  };
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}

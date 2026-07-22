@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   Alert,
   SafeAreaView,
+  Modal,
 } from 'react-native';
 import {
   Card,
@@ -18,7 +19,9 @@ import {
   TextInput,
   Button,
   Chip,
+  Surface,
 } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
@@ -30,15 +33,18 @@ import { useAppTheme } from '../theme/theme';
 
 type WordbankEntry = Omit<Word, 'id' | 'created_at' | 'updated_at'>;
 
-type SortMode = 'alpha' | 'diffAsc' | 'diffDesc' | 'freqAsc' | 'freqDesc';
+type SortMode = 'shuffle' | 'alpha' | 'diffAsc' | 'diffDesc' | 'freqAsc' | 'freqDesc';
 
 const SORT_LABEL: Record<SortMode, string> = {
+  shuffle: '乱序',
   alpha: '字母',
   diffAsc: '难度↑',
   diffDesc: '难度↓',
   freqAsc: '频度↑',
   freqDesc: '频度↓',
 };
+
+const SORT_ORDER: SortMode[] = ['shuffle', 'alpha', 'diffAsc', 'diffDesc', 'freqAsc', 'freqDesc'];
 
 const DIFF_COLORS: Record<number, string> = {
   1: palette.success,
@@ -162,6 +168,8 @@ export default function WordbankPickerScreen() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('alpha');
+  const [showSortModal, setShowSortModal] = useState(false);
+  const [shuffleSeed, setShuffleSeed] = useState(0);
 
   // 分组
   const [group, setGroup] = useState(0);
@@ -217,11 +225,18 @@ export default function WordbankPickerScreen() {
       items = items.slice().sort((a, b) => a.frequency - b.frequency);
     } else if (sortMode === 'freqDesc') {
       items = items.slice().sort((a, b) => b.frequency - a.frequency);
+    } else if (sortMode === 'shuffle' && !q) {
+      // 乱序：Fisher-Yates 洗牌，shuffleSeed 变化时重新打乱
+      items = items.slice();
+      for (let i = items.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
     }
     // sortMode==='alpha' 维持 JSON 内置字母序
 
     return items;
-  }, [list, debouncedQuery, sortMode]);
+  }, [list, debouncedQuery, sortMode, shuffleSeed]);
 
   // 第二层：剔除已在词本和已忽略的词 → 候选池
   const pool = useMemo(
@@ -453,24 +468,15 @@ export default function WordbankPickerScreen() {
       <View style={styles.chipRow}>
         <View style={styles.chipGroup}>
           <Text style={styles.chipGroupLabel}>排序</Text>
-          {(['alpha', 'diffAsc', 'diffDesc', 'freqAsc', 'freqDesc'] as SortMode[]).map(
-            (v) => (
-              <Chip
-                key={v}
-                selected={sortMode === v}
-                showSelectedCheck={false}
-                onPress={() => setSortMode(v)}
-                style={[
-                  styles.chip,
-                  sortMode === v && styles.chipSelected
-                ]}
-                mode="outlined"
-                compact
-              >
-                {SORT_LABEL[v]}
-              </Chip>
-            )
-          )}
+          <Chip
+            icon="sort"
+            onPress={() => setShowSortModal(true)}
+            style={styles.chip}
+            mode="outlined"
+            compact
+          >
+            {SORT_LABEL[sortMode]}
+          </Chip>
         </View>
       </View>
 
@@ -570,6 +576,58 @@ export default function WordbankPickerScreen() {
           </Button>
         </View>
       </View>
+
+      {/* 排序选择弹窗 */}
+      <Modal
+        visible={showSortModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSortModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1}>
+            <Surface style={styles.sortModalContent}>
+              <Text style={styles.sortModalTitle}>排序方式</Text>
+              {SORT_ORDER.map((mode) => {
+                const active = sortMode === mode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    style={styles.sortOption}
+                    onPress={() => {
+                      // 已在乱序时再次点击 → 重新洗牌
+                      if (mode === 'shuffle') {
+                        setShuffleSeed((s) => s + 1);
+                      }
+                      setSortMode(mode);
+                      setShowSortModal(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons
+                      name="check"
+                      size={20}
+                      color={active ? colors.primary : 'transparent'}
+                    />
+                    <Text
+                      style={[
+                        styles.sortOptionText,
+                        active && styles.sortOptionTextActive,
+                      ]}
+                    >
+                      {SORT_LABEL[mode]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </Surface>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -625,8 +683,42 @@ const useStyles = makeStyles(colors => ({
   chip: {
     height: 28,
   },
-  chipSelected: {
-    backgroundColor: colors.primaryContainer,
+
+  // 排序弹窗
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortModalContent: {
+    width: 240,
+    paddingVertical: 12,
+    borderRadius: 14,
+    elevation: 6,
+  },
+  sortModalTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: colors.onSurfaceVariant,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    paddingTop: 4,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  sortOptionText: {
+    fontSize: 16,
+    color: colors.onSurface,
+  },
+  sortOptionTextActive: {
+    color: colors.primary,
+    fontWeight: 'bold',
   },
 
   // 列表
