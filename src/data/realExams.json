@@ -731,5 +731,510 @@
         ]
       }
     }
+  },
+  {
+    "year": 2026,
+    "english1": {
+      "reading": [
+        {
+          "id": "2026-e1-text1",
+          "title": "Text 1",
+          "passage": "For thousands of years, donkeys have been critical for propelling human civilizations forward. They've helped pull wheeled vehicles, carry travelers and move goods across the world. But where and when these animals first became intertwined with humans has been a mystery. Now, researchers have used genomes of over 200 donkeys to trace their domestication back to a single event around 7,000 years ago in East Africa — about 3,000 years before humans tamed horses. The team published their findings in the journal Science this month. \"Through their DNA, the animals are telling their history themselves,\" co-author Samantha Brooks, an equine researcher at the University of Florida, says in a statement. \"We usually only get the human's side of history through written accounts, but of course written history does not always record exactly how something happened. Looking at these DNA sequences, we get a biological testimony to the environment these animals lived in and the experiences they survived.\" The researchers examined 207 genomes from modern donkeys living in 31 countries across the globe. They also looked at genomes from 15 wild equids and 31 earlier donkeys that lived between about 4,000 and 100 years ago. The team reconstructed the animals' evolutionary tree and used computer models to pinpoint the domestication event when herders in Kenya and the Horn of Africa tamed wild asses. They then traced how the animals spread across the rest of the continent into Europe and Asia about 2,500 years later. Though it's still unclear why the original domestication happened, Science News' Freda Kreier reports that the event coincided with the Sahara growing larger and drier. \"Donkeys are champions when it comes to carrying stuff and are good at crossing deserts,\" co-author Ludovic Orlando, an evolutionary biologist at Paul Sabatier University in France, tells the publication. Prehistoric humans may have tamed donkeys to help navigate the expanding Sahara. Researchers say these findings could help put donkeys in the spotlight. The animals could benefit from more research: Currently, there are no published genomes from donkeys located south of the Equator in Africa. But understanding where the animals were first domesticated could guide archaeologists to a narrow region to search for insights about the original tamed donkeys. Not only does understanding the equines' genetic makeup help reveal their contribution to human history, but it also might improve their management in the future, as climate change alters the planet's environment, write the authors.",
+          "questions": [
+            {
+              "id": "2026-e1-text1-q21",
+              "stem": "What can be learned about donkeys from Paragraph 1?",
+              "options": [
+                "A) They seemed mysterious to human ancestors.",
+                "B) They underwent multiple domestication events.",
+                "C) They were tamed at an earlier time than horses.",
+                "D) They were vividly portrayed by ancient travelers."
+              ],
+              "answer": "C",
+              "explanation": "第 21 题是细节题，正确答案 C）They were tamed at an earlier time than horses. 定位句在第 1 段：如今，研究者用 200 多份驴基因组将其驯化追溯到约 7000 年前东非的一次单一事件——比人类驯化马早约 3000 年。正确项与原文构成同义替换（about 3,000 years before humans tamed horses ↔ They were tamed at an earlier time than horses）。其余三项中，A 项属偷换概念、B 项属与原文相反、D 项属无中生有，均可排除。"
+            },
+            {
+              "id": "2026-e1-text1-q22",
+              "stem": "What message is conveyed in Brooks' statement?",
+              "options": [
+                "A) The earliest habitats of donkeys are hardly traceable.",
+                "B) It is increasingly easy to read donkeys' DNA sequences.",
+                "C) Written accounts contain vital clues for donkey research.",
+                "D) Genetic analysis offers insight into the history of donkeys."
+              ],
+              "answer": "D",
+              "explanation": "第 22 题是细节题，正确答案 D）Genetic analysis offers insight into the history of donkeys. 定位句在第 2 段：通过它们的 DNA，动物们自己在讲述自己的历史。……审视这些 DNA 序列，我们获得了关于这些动物所处环境与所历经历的生物学证词。正确项与原文构成同义替换（Through their DNA, the animals are telling their history themselves ↔ Genetic analysis offers insight into the history of donkeys；we get a biological testimony to the environment these animals lived in and the experiences they survived ↔ Genetic analysis offers insight into the history of donkeys）。其余三项中，A 项属张冠李戴、B 项属无中生有、C 项属与原文相反，均可排除。"
+            },
+            {
+              "id": "2026-e1-text1-q23",
+              "stem": "In their study, the researchers investigated how donkeys ____",
+              "options": [
+                "A) dispersed widely in the world.",
+                "B) survived with the help of herders.",
+                "C) developed certain behavioral traits.",
+                "D) adapted to the changing environment."
+              ],
+              "answer": "A",
+              "explanation": "第 23 题是细节题，正确答案 A）dispersed widely in the world. 定位句在第 3 段：随后他们追踪了动物如何在约 2500 年后向非洲其他地区扩散，并进入欧洲与亚洲。正确项与原文构成同义替换（spread across the rest of the continent into Europe and Asia ↔ dispersed widely in the world）。其余三项中，B 项属张冠李戴、C 项属无中生有、D 项属过度推断，均可排除。"
+            },
+            {
+              "id": "2026-e1-text1-q24",
+              "stem": "As to why the original domestication of donkeys happened, Orlando ____",
+              "options": [
+                "A) challenges conventional ideas.",
+                "B) provides a possible explanation.",
+                "C) calls for evidence from the Sahara.",
+                "D) holds a different view from Kreier."
+              ],
+              "answer": "B",
+              "explanation": "第 24 题是细节题，正确答案 B）provides a possible explanation. 定位句在第 4 段：「驴在驮物方面是冠军，且擅长穿越沙漠」，合作者、法国保罗·萨巴蒂耶大学进化生物学家 Orlando 告诉该刊。史前人类可能驯化驴是为了帮助穿越扩张中的撒哈拉。正确项与原文构成同义替换（Prehistoric humans may have tamed donkeys to help navigate the expanding Sahara ↔ provides a possible explanation；Donkeys are champions when it comes to carrying stuff and are good at crossing deserts ↔ provides a possible explanation）。其余三项中，A 项属无中生有、C 项属无中生有、D 项属无中生有，均可排除。"
+            },
+            {
+              "id": "2026-e1-text1-q25",
+              "stem": "The authors think that their research could help with ____",
+              "options": [
+                "A) greater protection of wildlife.",
+                "B) better management of donkeys.",
+                "C) recovering early types of donkeys.",
+                "D) raising awareness of climate change."
+              ],
+              "answer": "B",
+              "explanation": "第 25 题是细节题，正确答案 B）better management of donkeys. 定位句在第 6 段：作者写道，理解这些马科动物的遗传构成不仅有助于揭示它们对人类历史的贡献，还可能在气候变化改变全球环境之际改善对它们的管理。正确项与原文构成同义替换（it also might improve their management in the future ↔ better management of donkeys）。其余三项中，A 项属偷换概念、C 项属过度推断、D 项属偷换概念，均可排除。"
+            }
+          ]
+        },
+        {
+          "id": "2026-e1-text2",
+          "title": "Text 2",
+          "passage": "There's no business like show business — but in Los Angeles, it feels like there's no business at all. If that sounds melodramatic, consider this: The Art Directors Guild, a labor union representing about 3,000 film workers, has suspended a training program and issued a statement explaining that \"we cannot in good conscience encourage you to pursue our profession.\" This is a reaction to Hollywood's decline, which is reaching a critical point for the industry and Southern California. Production has been slipping away from Hollywood since the 1950s, but the effects have never been more apparent than at present. Other regions in the United States, Canada and Europe have steadily increased incentives to attract TV shows and movies, leaving California in the dust. Georgia offers up to 30% in transferable tax credits on film and TV production costs, plus an additional 10% increase on the base tax credit if the project includes a Georgia promotional logo. Even as California lost a huge volume of production to other locations, there was still plenty of film production taking place in Los Angeles before this year. We were kept afloat by \"peak TV\", the glut of content that was required by the explosion of streaming services. But 2022 was the peak of peak TV. Back then platforms such as Netflix, Amazon and Apple TV hemorrhaged billions of dollars to generate content to attract new subscribers, resulting in 633 scripted series being released that year. As the streamers' emphasis changed from subscriber growth to profitability, prices for the services went up and the number of new shows went down to 481 released in 2023, with the number expected to dip into the 300s within a few years. If productions in Southern California dip below a critical level for too long, the industry's essential talent will drift away along with enormous sums of revenue. Persuading studios to film here would become much more challenging if we couldn't offer a deep bench of local film workers, on-screen talent and local businesses that support the entertainment industry. That's why the California Film Commission and its Los Angeles counterpart, Film LA, now should act, before it's too late. These agencies and other government bodies should dramatically improve incentives to keep our current shows and attract new productions to Los Angeles. Let's go on with the show…and make sure the show doesn't go on without us.",
+          "questions": [
+            {
+              "id": "2026-e1-text2-q26",
+              "stem": "The Art Directors Guild's statement reveals ____",
+              "options": [
+                "A) people's reduced interest in film.",
+                "B) film workers' nostalgia for the past.",
+                "C) the appeal of Southern California.",
+                "D) the gloomy situation of Hollywood."
+              ],
+              "answer": "D",
+              "explanation": "第 26 题是细节题，正确答案 D）the gloomy situation of Hollywood. 定位句在第 2 段：这是对好莱坞衰落的一种反应，这种衰落对该行业和南加州来说已达到临界点。正确项与原文构成同义替换（Hollywood's decline, which is reaching a critical point ↔ the gloomy situation of Hollywood；we cannot in good conscience encourage you to pursue our profession ↔ the gloomy situation of Hollywood）。其余三项中，A 项属偷换概念、B 项属无中生有、C 项属与原文相反，均可排除。"
+            },
+            {
+              "id": "2026-e1-text2-q27",
+              "stem": "The example of Georgia is used to illustrate the efforts to ____",
+              "options": [
+                "A) lure production with tax incentives.",
+                "B) drive improvements in film facilities.",
+                "C) stimulate competition among states.",
+                "D) collect funds for film and TV making."
+              ],
+              "answer": "A",
+              "explanation": "第 27 题是例证目的题，正确答案 A）lure production with tax incentives. 定位句在第 3 段：美国、加拿大和欧洲的其他地区一直在稳步加大激励力度，以吸引电视剧和电影制作，把加州甩在身后。佐治亚州对影视制作成本提供高达 30% 的可转让税收抵免，如果项目中包含佐治亚州的宣传标志，还可在基础税收抵免上再加 10%。正确项与原文构成同义替换（increased incentives to attract TV shows and movies ↔ lure production with tax incentives）。其余三项中，B 项属无中生有、C 项属过度推断、D 项属偷换概念，均可排除。"
+            },
+            {
+              "id": "2026-e1-text2-q28",
+              "stem": "Peak TV passed its peak as ____",
+              "options": [
+                "A) streamers lost their technical advantages.",
+                "B) streamers changed their strategic priorities.",
+                "C) subscribers grew wary of large platforms.",
+                "D) subscribers were unhappy with new shows."
+              ],
+              "answer": "B",
+              "explanation": "第 28 题是细节题，正确答案 B）streamers changed their strategic priorities. 定位句在第 5 段：随着流媒体的重心从用户增长转向盈利能力，服务价格上涨，新剧数量下降至 2023 年的 481 部，预计未来几年将进一步跌入 300 多部区间。正确项与原文构成同义替换（the streamers' emphasis changed from subscriber growth to profitability ↔ streamers changed their strategic priorities）。其余三项中，A 项属无中生有、C 项属张冠李戴、D 项属无中生有，均可排除。"
+            },
+            {
+              "id": "2026-e1-text2-q29",
+              "stem": "According to Paragraph 6, California's entertainment industry might face ____",
+              "options": [
+                "A) a decline in product quality.",
+                "B) a demand for foreign talent.",
+                "C) a brain drain to other places.",
+                "D) a dramatic rise in labor costs."
+              ],
+              "answer": "C",
+              "explanation": "第 29 题是细节题，正确答案 C）a brain drain to other places. 定位句在第 6 段：如果南加州的影视制作量长期低于临界水平，行业的核心人才将与巨额收入一起流失。正确项与原文构成同义替换（the industry's essential talent will drift away ↔ a brain drain to other places；Persuading studios to film here would become much more challenging if we couldn't offer a deep bench of local film workers, on-screen talent and local businesses ↔ a brain drain to other places）。其余三项中，A 项属无中生有、B 项属与原文相反、D 项属无中生有，均可排除。"
+            },
+            {
+              "id": "2026-e1-text2-q30",
+              "stem": "The author concludes the text by emphasizing that California should strive to ____",
+              "options": [
+                "A) maintain its position in the industry.",
+                "B) attract more investment than it had.",
+                "C) pursue a higher standard of production.",
+                "D) strengthen coordination with other states."
+              ],
+              "answer": "A",
+              "explanation": "第 30 题是主旨题，正确答案 A）maintain its position in the industry. 该题需通观全文作答。正确项与原文构成同义替换（make sure the show doesn't go on without us ↔ maintain its position in the industry；dramatically improve incentives to keep our current shows and attract new productions to Los Angeles ↔ maintain its position in the industry）。其余三项中，B 项属偷换概念、C 项属无中生有、D 项属与原文相反，均可排除。"
+            }
+          ]
+        },
+        {
+          "id": "2026-e1-text3",
+          "title": "Text 3",
+          "passage": "The pioneers of wireless saw it as a gift to all the people. Sir John Reith said that it would end \"isolation of the spirit\" and rejoiced: \"It does not matter how many thousands may be listening, there is always enough for others…the genius and the fool, the wealthy and the poor listen simultaneously.\" Between two great wars this technological innovation built a new kind of national consciousness. Opening this week, a book and exhibition curated by Beatty Rubens at the Bodleian in Oxford records how radio changed everyday life from 1922 to 1939. She draws on letters, diaries and fiction, and a 1939 field notebook of verbatim audience research by Winifred Gill. There's fun in testimonies of people enjoying the sheer newness. A cartoon mocks a group failing to converse because they're all in headphones. People report that broadcast music made workmen whistle new tunes. A woman says there have been fewer street fights since the arrival of the wireless but also less stopping and \"talking on the brush handle\". By and large the wireless was welcome. I loved the man from the Thirties research who found that wireless suddenly offered \"a lot of variety…things I thought I'd never be interested in…ice hockey perhaps\". True: for more than 80 pre-digital years, linear speech broadcasting brought the gift of serendipity, random enlivening of a car journey or dull manual task. In my own book about radio I recorded how, on one drive: \"I caught up with the news, learnt some 17th-century history, and was startlingly educated by an unpretentious programme on the history of the stethoscope.\" But radio's enriching serendipity is ebbing. With multiple networks and countless podcasts, a smartphone user selects what to hear and when. And while it is wonderful to take a walk with anything in your headphones, infinite choice encourages us to shrink into niche interests and sympathetic beliefs. A hundred years on from Marconi and Reith, is the art of mere listening endangered? Some will say the audiobook boom revives it, though I suppose you can then worry about the decline of reading. But inventions shape all of us and it is worth noticing when techno-social habits do change, and asking whether to control them a bit or shield the youngest. Whatever we do, innovation will happen. Today we fret about the isolating culture of smartphone-staring and selfie-vanity, but already in 1939 there was that lady regretting how, when all her street got wirelesses, it lost the neighbourly habit of \"talking on the brush handle\". It's enough to make a person put down the smartphone and go out front with a yard broom.",
+          "questions": [
+            {
+              "id": "2026-e1-text3-q31",
+              "stem": "What can be learnt about wireless from Sir John Reith?",
+              "options": [
+                "A) It was accessible to everyone.",
+                "B) It improved interpersonal relations.",
+                "C) It was a miracle of human ingenuity.",
+                "D) It led to a new era of isolating culture."
+              ],
+              "answer": "A",
+              "explanation": "第 31 题是细节题，正确答案 A）It was accessible to everyone. 定位句在第 1 段：约翰·里斯爵士说，无线电会结束\"精神上的孤立\"，并欣然表示：\"无论有多少千人在收听都没关系，永远有足够的份额留给其他人……天才与傻瓜、富人与穷人可以同时收听。\"正确项与原文构成同义替换（the genius and the fool, the wealthy and the poor listen simultaneously ↔ accessible to everyone；there is always enough for others ↔ accessible）。其余三项中，B 项属无中生有、C 项属偷换概念、D 项属与原文相反，均可排除。"
+            },
+            {
+              "id": "2026-e1-text3-q32",
+              "stem": "What is the theme of the exhibition at the Bodleian in Oxford?",
+              "options": [
+                "A) The impact of radio on its early audience.",
+                "B) The role of radio in public music education.",
+                "C) The innovation process of radio technology.",
+                "D) The eminent pioneers in radio broadcasting."
+              ],
+              "answer": "A",
+              "explanation": "第 32 题是细节题，正确答案 A）The impact of radio on its early audience. 定位句在第 2 段：本周开幕、由 Beatty Rubens 在牛津 Bodleian 图书馆策划的一本书及一场展览，记录了 1922 年至 1939 年间无线电如何改变了日常生活。正确项与原文构成同义替换（how radio changed everyday life from 1922 to 1939 ↔ The impact of radio on its early audience）。其余三项中，B 项属以偏概全、C 项属偷换概念、D 项属张冠李戴，均可排除。"
+            },
+            {
+              "id": "2026-e1-text3-q33",
+              "stem": "It is indicated in Paragraph 4 that ____",
+              "options": [
+                "A) the research on radio used to be inadequate.",
+                "B) the charm of radio remains in the digital age.",
+                "C) radio listeners could make unexpected gains.",
+                "D) radio shows have changed little over the years."
+              ],
+              "answer": "C",
+              "explanation": "第 33 题是细节题，正确答案 C）radio listeners could make unexpected gains. 定位句在第 4 段：在数字时代之前的八十多年里，线性的语音广播带来了\"意外发现\"的礼物——它能随机点亮一段乏味的开车旅程或无聊的体力劳动。正确项与原文构成同义替换（the gift of serendipity ↔ unexpected gains；things I thought I'd never be interested in…ice hockey perhaps ↔ unexpected）。其余三项中，A 项属无中生有、B 项属与原文相反、D 项属无中生有，均可排除。"
+            },
+            {
+              "id": "2026-e1-text3-q34",
+              "stem": "The expression \"talking on the brush handle\" in Paragraphs 3 and 6 refers to the act of ____",
+              "options": [
+                "A) making a loud noise.",
+                "B) having a casual chat.",
+                "C) starting a trivial quarrel.",
+                "D) humming a popular song."
+              ],
+              "answer": "B",
+              "explanation": "第 34 题是词义句意题，正确答案 B）having a casual chat. 定位句在第 3 段：一位女士说，自从无线电出现以来，街头打架变少了，但也少了人们驻足在扫帚柄上闲聊的情景。正确项与原文构成同义替换（less stopping and \"talking on the brush handle\" ↔ having a casual chat；lost the neighbourly habit of \"talking on the brush handle\" ↔ casual chat）。其余三项中，A 项属偷换概念、C 项属偷换概念、D 项属张冠李戴，均可排除。"
+            },
+            {
+              "id": "2026-e1-text3-q35",
+              "stem": "In the last paragraph, the author intends to express the opinion that ____",
+              "options": [
+                "A) technology should be aimed at benefiting humans.",
+                "B) actions should be taken to revive the art of listening.",
+                "C) adolescents should form healthy social media habits.",
+                "D) people should adopt a sensible attitude to innovations."
+              ],
+              "answer": "D",
+              "explanation": "第 35 题是主旨题，正确答案 D）people should adopt a sensible attitude to innovations. 该题需通观全文作答。正确项与原文构成同义替换（asking whether to control them a bit or shield the youngest ↔ a sensible attitude to innovations；innovation will happen ↔ innovations）。其余三项中，A 项属无中生有、B 项属以偏概全、C 项属以偏概全，均可排除。"
+            }
+          ]
+        },
+        {
+          "id": "2026-e1-text4",
+          "title": "Text 4",
+          "passage": "When Tom Swetnam joined the U.S. Forest Service in the 1970s, his mandate was to \"put everything out,\" he recalled. But when Swetnam enrolled in graduate school at the University of Arizona's Laboratory of Tree-Ring Research, he was surprised to find a record of repeated blazes dating back hundreds of years before European colonists arrived on the continent. Some of the trees he analyzed bore more than 20 fire scars among their rings. The fact that fires happened so often meant they couldn't have been severe enough to kill most trees. Instead, a growing body of research showed that frequent, low-severity fires made many ecosystems healthier. They rid the forest of dead and sick trees, reducing competition and curbing the spread of disease. Because flammable material couldn't build up on the landscape, blazes tended to move slowly and peter out when they reached the footprints of previous burns. In 2022, Swetnam and other scientists teamed up to compile a database of fire-scarred trees from across the continent. Their North American tree-ring fire-scar network (NAFSN) provided the basis for a study published last month. In the study, the researchers compared the historical fire cadence with the wildfires recorded over the past few decades, and uncovered a striking shortfall. The NAFSN sites experienced less than a quarter of the number of fires that would have been expected without fire suppression. This deficit is a testament to the effectiveness of modern firefighting, said Kelly Martin, a past president of the International Association of Wildland Fire. \"Yet the combined consequences of suppression and climate change have eroded humanity's ability to suppress fires, particularly those that ignite under the most dangerous weather conditions.\" To prevent entire ecosystems from going up in smoke, Martin said, people must bring healthy fire back to places that need it. At Yosemite National Park, Martin oversaw the use of what is known as prescribed burns to make the landscape more resilient. These fires were carefully planned and intentionally ignited during periods when weather kept the blazes easy to control, and helped eliminate some of the fuel that had built up around the important park's facilities. Research shows that these prescribed burns make subsequent wildfires less severe, even if later fires happen under the most dangerous weather conditions. Yet even as scientists and public officials increasingly agree on the need for more fires in our forests, climate change is making this tactic more challenging, experts said. \"It's a double-edged sword because wildfires are getting more severe and larger under climate change and we need this work even more, but then the work gets more challenging,\" said Susan Prichard, a fire ecologist at the University of Washington.",
+          "questions": [
+            {
+              "id": "2026-e1-text4-q36",
+              "stem": "According to Paragraph 1, Swetnam was surprised by ____",
+              "options": [
+                "A) the scarcity of tree-ring research in the U.S.",
+                "B) the firefighting measures in ancient Europe.",
+                "C) the forest management practices in the 1970s.",
+                "D) the number of wildfires in precolonial times."
+              ],
+              "answer": "D",
+              "explanation": "第 36 题是细节题，正确答案 D）the number of wildfires in precolonial times. 定位句在第 1 段：但是当 Swetnam 进入亚利桑那大学树轮研究室读研时，他惊讶地发现一份记录显示，早在欧洲殖民者抵达这片大陆几百年前就已存在反复发生的火灾。正确项与原文构成同义替换（repeated blazes dating back hundreds of years before European colonists arrived on the continent ↔ the number of wildfires in precolonial times；Some of the trees he analyzed bore more than 20 fire scars among their rings. ↔ the number of wildfires in precolonial times）。其余三项中，A 项属无中生有、B 项属偷换概念、C 项属答非所问，均可排除。"
+            },
+            {
+              "id": "2026-e1-text4-q37",
+              "stem": "Paragraph 2 mainly focuses on ____",
+              "options": [
+                "A) the causes of previous burns.",
+                "B) the treatment of diseased trees.",
+                "C) the benefits of low-severity fires.",
+                "D) the importance of forest ecosystems."
+              ],
+              "answer": "C",
+              "explanation": "第 37 题是主旨题，正确答案 C）the benefits of low-severity fires. 定位句在第 2 段：相反，越来越多的研究表明，频繁、低强度的火灾让许多生态系统更健康。正确项与原文构成同义替换（frequent, low-severity fires made many ecosystems healthier ↔ the benefits of low-severity fires.；reducing competition and curbing the spread of disease ↔ the benefits of low-severity fires.）。其余三项中，A 项属偷换概念、B 项属以偏概全、D 项属答非所问，均可排除。"
+            },
+            {
+              "id": "2026-e1-text4-q38",
+              "stem": "What did the study find about the wildfires over the past few decades?",
+              "options": [
+                "A) Their intensity has vastly fluctuated.",
+                "B) Their frequency has markedly decreased.",
+                "C) Their threats have been underestimated.",
+                "D) Their records have been misinterpreted."
+              ],
+              "answer": "B",
+              "explanation": "第 38 题是细节题，正确答案 B）Their frequency has markedly decreased. 定位句在第 3 段：在这项研究中，研究者把历史上的火灾节律与近几十年记录的野火相比较，发现了一个惊人的缺口：NAFSN 各站点经历的火灾数量不到原本（在没有灭火措施时）应当出现数量的四分之一。正确项与原文构成同义替换（less than a quarter of the number of fires that would have been expected ↔ Their frequency has markedly decreased.；uncovered a striking shortfall ↔ Their frequency has markedly decreased.）。其余三项中，A 项属无中生有、C 项属无中生有、D 项属与原文相反，均可排除。"
+            },
+            {
+              "id": "2026-e1-text4-q39",
+              "stem": "What can be inferred about modern firefighting?",
+              "options": [
+                "A) Its workforce needs more training.",
+                "B) Its effectiveness is questioned by the public.",
+                "C) It may render traditional tactics useless.",
+                "D) It may make severe fires harder to put out."
+              ],
+              "answer": "D",
+              "explanation": "第 39 题是推断题，正确答案 D）It may make severe fires harder to put out. 定位句在第 4 段：然而，灭火措施与气候变化的共同后果已经削弱了人类压制火灾的能力——尤其是那些在最危险天气条件下被点燃的火。正确项与原文构成同义替换（eroded humanity's ability to suppress fires ↔ It may make severe fires harder to put out.；those that ignite under the most dangerous weather conditions ↔ It may make severe fires harder to put out.）。其余三项中，A 项属无中生有、B 项属与原文相反、C 项属过度推断，均可排除。"
+            },
+            {
+              "id": "2026-e1-text4-q40",
+              "stem": "Both Martin and Prichard would agree that ____",
+              "options": [
+                "A) it is challenging to predict large wildfires.",
+                "B) it is urgent to assess the use of planned fires.",
+                "C) it is necessary to introduce prescribed burns.",
+                "D) it is rewarding to double fire detection efforts."
+              ],
+              "answer": "C",
+              "explanation": "第 40 题是态度题，正确答案 C）it is necessary to introduce prescribed burns. 该题需通观全文作答。正确项与原文构成同义替换（Martin oversaw the use of what is known as prescribed burns to make the landscape more resilient ↔ it is necessary to introduce prescribed burns.；we need this work even more ↔ it is necessary to introduce prescribed burns.）。其余三项中，A 项属偷换概念、B 项属偷换概念、D 项属无中生有，均可排除。"
+            }
+          ]
+        }
+      ],
+      "cloze": {
+        "id": "2026-e1-cloze",
+        "passage": "Advances in artificial intelligence (AI) are rapidly changing every aspect of human life. The world of AI is buzzing with an exciting potential to improve and enrich our lives. [1] , AI also has the potential hazard of [2] our experiences in ways we might find difficult to control. One such [3] is how we understand and experience beauty. AI can be a collaborative tool in a wide range of creative endeavors. [4] human creativity and AI algorithms can lead to unique artistic [5] that are beautiful to the human eye. These collaborations are likely to become increasingly common. [6] , as convenient and provocative, AI enables virtual try-on experiences where you can virtually [7] makeup, hairstyles, clothing, and even cosmetic procedures [8] making any physical changes. Individuals can now experiment with different looks and [9] their preferences, potentially expanding the range of beauty ideals. AI algorithms can [10] facial features and skin conditions to provide personalized beauty recommendations. This [11] approach aims to cater to individual preferences and enhance the concept of beauty tailored to each person's unique characteristics. [12] , AI can be a fun vehicle for self-discovery. While AI offers exciting possibilities, it also raises ethical [13] . There is a risk of deepening societal beauty [14] and perpetuating unattainable beauty standards. [15] , AI-powered beauty filters and editing tools can lead to distorted self-perception and [16] body dissatisfaction. As summarized in a recent post on \"The Hidden Dangers of Online Beauty Filters\", [17] on this technology for social presentation can cause harm [18] body image issues, lower self-esteem, and social anxiety. It's important to note that while AI can enhance our [19] of beauty, it should not [20] the genuine human experience and the emotional connections we derive from seeing the beauty in each other.",
+        "blanks": [
+          {
+            "index": 1,
+            "options": [
+              "A) Still",
+              "B) Therefore",
+              "C) Afterward",
+              "D) Instead"
+            ],
+            "answer": "A",
+            "explanation": "第 1 空正确答案 A）Still。前句赞美、后句揭隐患——典型转折。其余三项：B）Therefore 因果方向反了、C）Afterward 时序词，与语义无关、D）Instead 替代义过强，会否定前句，均可排除。"
+          },
+          {
+            "index": 2,
+            "options": [
+              "A) reviewing",
+              "B) narrating",
+              "C) ignoring",
+              "D) dominating"
+            ],
+            "answer": "D",
+            "explanation": "第 2 空正确答案 D）dominating。hazard + difficult to control 锁定\"强势主导\"义。其余三项：A）reviewing 动作太弱，不足以构成 hazard、B）narrating \"叙述\"与体验不搭、C）ignoring 方向相反——忽略反而无影响，均可排除。"
+          },
+          {
+            "index": 3,
+            "options": [
+              "A) reason",
+              "B) area",
+              "C) clue",
+              "D) belief"
+            ],
+            "answer": "B",
+            "explanation": "第 3 空正确答案 B）area。上一句提到的是\"难以控制的体验范围\"。其余三项：A）reason 下文没有给出原因、C）clue \"线索\"语义与论证结构无关、D）belief \"信念\"与下文\"理解和体验美\"不对应，均可排除。"
+          },
+          {
+            "index": 4,
+            "options": [
+              "A) Balancing",
+              "B) Distinguishing",
+              "C) Combining",
+              "D) Introducing"
+            ],
+            "answer": "C",
+            "explanation": "第 4 空正确答案 C）Combining。上一句的 collaborative 已经给出方向。其余三项：A）Balancing \"平衡\"偏取舍，不强调融合、B）Distinguishing \"区分\"方向相反、D）Introducing \"引入\"宾语单选，无双方互动，均可排除。"
+          },
+          {
+            "index": 5,
+            "options": [
+              "A) prospects",
+              "B) outcomes",
+              "C) ambitions",
+              "D) sentiments"
+            ],
+            "answer": "B",
+            "explanation": "第 5 空正确答案 B）outcomes。lead to + beautiful to the human eye 锁定\"产物\"义。其余三项：A）prospects \"前景\"是未来期望，不是现成产物、C）ambitions \"野心\"属内心意图，非视觉产物、D）sentiments \"情感\"指主观感受，非作品本身，均可排除。"
+          },
+          {
+            "index": 6,
+            "options": [
+              "A) At first",
+              "B) By comparison",
+              "C) For instance",
+              "D) In general"
+            ],
+            "answer": "C",
+            "explanation": "第 6 空正确答案 C）For instance。上句给\"艺术协作\"作例，本句给\"虚拟试妆\"作另一例。其余三项：A）At first \"起初\"暗示时间序，无对应、B）By comparison \"相比之下\"需要对比反差、D）In general \"总的来说\"应用于段尾总结，均可排除。"
+          },
+          {
+            "index": 7,
+            "options": [
+              "A) test",
+              "B) copy",
+              "C) link",
+              "D) save"
+            ],
+            "answer": "A",
+            "explanation": "第 7 空正确答案 A）test。try-on + virtually 锁定\"试\"义。其余三项：B）copy \"复制\"不符合用户体验逻辑、C）link \"连接\"与试用无关、D）save \"保存\"在前置体验逻辑里太靠后，均可排除。"
+          },
+          {
+            "index": 8,
+            "options": [
+              "A) upon",
+              "B) beyond",
+              "C) through",
+              "D) before"
+            ],
+            "answer": "D",
+            "explanation": "第 8 空正确答案 D）before。virtual try-on 与 physical changes 是\"试在前、改在后\"。其余三项：A）upon \"一……就\"指紧接发生、B）beyond \"超出\"范围义不通、C）through \"通过\"会把因果颠倒，均可排除。"
+          },
+          {
+            "index": 9,
+            "options": [
+              "A) explore",
+              "B) recall",
+              "C) simplify",
+              "D) cherish"
+            ],
+            "answer": "D",
+            "explanation": "第 9 空正确答案 A）explore。experiment + expanding the range 共指\"探索\"义。其余三项：B）recall \"回忆\"是回看已有，方向相反、C）simplify \"简化\"与\"扩展\"相反、D）cherish \"珍视\"是情感动作，不是试用结果，均可排除。"
+          },
+          {
+            "index": 10,
+            "options": [
+              "A) recover",
+              "B) arrange",
+              "C) reserve",
+              "D) analyze"
+            ],
+            "answer": "D",
+            "explanation": "第 10 空正确答案 D）analyze。personalized recommendations 锁定 analyze 系动作。其余三项：A）recover \"恢复\"用于已损坏对象、B）arrange \"安排\"不用于特征/状况、C）reserve \"预订/保留\"语义错位，均可排除。"
+          },
+          {
+            "index": 11,
+            "options": [
+              "A) localized",
+              "B) normalized",
+              "C) randomized",
+              "D) customized"
+            ],
+            "answer": "D",
+            "explanation": "第 11 空正确答案 D）customized。personalized + tailored 双重锁定\"定制化\"义。其余三项：A）localized \"本地化\"侧重地域，不是个人、B）normalized \"标准化\"与\"个性化\"相反、C）randomized \"随机化\"逻辑上与个性化矛盾，均可排除。"
+          },
+          {
+            "index": 12,
+            "options": [
+              "A) At best",
+              "B) To the contrary",
+              "C) By definition",
+              "D) In this way"
+            ],
+            "answer": "D",
+            "explanation": "第 12 空正确答案 D）In this way。前文铺垫已具备\"个性化分析→自我发现\"的因果链。其余三项：A）At best \"充其量\"含贬抑色彩，与正面结论冲突、B）To the contrary \"相反地\"需要反向论点、C）By definition \"按定义\"需要定义性命题，均可排除。"
+          },
+          {
+            "index": 13,
+            "options": [
+              "A) divisions",
+              "B) expectations",
+              "C) concerns",
+              "D) values"
+            ],
+            "answer": "C",
+            "explanation": "第 13 空正确答案 C）concerns。while + raises 锁定\"伦理担忧\"义。其余三项：A）divisions \"分歧\"虽偏负面，但与 raise 不搭、B）expectations \"期待\"色彩偏正面、D）values \"价值观\"被引发不通，均可排除。"
+          },
+          {
+            "index": 14,
+            "options": [
+              "A) pressures",
+              "B) mysteries",
+              "C) understandings",
+              "D) suspicions"
+            ],
+            "answer": "A",
+            "explanation": "第 14 空正确答案 A）pressures。perpetuating unattainable beauty standards 锁定\"审美压力\"。其余三项：B）mysteries \"神秘\"中性偏褒，方向不对、C）understandings \"理解\"是正向认知，加剧后矛盾、D）suspicions \"怀疑\"色彩虽负面但不对位，均可排除。"
+          },
+          {
+            "index": 15,
+            "options": [
+              "A) Approximately",
+              "B) Additionally",
+              "C) Alternatively",
+              "D) Accidentally"
+            ],
+            "answer": "B",
+            "explanation": "第 15 空正确答案 B）Additionally。上下两句都是\"AI 带来负面效应\"的并列。其余三项：A）Approximately \"大约\"用于数量近似、C）Alternatively \"或者说\"暗示替代选项、D）Accidentally \"偶然地\"与系统性现象冲突，均可排除。"
+          },
+          {
+            "index": 16,
+            "options": [
+              "A) deal with",
+              "B) result from",
+              "C) contribute to",
+              "D) focus on"
+            ],
+            "answer": "C",
+            "explanation": "第 16 空正确答案 C）contribute to。并列 distorted self-perception 决定方向。其余三项：A）deal with \"处理\"方向相反、B）result from \"由……产生\"主从因果倒置、D）focus on \"聚焦于\"与因果无关，均可排除。"
+          },
+          {
+            "index": 17,
+            "options": [
+              "A) starting",
+              "B) checking",
+              "C) relying",
+              "D) working"
+            ],
+            "answer": "C",
+            "explanation": "第 17 空正确答案 C）relying。for social presentation + cause harm 锁定\"依赖\"义。其余三项：A）starting \"开始\"与 cause harm 因果太弱、B）checking \"检查\"语义与社交呈现无关、D）working \"运作\"主语不对，均可排除。"
+          },
+          {
+            "index": 18,
+            "options": [
+              "A) apart from",
+              "B) such as",
+              "C) regardless of",
+              "D) prior to"
+            ],
+            "answer": "B",
+            "explanation": "第 18 空正确答案 B）such as。harm 与三类问题构成\"总-分\"举例。其余三项：A）apart from \"除……之外\"暗示排除、C）regardless of \"不论\"与举例无关、D）prior to \"在……之前\"时间义不符，均可排除。"
+          },
+          {
+            "index": 19,
+            "options": [
+              "A) imitation",
+              "B) appreciation",
+              "C) preservation",
+              "D) consumption"
+            ],
+            "answer": "B",
+            "explanation": "第 19 空正确答案 B）appreciation。下文 emotional connections + seeing the beauty 锁定\"欣赏\"。其余三项：A）imitation \"模仿\"非正面体验、C）preservation \"保存\"对象与beauty搭配奇怪、D）consumption \"消费\"色彩功利，均可排除。"
+          },
+          {
+            "index": 20,
+            "options": [
+              "A) replace",
+              "B) seize",
+              "C) share",
+              "D) reflect"
+            ],
+            "answer": "A",
+            "explanation": "第 20 空正确答案 A）replace。while enhance … should not __ 锁定\"取代\"义。其余三项：B）seize \"夺取\"宾语不合、C）share \"分享\"无对照意味、D）reflect \"反映\"偏中性、不构成警示，均可排除。"
+          }
+        ]
+      }
+    },
+    "english2": {
+      "reading": [],
+      "cloze": null
+    }
   }
 ]

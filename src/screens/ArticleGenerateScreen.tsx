@@ -239,7 +239,7 @@ export default function ArticleGenerateScreen() {
         read_count: 0,
       };
       await StorageService.saveArticle(articleData);
-      navigation.navigate('ArticleList');
+      navigation.navigate('ReadHome');
     } catch (error) {
       Alert.alert('保存失败', '请重试');
     } finally {

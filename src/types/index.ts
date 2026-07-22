@@ -198,6 +198,7 @@ export interface RealExamClozeBlank {
   index: number;              // 1..20
   options: string[];          // 4 项，字符串已含 "A) ..." 前缀
   answer: RealExamLetter;
+  explanation?: string;       // 中文解析（可选）
 }
 
 /** 完形填空整篇 passage + 20 空 */

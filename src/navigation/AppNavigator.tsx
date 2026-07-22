@@ -18,9 +18,8 @@ import DictionaryBrowseScreen from '../screens/DictionaryBrowseScreen';
 import DictionaryWordDetailScreen from '../screens/DictionaryWordDetailScreen';
 
 // --- 阅读 Tab 组件 ---
-import StoryListScreen from '../screens/StoryListScreen';
+import ReadHomeScreen from '../screens/ReadHomeScreen';
 import StoryDetailScreen from '../screens/StoryDetailScreen';
-import ArticleListScreen from '../screens/ArticleListScreen';
 import ArticleGenerateScreen from '../screens/ArticleGenerateScreen';
 import ArticleDetailScreen from '../screens/ArticleDetailScreen';
 
@@ -107,9 +106,8 @@ function ReadStack() {
 
   return (
     <Stack.Navigator>
-      <Stack.Screen name="StoryList" component={StoryListScreen} options={headerOptions('系列故事', 'auto-stories')} />
+      <Stack.Screen name="ReadHome" component={ReadHomeScreen} options={headerOptions('阅读', 'auto-stories')} />
       <Stack.Screen name="StoryDetail" component={StoryDetailScreen} options={headerOptions('故事阅读', 'auto-stories')} />
-      <Stack.Screen name="ArticleList" component={ArticleListScreen} options={headerOptions('趣味文章', 'article')} />
       <Stack.Screen name="ArticleGenerate" component={ArticleGenerateScreen} options={headerOptions('生成文章', 'article')} />
       <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} options={headerOptions('文章阅读', 'article')} />
     </Stack.Navigator>

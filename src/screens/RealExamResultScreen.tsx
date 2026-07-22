@@ -188,6 +188,12 @@ function renderClozeReview(
             const letter = LETTERS[oIdx];
             return renderReviewOption(styles, letter, opt, letter === b.answer, letter === selected);
           })}
+          {b.explanation ? (
+            <Surface style={styles.explanationBox}>
+              <Text style={styles.explanationLabel}>解析</Text>
+              <Text style={styles.explanationText}>{b.explanation}</Text>
+            </Surface>
+          ) : null}
         </Card.Content>
       </Card>
     );
