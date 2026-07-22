@@ -22,6 +22,7 @@ import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import { Article, Word } from '../types';
 import { parseArticleContent, TextSegment } from '../utils/storyUtils';
+import { getLocalWordDictResult } from '../utils/wordUtils';
 
 const THEME_LABELS: Record<string, string> = {
   technology: '科技',
@@ -71,7 +72,20 @@ export default function ArticleDetailScreen() {
       for (const wordId of art.word_ids) {
         const word = allWords.find(w => w.id === wordId);
         if (word) {
-          wMap.set(word.word.toLowerCase(), word);
+          // 生词本存的记录可能缺少记忆技巧等字段，用本地词库回填
+          const dict = getLocalWordDictResult(word.word);
+          const enriched: Word = dict
+            ? {
+                ...word,
+                memory_tip: word.memory_tip || dict.memoryTip,
+                etymology: word.etymology || dict.etymology,
+                similar_words:
+                  Array.isArray(word.similar_words) && word.similar_words.length > 0
+                    ? word.similar_words
+                    : dict.similar_words || [],
+              }
+            : word;
+          wMap.set(word.word.toLowerCase(), enriched);
         }
       }
       setWordMap(wMap);
