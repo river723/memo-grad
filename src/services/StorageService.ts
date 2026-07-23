@@ -506,6 +506,16 @@ class StorageService {
     await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(filtered));
   }
 
+  /** 更新真题错题的解析（AI 生成后回写，下次无需重新生成）。 */
+  async updateRealExamWrongExplanation(questionId: string, explanation: string): Promise<void> {
+    const list = await this.getRealExamWrongQuestions();
+    const idx = list.findIndex(w => w.questionId === questionId);
+    if (idx !== -1) {
+      list[idx].explanation = explanation;
+      await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(list));
+    }
+  }
+
   // ==================== 真题答题草稿（中途暂存，重进可恢复）====================
   // 以 paperId 为键存 selections（Record<string, RealExamLetter>）。阅读用 questionId、
   // 完形用 blank index 的字符串形式作内部 key；提交后清除。

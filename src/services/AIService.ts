@@ -566,6 +566,66 @@ ${wordList}
     }
   }
 
+  /**
+   * 为真题单题生成中文解析（阅读题 / 完形空），返回纯文本解析。
+   * 用于真题错题本中无解析的题目补全讲解。
+   */
+  async generateRealExamExplanation(params: {
+    mode: 'reading' | 'cloze';
+    stem?: string;
+    blankIndex?: number;
+    options: string[];
+    correctAnswer: string;
+    userAnswer?: string | null;
+  }): Promise<string> {
+    const subject = params.mode === 'reading'
+      ? `题干：${params.stem || '（无题干）'}`
+      : `完形填空第 ${params.blankIndex ?? '?'} 空`;
+    const userLine = params.userAnswer && params.userAnswer !== params.correctAnswer
+      ? `\n考生误选：${params.userAnswer}（请重点说明为何不选它）`
+      : '';
+
+    const prompt = `请为以下考研英语真题编写简洁的中文解析，说明正确答案的依据，并指出干扰项的典型错误。
+
+${subject}
+
+选项：
+${params.options.join('\n')}
+
+正确答案：${params.correctAnswer}${userLine}
+
+要求：
+- 用中文，120-180 字
+- 直接给解析，不要复述题目
+- 先点明正确答案的依据，再说明干扰项为何错`;
+
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/chat/completions`,
+        {
+          model: this.model,
+          messages: [
+            { role: 'system', content: '你是一位考研英语辅导老师，擅长用简洁中文讲解真题考点。' },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.4,
+          max_tokens: 600,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: API_CONFIG.TIMEOUT,
+        }
+      );
+      return (response.data.choices[0].message.content || '').trim();
+    } catch (error: any) {
+      console.error('Generate explanation error:', error);
+      throw new Error('解析生成失败，请重试');
+    }
+  }
+
   private getRandomTheme(): string {
     const themes = ['科技', '生活', '历史', '自然', '科学'];
     return themes[Math.floor(Math.random() * themes.length)];

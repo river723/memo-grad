@@ -29,6 +29,7 @@ export default function ExamSetupScreen() {
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
   const [coverage, setCoverage] = useState<Map<number, number>>(new Map());
   const [wordAccuracy, setWordAccuracy] = useState<Map<number, number>>(new Map());
+  const [lastStudyDate, setLastStudyDate] = useState<Map<number, string>>(new Map());
   const [selectMode, setSelectMode] = useState<'smart' | 'manual'>('smart');
   const [searchQuery, setSearchQuery] = useState('');
   const [questionType, setQuestionType] = useState<ExamQuestionType>('definition');
@@ -65,8 +66,16 @@ export default function ExamSetupScreen() {
       }
       setWordAccuracy(accMap);
 
+      // 聚合每个词的最近学习日期，供"今天到期复习"优先级判断
+      const lastStudyMap = new Map<number, string>();
+      for (const r of records) {
+        const cur = lastStudyMap.get(r.word_id);
+        if (!cur || r.study_date > cur) lastStudyMap.set(r.word_id, r.study_date);
+      }
+      setLastStudyDate(lastStudyMap);
+
       if (selectMode === 'smart') {
-        const recommended = getRecommendedWords(words, cov, accMap, questionCount);
+        const recommended = getRecommendedWords(words, cov, accMap, questionCount, lastStudyMap);
         setSelectedWords(recommended);
       }
     } catch (error) {
@@ -206,7 +215,7 @@ export default function ExamSetupScreen() {
                 setQuestionCount(newCount);
                 await StorageService.saveSettings({ examQuestionCount: newCount });
                 if (selectMode === 'smart') {
-                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, newCount);
+                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, newCount, lastStudyDate);
                   setSelectedWords(recommended);
                 }
               }
@@ -226,7 +235,7 @@ export default function ExamSetupScreen() {
                 setQuestionCount(newCount);
                 await StorageService.saveSettings({ examQuestionCount: newCount });
                 if (selectMode === 'smart') {
-                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, newCount);
+                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, newCount, lastStudyDate);
                   setSelectedWords(recommended);
                 }
               }
@@ -269,7 +278,7 @@ export default function ExamSetupScreen() {
             onValueChange={(val) => {
               setSelectMode(val as 'smart' | 'manual');
               if (val === 'smart') {
-                const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, questionCount);
+                const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, questionCount, lastStudyDate);
                 setSelectedWords(recommended);
               }
             }}
@@ -314,7 +323,7 @@ export default function ExamSetupScreen() {
               <Button
                 mode="text"
                 onPress={() => {
-                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, questionCount);
+                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, questionCount, lastStudyDate);
                   setSelectedWords(recommended);
                 }}
                 icon="refresh"

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import {
   Card,
   Text,
@@ -12,6 +12,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
+import AIService from '../services/AIService';
 import ReviewOption from '../components/ReviewOption';
 import { WrongQuestion, ExamQuestion, ExamQuestionType, RealExamWrongQuestion, RealExamLetter } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
@@ -36,6 +37,10 @@ export default function WrongQuestionReviewScreen() {
   const [wrongQuestions, setWrongQuestions] = useState<WrongQuestion[]>([]);
   const [realWrong, setRealWrong] = useState<RealExamWrongQuestion[]>([]);
   const [tab, setTab] = useState<Tab>('word');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'definition' | 'cloze'>('all');
+  const [wrongCountFilter, setWrongCountFilter] = useState<'all' | 'ge2' | 'ge3'>('all');
+  const [explLoading, setExplLoading] = useState<Record<string, boolean>>({});
+  const [explOverride, setExplOverride] = useState<Record<string, string>>({});
 
   useFocusEffect(
     useCallback(() => {
@@ -54,8 +59,17 @@ export default function WrongQuestionReviewScreen() {
     setRealWrong(real);
   };
 
+  // 单词错题筛选：题型 + 累计错误次数，用于分批重做
+  const filteredWrong = wrongQuestions.filter(wq => {
+    if (typeFilter !== 'all' && wq.question.type !== typeFilter) return false;
+    if (wrongCountFilter === 'ge2' && wq.wrong_count < 2) return false;
+    if (wrongCountFilter === 'ge3' && wq.wrong_count < 3) return false;
+    return true;
+  });
+
   const handleStartReview = () => {
-    const questions: ExamQuestion[] = wrongQuestions.map(wq => wq.question);
+    const questions: ExamQuestion[] = filteredWrong.map(wq => wq.question);
+    if (questions.length === 0) return;
     const questionType: ExamQuestionType = questions[0]?.type ?? 'definition';
     navigation.navigate('ExamAnswer', { questions, questionType });
   };
@@ -71,6 +85,34 @@ export default function WrongQuestionReviewScreen() {
   const handleRemove = async (questionId: string) => {
     await StorageService.removeRealExamWrongQuestion(questionId);
     loadAll();
+  };
+
+  // AI 补全解析：生成后回写到真题错题本，下次无需重新生成
+  const handleExplain = async (wq: RealExamWrongQuestion) => {
+    if (explLoading[wq.questionId]) return;
+    setExplLoading(prev => ({ ...prev, [wq.questionId]: true }));
+    try {
+      const settings = await StorageService.getSettings();
+      if (!settings.apiKey || !settings.aiModel) {
+        Alert.alert('未配置 API', '请在设置中配置 AI API 后再生成解析');
+        return;
+      }
+      const ai = AIService.fromSettings(settings);
+      const explanation = await ai.generateRealExamExplanation({
+        mode: wq.mode,
+        stem: wq.stem,
+        blankIndex: wq.blankIndex,
+        options: wq.options,
+        correctAnswer: wq.correctAnswer,
+        userAnswer: wq.userAnswer,
+      });
+      await StorageService.updateRealExamWrongExplanation(wq.questionId, explanation);
+      setExplOverride(prev => ({ ...prev, [wq.questionId]: explanation }));
+    } catch (error: any) {
+      Alert.alert('生成失败', error.message || '解析生成失败');
+    } finally {
+      setExplLoading(prev => ({ ...prev, [wq.questionId]: false }));
+    }
   };
 
   const renderWordQuestionContent = (wq: WrongQuestion) => {
@@ -134,10 +176,32 @@ export default function WrongQuestionReviewScreen() {
             </View>
           ) : (
             <>
-              <Button mode="contained" onPress={handleStartReview} style={styles.reviewButton} icon="play-circle">
-                重做全部错题（{wordTotal} 题）
+              <View style={styles.filterRow}>
+                <SegmentedButtons
+                  value={typeFilter}
+                  onValueChange={(v) => setTypeFilter(v as 'all' | 'definition' | 'cloze')}
+                  buttons={[
+                    { value: 'all', label: '全部' },
+                    { value: 'definition', label: '释义' },
+                    { value: 'cloze', label: '完形' },
+                  ]}
+                  style={styles.filterSeg}
+                />
+                <SegmentedButtons
+                  value={wrongCountFilter}
+                  onValueChange={(v) => setWrongCountFilter(v as 'all' | 'ge2' | 'ge3')}
+                  buttons={[
+                    { value: 'all', label: '不限' },
+                    { value: 'ge2', label: '错≥2' },
+                    { value: 'ge3', label: '错≥3' },
+                  ]}
+                  style={styles.filterSeg}
+                />
+              </View>
+              <Button mode="contained" onPress={handleStartReview} style={styles.reviewButton} icon="play-circle" disabled={filteredWrong.length === 0}>
+                重做（{filteredWrong.length} 题）
               </Button>
-              {wrongQuestions.map(wq => (
+              {filteredWrong.map(wq => (
                 <Card key={wq.id} style={styles.reviewCard}>
                   <Card.Content>
                     <View style={styles.cardHeader}>
@@ -212,12 +276,30 @@ export default function WrongQuestionReviewScreen() {
                         />
                       );
                     })}
-                    {wq.explanation ? (
-                      <Surface style={styles.explanationBox}>
-                        <Text style={styles.explanationLabel}>解析</Text>
-                        <Text style={styles.explanationText}>{wq.explanation}</Text>
-                      </Surface>
-                    ) : null}
+                    {(() => {
+                      const expl = explOverride[wq.questionId] ?? wq.explanation;
+                      if (expl) {
+                        return (
+                          <Surface style={styles.explanationBox}>
+                            <Text style={styles.explanationLabel}>解析</Text>
+                            <Text style={styles.explanationText}>{expl}</Text>
+                          </Surface>
+                        );
+                      }
+                      return (
+                        <Button
+                          mode="outlined"
+                          compact
+                          icon="lightbulb-outline"
+                          onPress={() => handleExplain(wq)}
+                          loading={!!explLoading[wq.questionId]}
+                          disabled={!!explLoading[wq.questionId]}
+                          style={styles.explainBtn}
+                        >
+                          {explLoading[wq.questionId] ? '生成中...' : 'AI 解析'}
+                        </Button>
+                      );
+                    })()}
                     <View style={styles.counters}>
                       <Text style={styles.attemptText}>错 {wq.wrong_count} 次</Text>
                       {wq.correct_count > 0 && (
@@ -240,6 +322,8 @@ const useStyles = makeStyles(colors => ({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40 },
   filter: { marginBottom: 16 },
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  filterSeg: { flex: 1 },
   statsBar: { padding: 16, borderRadius: 12, marginBottom: 16, backgroundColor: colors.surface, elevation: 2 },
   statsText: { fontSize: 16, fontWeight: '700', color: colors.onSurface, marginBottom: 4 },
   statsDetail: { fontSize: 12, color: colors.onSurfaceVariant },
@@ -263,6 +347,7 @@ const useStyles = makeStyles(colors => ({
   explanationBox: { marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: colors.primaryContainer, elevation: 0 },
   explanationLabel: { fontSize: 12, fontWeight: '700', color: colors.primary, marginBottom: 4 },
   explanationText: { fontSize: 13, color: colors.onSurface, lineHeight: 20 },
+  explainBtn: { alignSelf: 'flex-start', marginTop: 8, borderRadius: 8 },
   counters: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
   hintTap: { fontSize: 11, color: colors.primary, marginLeft: 'auto' },
   emptyContainer: { alignItems: 'center', paddingVertical: 64 },
