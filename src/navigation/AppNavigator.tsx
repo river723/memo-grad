@@ -142,7 +142,7 @@ function PracticeStack() {
       <Stack.Screen name="ExamSetup" component={ExamSetupScreen} options={headerOptions('考题练习', 'edit-note')} />
       <Stack.Screen name="ExamAnswer" component={ExamAnswerScreen} options={headerOptions('答题中', 'edit-note')} />
       <Stack.Screen name="ExamResult" component={ExamResultScreen} options={headerOptions('练习结果', 'edit-note')} />
-      <Stack.Screen name="WrongQuestionReview" component={WrongQuestionReviewScreen} options={headerOptions('错题复习', 'edit-note')} />
+      <Stack.Screen name="WrongQuestionReview" component={WrongQuestionReviewScreen} options={headerOptions('错题本', 'edit-note')} />
       <Stack.Screen name="ExamHistory" component={ExamHistoryScreen} options={headerOptions('练习历史', 'edit-note')} />
       <Stack.Screen name="RealExamList" component={RealExamListScreen} options={headerOptions('真题练习', 'menu-book')} />
       <Stack.Screen name="RealExamReading" component={RealExamReadingScreen} options={headerOptions('阅读理解', 'menu-book')} />

@@ -71,6 +71,7 @@ export type PracticeStackParamList = {
     session: RealExamSession;
     passage?: RealExamReadingPassage;
     paper?: RealExamClozePaper;
+    setId?: 'english1' | 'english2';
   };
 };
 

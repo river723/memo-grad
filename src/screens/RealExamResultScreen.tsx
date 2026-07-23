@@ -1,15 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import { View, ScrollView, BackHandler } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, ScrollView, BackHandler, TouchableOpacity } from 'react-native';
 import { Card, Text, Button, Surface } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
+import ReviewOption from '../components/ReviewOption';
 import type {
   RealExamSession,
   RealExamReadingPassage,
   RealExamClozePaper,
   RealExamLetter,
+  PassageParagraph,
 } from '../types';
 
 const LETTERS: RealExamLetter[] = ['A', 'B', 'C', 'D'];
@@ -24,7 +26,8 @@ type RouteParams = {
 /**
  * 真题结果屏：显示得分、逐题回顾。
  * - 挂载时把 session 存到 AsyncStorage（saveRealExamSession），并写一条 StudyRecord。
- * - 不写入单词错题本（真题错题以题为维度，与单词错题本模型不一致）。
+ * - 同步把本次错题 upsert 到"真题错题本"（独立于单词错题本），做对时递增 correct_count，
+ *   达到 WRONG_QUESTION_MASTERY_THRESHOLD 后自动移除。
  * - 拦截安卓返回键，避免用户从结果屏回到答题屏造成疑惑；改为返回列表。
  */
 export default function RealExamResultScreen() {
@@ -41,13 +44,17 @@ export default function RealExamResultScreen() {
     (async () => {
       try {
         await StorageService.saveRealExamSession(session);
-        // 记一条学习记录（按题数汇总；result 只能 0/1，这里存整体判定：满分算 1，其他算 0 更严格）
-        await StorageService.addStudyRecord({
-          word_id: 0,                                // 真题不绑定单词
-          study_date: session.createdAt.split('T')[0],
-          result: session.score === session.total ? 1 : 0,
-          study_mode: 'real_exam',
-        });
+        // 真题不写 StudyRecord：真题不绑定单词（word_id=0），若写入会污染
+        // getStudyRecordsByDate / getWeeklyStudyTrend 等按记录数统计的指标
+        // （今日学习数、今日正确率、一周趋势）。真题统计改由 RealExamSession 独立承载。
+        // 把错题写入真题错题本（对的题若已在本中则递增 correct_count，掌握后自动移除）
+        if (setId) {
+          await StorageService.addOrUpdateRealExamWrongQuestions(
+            session,
+            session.mode === 'reading' ? passage : paper,
+            setId,
+          );
+        }
       } catch (err) {
         console.error('保存真题练习记录失败:', err);
       }
@@ -113,6 +120,9 @@ export default function RealExamResultScreen() {
           </Card.Content>
         </Card>
 
+        {/* 原文与译文（默认收起，展开后段落级中英对照） */}
+        <BilingualCard paragraphs={isReading ? passage?.paragraphs : paper?.paragraphs} />
+
         {/* 逐题回顾 */}
         <Text style={styles.reviewTitle}>逐题回顾</Text>
         {isReading && passage
@@ -131,6 +141,37 @@ export default function RealExamResultScreen() {
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+function BilingualCard({ paragraphs }: { paragraphs?: PassageParagraph[] }) {
+  const styles = useStyles();
+  const [expanded, setExpanded] = useState(false);
+  if (!paragraphs || paragraphs.length === 0) return null;
+  return (
+    <Card style={styles.bilingualCard}>
+      <TouchableOpacity
+        onPress={() => setExpanded(v => !v)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={expanded ? '收起原文与译文' : '展开原文与译文'}
+      >
+        <View style={styles.bilingualHeader}>
+          <Text style={styles.bilingualTitle}>📖 原文与中文对照 ({paragraphs.length} 段)</Text>
+          <Text style={styles.bilingualToggle}>{expanded ? '收起 ▲' : '展开 ▼'}</Text>
+        </View>
+      </TouchableOpacity>
+      {expanded ? (
+        <Card.Content style={styles.bilingualBody}>
+          {paragraphs.map((p, i) => (
+            <View key={i} style={styles.bilingualPara}>
+              <Text style={styles.bilingualEn}>{p.en}</Text>
+              <Text style={styles.bilingualZh}>{p.zh}</Text>
+            </View>
+          ))}
+        </Card.Content>
+      ) : null}
+    </Card>
   );
 }
 
@@ -153,7 +194,15 @@ function renderReadingReview(
           <Text style={styles.reviewStem}>{q.stem}</Text>
           {q.options.map((opt, oIdx) => {
             const letter = LETTERS[oIdx];
-            return renderReviewOption(styles, letter, opt, letter === q.answer, letter === selected);
+            return (
+              <ReviewOption
+                key={letter}
+                letter={letter}
+                option={opt}
+                isCorrect={letter === q.answer}
+                isSelected={letter === selected}
+              />
+            );
           })}
           {q.explanation ? (
             <Surface style={styles.explanationBox}>
@@ -186,7 +235,15 @@ function renderClozeReview(
           </View>
           {b.options.map((opt, oIdx) => {
             const letter = LETTERS[oIdx];
-            return renderReviewOption(styles, letter, opt, letter === b.answer, letter === selected);
+            return (
+              <ReviewOption
+                key={letter}
+                letter={letter}
+                option={opt}
+                isCorrect={letter === b.answer}
+                isSelected={letter === selected}
+              />
+            );
           })}
           {b.explanation ? (
             <Surface style={styles.explanationBox}>
@@ -200,35 +257,6 @@ function renderClozeReview(
   });
 }
 
-function renderReviewOption(
-  styles: any,
-  letter: RealExamLetter,
-  option: string,
-  isCorrect: boolean,
-  isSelected: boolean,
-) {
-  let optionStyle = styles.reviewOption;
-  let indexStyle = styles.reviewOptionIndex;
-  let textStyle = styles.reviewOptionText;
-  if (isCorrect) {
-    optionStyle = { ...optionStyle, ...styles.reviewOptionCorrect };
-    indexStyle = { ...indexStyle, ...styles.reviewOptionIndexCorrect };
-    textStyle = { ...textStyle, ...styles.reviewOptionTextCorrect };
-  } else if (isSelected) {
-    optionStyle = { ...optionStyle, ...styles.reviewOptionIncorrect };
-    indexStyle = { ...indexStyle, ...styles.reviewOptionIndexIncorrect };
-    textStyle = { ...textStyle, ...styles.reviewOptionTextIncorrect };
-  }
-  return (
-    <View key={letter} style={optionStyle}>
-      <Text style={indexStyle}>{letter}</Text>
-      <Text style={textStyle}>{stripLetterPrefix(option, letter)}</Text>
-      {isCorrect ? <Text style={styles.checkIcon}>✓</Text> : null}
-      {isSelected && !isCorrect ? <Text style={styles.crossIcon}>✗</Text> : null}
-    </View>
-  );
-}
-
 function ResultBadge({ correct, answered }: { correct: boolean; answered: boolean }) {
   const styles = useStyles();
   if (!answered) {
@@ -237,14 +265,6 @@ function ResultBadge({ correct, answered }: { correct: boolean; answered: boolea
   return correct
     ? <Text style={styles.badgeCorrect}>✓ 正确</Text>
     : <Text style={styles.badgeWrong}>✗ 错误</Text>;
-}
-
-function stripLetterPrefix(option: string, letter: RealExamLetter): string {
-  const prefix1 = `${letter}) `;
-  const prefix2 = `${letter}. `;
-  if (option.startsWith(prefix1)) return option.slice(prefix1.length);
-  if (option.startsWith(prefix2)) return option.slice(prefix2.length);
-  return option;
 }
 
 const useStyles = makeStyles(colors => ({
@@ -259,6 +279,48 @@ const useStyles = makeStyles(colors => ({
   emptyText: { fontSize: 16, color: colors.tertiary, marginBottom: 16 },
   content: { padding: 16, paddingBottom: 32 },
   scoreCard: { borderRadius: 16, elevation: 3, marginBottom: 16 },
+  bilingualCard: {
+    borderRadius: 12,
+    elevation: 1,
+    marginBottom: 16,
+    backgroundColor: colors.surface,
+  },
+  bilingualHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  bilingualTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.onSurface,
+    flex: 1,
+  },
+  bilingualToggle: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  bilingualBody: {
+    paddingTop: 0,
+    paddingBottom: 12,
+  },
+  bilingualPara: {
+    marginBottom: 14,
+  },
+  bilingualEn: {
+    fontSize: 14,
+    color: colors.onSurface,
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  bilingualZh: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    lineHeight: 22,
+  },
   scoreContent: { alignItems: 'center', paddingVertical: 20 },
   scoreLabel: { fontSize: 14, color: colors.onSurfaceVariant, marginBottom: 8 },
   scoreNumber: { fontSize: 44, fontWeight: 'bold' },

@@ -78,6 +78,7 @@ export default function SettingsScreen() {
     articleWordCount: 10,
     articleLength: 200,
     examQuestionCount: 10,
+    examAutoAdvance: true,
     aiProvider: 'deepseek',
     aiModel: AI_PROVIDERS.deepseek.defaultModel,
     apiKey: '',
@@ -260,6 +261,7 @@ export default function SettingsScreen() {
               articleWordCount: 10,
               articleLength: 200,
               examQuestionCount: 10,
+              examAutoAdvance: true,
               aiProvider: 'deepseek',
               aiModel: AI_PROVIDERS.deepseek.defaultModel,
               apiKey: '',
@@ -293,6 +295,7 @@ export default function SettingsScreen() {
               articleWordCount: 10,
               articleLength: 200,
               examQuestionCount: 10,
+              examAutoAdvance: true,
               aiProvider: 'deepseek',
               aiModel: AI_PROVIDERS.deepseek.defaultModel,
             });
@@ -443,6 +446,20 @@ export default function SettingsScreen() {
               <Text style={styles.sliderLabel}>5</Text>
               <Text style={styles.sliderLabel}>20</Text>
             </View>
+          </View>
+
+          <View style={styles.toggleRow}>
+            <View>
+              <Text style={styles.toggleLabel}>⚡ 答题自动跳转</Text>
+              <Text style={styles.toggleSublabel}>
+                {settings.examAutoAdvance ? '答对后 2.5 秒自动下一题' : '手动点击下一题'}
+              </Text>
+            </View>
+            <Switch
+              value={settings.examAutoAdvance}
+              onValueChange={value => saveSettings({ examAutoAdvance: value })}
+              color="#1976D2"
+            />
           </View>
 
           <Divider style={styles.divider} />

@@ -40,6 +40,7 @@ export default function StatsScreen() {
     articleWordCount: 10,
     articleLength: 200,
     examQuestionCount: 10,
+    examAutoAdvance: true,
     aiProvider: 'deepseek',
     aiModel: 'deepseek-chat',
     apiKey: '',

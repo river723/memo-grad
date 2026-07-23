@@ -155,7 +155,7 @@ export default function ExamResultScreen() {
                   </Text>
                   {isAnswered && !isCorrect && (
                     <Text style={styles.reviewUserAnswer}>
-                      你的选择：{answer!.selected_answer}
+                      你的选择：{answer!.selected_answer || '（未作答）'}
                     </Text>
                   )}
                 </View>
@@ -172,7 +172,7 @@ export default function ExamResultScreen() {
                   </Text>
                   {isAnswered && !isCorrect && (
                     <Text style={styles.reviewUserAnswer}>
-                      你的选择：{answer!.selected_answer}
+                      你的选择：{answer!.selected_answer || '（未作答）'}
                     </Text>
                   )}
                 </View>

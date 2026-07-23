@@ -41,7 +41,7 @@ export const EXAM_CONFIG = {
   DEFAULT_QUESTION_COUNT: 10,
   MIN_QUESTION_COUNT: 5,
   MAX_QUESTION_COUNT: 20,
-  AUTO_ADVANCE_DELAY: 1500,  // 答完题后自动跳转的延迟（毫秒）
+  AUTO_ADVANCE_DELAY: 2500,  // 答完题后自动跳转的延迟（毫秒）
 };
 
 export const WRONG_QUESTION_MASTERY_THRESHOLD = 3; // 错题做对 3 次后自动移出

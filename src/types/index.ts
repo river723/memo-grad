@@ -62,6 +62,7 @@ export interface AppSettings {
   articleWordCount: number;
   articleLength: number;
   examQuestionCount: number;
+  examAutoAdvance: boolean; // 考题答对后是否自动跳转下一题（关闭则手动点击）
 }
 
 export interface DailyStats {
@@ -176,6 +177,12 @@ export interface WrongQuestion {
 
 export type RealExamLetter = 'A' | 'B' | 'C' | 'D';
 
+/** 段落级中英对照（结果页复习用；完形英文段中 [N] 表示挖空占位） */
+export interface PassageParagraph {
+  en: string;
+  zh: string;
+}
+
 /** 阅读理解单题 */
 export interface RealExamReadingQuestion {
   id: string;                 // 如 '2023-text1-q1'
@@ -190,6 +197,7 @@ export interface RealExamReadingPassage {
   id: string;                 // 如 '2023-text1'
   title?: string;             // 可选标题（如 "Text 1"）
   passage: string;            // 文章正文（英文原文）
+  paragraphs?: PassageParagraph[]; // 段落级中英对照（结果页展示；答题屏不用）
   questions: RealExamReadingQuestion[];
 }
 
@@ -205,6 +213,7 @@ export interface RealExamClozeBlank {
 export interface RealExamClozePaper {
   id: string;                 // 如 '2023-cloze'
   passage: string;            // 含 "[1] ... [2] ..." 占位符的正文
+  paragraphs?: PassageParagraph[]; // 段落级中英对照（结果页展示；答题屏不用）
   blanks: RealExamClozeBlank[];
 }
 
@@ -264,4 +273,28 @@ export interface RealExamSession {
   score: number;                    // 正确数
   total: number;
   createdAt: string;                // ISO 时间串
+}
+
+/**
+ * 真题错题条目——独立于单词错题本 WrongQuestion。
+ * 以 questionId 作为主键（阅读 = RealExamReadingQuestion.id；完形 = `${paperId}-b${index}`）。
+ * 题面/选项/解析做快照，避免 realExams.json 后续版本变化后错题失去上下文。
+ */
+export interface RealExamWrongQuestion {
+  questionId: string;
+  year: number;
+  setId: 'english1' | 'english2';
+  mode: RealExamMode;
+  paperId: string;                  // 用于跳回 RealExamReading / RealExamCloze 重做
+  paperTitle?: string;              // 阅读的 Text 标题；完形留空
+  blankIndex?: number;              // 完形题号 1-20；阅读留空
+  stem?: string;                    // 阅读题干；完形留空
+  options: string[];                // 4 项（含 "A) " 前缀，直接沿用原字段）
+  correctAnswer: RealExamLetter;
+  userAnswer: RealExamLetter | null;
+  explanation?: string;
+  wrong_count: number;
+  correct_count: number;            // 重做时递增；≥ WRONG_QUESTION_MASTERY_THRESHOLD 自动移除
+  last_attempt_at: string;
+  created_at: string;
 }

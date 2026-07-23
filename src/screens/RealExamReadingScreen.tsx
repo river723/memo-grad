@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Card, Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { palette } from '../theme/tokens';
+import { stripLetterPrefix } from '../components/ReviewOption';
 import realExamsRaw from '../data/realExams.json';
+import StorageService from '../services/StorageService';
 import type {
   RealExamYear,
   RealExamReadingPassage,
@@ -38,6 +40,14 @@ export default function RealExamReadingScreen() {
   // key: questionId -> selected letter
   const [selections, setSelections] = useState<Record<string, RealExamLetter>>({});
 
+  // 恢复上次未提交的草稿（中途退出后重进可继续）
+  useEffect(() => {
+    if (!passage) return;
+    StorageService.getRealExamDraft(passage.id).then(draft => {
+      if (Object.keys(draft).length > 0) setSelections(draft);
+    });
+  }, [passage]);
+
   if (!passage) {
     return (
       <View style={styles.emptyContainer}>
@@ -54,7 +64,11 @@ export default function RealExamReadingScreen() {
   const progress = total > 0 ? answeredCount / total : 0;
 
   const handleSelect = (questionId: string, letter: RealExamLetter) => {
-    setSelections(prev => ({ ...prev, [questionId]: letter }));
+    setSelections(prev => {
+      const next = { ...prev, [questionId]: letter };
+      StorageService.saveRealExamDraft(passage.id, next);
+      return next;
+    });
   };
 
   const handleSubmit = () => {
@@ -93,6 +107,7 @@ export default function RealExamReadingScreen() {
       total,
       createdAt: new Date(now).toISOString(),
     };
+    StorageService.clearRealExamDraft(passage.id);
     navigation.navigate('RealExamResult', { session, passage, setId });
   };
 
@@ -168,18 +183,6 @@ export default function RealExamReadingScreen() {
       </Surface>
     </View>
   );
-}
-
-/**
- * 数据里 options 已经带 "A) ..." 前缀。UI 中已经单独渲染字母，避免重复。
- * 如果没带前缀，原样返回。
- */
-function stripLetterPrefix(option: string, letter: RealExamLetter): string {
-  const prefix1 = `${letter}) `;
-  const prefix2 = `${letter}. `;
-  if (option.startsWith(prefix1)) return option.slice(prefix1.length);
-  if (option.startsWith(prefix2)) return option.slice(prefix2.length);
-  return option;
 }
 
 const useStyles = makeStyles(colors => ({

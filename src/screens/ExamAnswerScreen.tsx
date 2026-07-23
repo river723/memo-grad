@@ -13,6 +13,7 @@ import { useAppTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import { ExamQuestion, ExamAnswer as ExamAnswerType, DefinitionQuestion, ClozeQuestion } from '../types';
 import { EXAM_CONFIG } from '../constants';
+import StorageService from '../services/StorageService';
 
 export default function ExamAnswerScreen() {
   const navigation = useAppNavigation();
@@ -29,6 +30,7 @@ export default function ExamAnswerScreen() {
   const [answers, setAnswers] = useState<ExamAnswerType[]>([]);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isRevealed, setIsRevealed] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(true);
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentQuestion = questions[currentIndex];
@@ -39,6 +41,11 @@ export default function ExamAnswerScreen() {
     return () => {
       if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
     };
+  }, []);
+
+  // 读取"答题自动跳转"设置：关闭后改为手动点"下一题"，给用户充足时间看答案
+  useEffect(() => {
+    StorageService.getSettings().then(s => setAutoAdvance(s.examAutoAdvance ?? true));
   }, []);
 
   const handleSelect = (option: string) => {
@@ -57,6 +64,9 @@ export default function ExamAnswerScreen() {
       is_correct: isCorrect,
     };
     setAnswers(prev => [...prev, newAnswer]);
+
+    // 自动跳转关闭时，不设定时器，等用户手动点"下一题"
+    if (!autoAdvance) return;
 
     autoAdvanceTimer.current = setTimeout(() => {
       if (isLastQuestion) {
@@ -77,10 +87,26 @@ export default function ExamAnswerScreen() {
 
   const handleSkip = () => {
     if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+    // 跳过的题以"未作答·错误"记入 answers，确保能进错题本与学习记录；
+    // 否则跳过的题既不算入结果也不会被复习，形成永久漏洞。
+    const alreadyAnswered = answers.some(a => a.question_index === currentIndex);
+    const updatedAnswers = alreadyAnswered
+      ? answers
+      : [
+          ...answers,
+          {
+            question_index: currentIndex,
+            question: currentQuestion,
+            selected_answer: '',
+            is_correct: false,
+          } as ExamAnswerType,
+        ];
+    if (!alreadyAnswered) setAnswers(updatedAnswers);
+
     if (isLastQuestion) {
       navigation.navigate('ExamResult', {
         questions,
-        answers,
+        answers: updatedAnswers,
         questionType,
         sessionId,
       });

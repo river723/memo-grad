@@ -1,5 +1,5 @@
-import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId, RealExamSession } from '../types';
-import { AI_PROVIDERS } from '../constants';
+import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId, RealExamSession, RealExamWrongQuestion, RealExamReadingPassage, RealExamClozePaper, RealExamLetter } from '../types';
+import { AI_PROVIDERS, WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 
 // 跨平台存储接口
 interface StorageInterface {
@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   articleWordCount: 10,
   articleLength: 200,
   examQuestionCount: 10,
+  examAutoAdvance: true,
 };
 
 class StorageService {
@@ -75,7 +76,9 @@ class StorageService {
     EXAM_SESSIONS: 'kaoyan_exam_sessions',
     WRONG_QUESTIONS: 'kaoyan_wrong_questions',
     IGNORED_WORDBANK_WORDS: 'kaoyan_ignored_wordbank_words',
-    REAL_EXAM_SESSIONS: 'kaoyan_real_exam_sessions'
+    REAL_EXAM_SESSIONS: 'kaoyan_real_exam_sessions',
+    REAL_EXAM_WRONG_QUESTIONS: 'kaoyan_real_exam_wrong_questions',
+    REAL_EXAM_DRAFTS: 'kaoyan_real_exam_drafts'
   };
 
   // 生词操作
@@ -400,6 +403,137 @@ class StorageService {
     }
   }
 
+  // ==================== 真题错题本操作 ====================
+  // 与单词错题本 (WrongQuestion) 独立存储：真题以 questionId 为主键，模型形状不同。
+  async getRealExamWrongQuestions(): Promise<RealExamWrongQuestion[]> {
+    try {
+      const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Get real exam wrong questions error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 根据一次真题会话批量 upsert 错题本：
+   * - 错的题：已存在则 wrong_count++ 并刷新 userAnswer；否则新建。
+   * - 对的题：已存在则 correct_count++；达到 mastery 阈值时移除该条。
+   * - 对且不在错题本里的题：不做处理（避免把从未做错的题也塞进错题本）。
+   */
+  async addOrUpdateRealExamWrongQuestions(
+    session: RealExamSession,
+    paper: RealExamReadingPassage | RealExamClozePaper | undefined,
+    setId: 'english1' | 'english2',
+  ): Promise<void> {
+    if (!paper) return;
+    const list = await this.getRealExamWrongQuestions();
+    const now = new Date().toISOString();
+
+    // 构建 questionId -> 快照元数据的映射，便于新增时填题面/选项
+    const snapshots = new Map<string, Omit<RealExamWrongQuestion,
+      'userAnswer' | 'wrong_count' | 'correct_count' | 'last_attempt_at' | 'created_at'>>();
+
+    if (session.mode === 'reading') {
+      const passage = paper as RealExamReadingPassage;
+      for (const q of passage.questions) {
+        snapshots.set(q.id, {
+          questionId: q.id,
+          year: session.year,
+          setId,
+          mode: 'reading',
+          paperId: passage.id,
+          paperTitle: passage.title,
+          stem: q.stem,
+          options: q.options,
+          correctAnswer: q.answer,
+          explanation: q.explanation,
+        });
+      }
+    } else {
+      const clozePaper = paper as RealExamClozePaper;
+      for (const b of clozePaper.blanks) {
+        const qid = `${clozePaper.id}-b${b.index}`;
+        snapshots.set(qid, {
+          questionId: qid,
+          year: session.year,
+          setId,
+          mode: 'cloze',
+          paperId: clozePaper.id,
+          blankIndex: b.index,
+          options: b.options,
+          correctAnswer: b.answer,
+          explanation: b.explanation,
+        });
+      }
+    }
+
+    for (const ans of session.answers) {
+      const existingIdx = list.findIndex(w => w.questionId === ans.questionId);
+      if (ans.correct) {
+        if (existingIdx === -1) continue;                       // 从没错过，不入本
+        list[existingIdx].correct_count += 1;
+        list[existingIdx].last_attempt_at = now;
+        if (list[existingIdx].correct_count >= WRONG_QUESTION_MASTERY_THRESHOLD) {
+          list.splice(existingIdx, 1);                          // 掌握后移除
+        }
+      } else {
+        const snap = snapshots.get(ans.questionId);
+        if (!snap) continue;                                    // 找不到题面则跳过
+        if (existingIdx !== -1) {
+          list[existingIdx].wrong_count += 1;
+          list[existingIdx].userAnswer = ans.selected;
+          list[existingIdx].last_attempt_at = now;
+        } else {
+          list.push({
+            ...snap,
+            userAnswer: ans.selected,
+            wrong_count: 1,
+            correct_count: 0,
+            last_attempt_at: now,
+            created_at: now,
+          });
+        }
+      }
+    }
+
+    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(list));
+  }
+
+  async removeRealExamWrongQuestion(questionId: string): Promise<void> {
+    const list = await this.getRealExamWrongQuestions();
+    const filtered = list.filter(w => w.questionId !== questionId);
+    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(filtered));
+  }
+
+  // ==================== 真题答题草稿（中途暂存，重进可恢复）====================
+  // 以 paperId 为键存 selections（Record<string, RealExamLetter>）。阅读用 questionId、
+  // 完形用 blank index 的字符串形式作内部 key；提交后清除。
+  async getRealExamDraft(paperId: string): Promise<Record<string, RealExamLetter>> {
+    try {
+      const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
+      const all: Record<string, Record<string, RealExamLetter>> = data ? JSON.parse(data) : {};
+      return all[paperId] ?? {};
+    } catch (error) {
+      console.error('Get real exam draft error:', error);
+      return {};
+    }
+  }
+
+  async saveRealExamDraft(paperId: string, selections: Record<string, RealExamLetter>): Promise<void> {
+    const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
+    const all: Record<string, Record<string, RealExamLetter>> = data ? JSON.parse(data) : {};
+    all[paperId] = selections;
+    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_DRAFTS, JSON.stringify(all));
+  }
+
+  async clearRealExamDraft(paperId: string): Promise<void> {
+    const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
+    const all: Record<string, Record<string, RealExamLetter>> = data ? JSON.parse(data) : {};
+    delete all[paperId];
+    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_DRAFTS, JSON.stringify(all));
+  }
+
   async getWordArticleCoverage(): Promise<Map<number, number>> {
     const articles = await this.getArticles();
     const coverage = new Map<number, number>();
@@ -460,6 +594,7 @@ class StorageService {
       wrongQuestions: await this.getWrongQuestions(),
       ignoredWordbankWords: await this.getIgnoredWordbankWords(),
       realExamSessions: await this.getRealExamSessions(),
+      realExamWrongQuestions: await this.getRealExamWrongQuestions(),
       settings: {
         ...settings,
         apiKey: '',
@@ -511,6 +646,12 @@ class StorageService {
           JSON.stringify(data.realExamSessions)
         );
       }
+      if (data.realExamWrongQuestions) {
+        await AsyncStorage.setItem(
+          this.KEYS.REAL_EXAM_WRONG_QUESTIONS,
+          JSON.stringify(data.realExamWrongQuestions)
+        );
+      }
     } catch (error) {
       console.error('Import data error:', error);
       throw new Error('数据导入失败');
@@ -528,6 +669,7 @@ class StorageService {
       this.KEYS.WRONG_QUESTIONS,
       this.KEYS.IGNORED_WORDBANK_WORDS,
       this.KEYS.REAL_EXAM_SESSIONS,
+      this.KEYS.REAL_EXAM_WRONG_QUESTIONS,
       this.KEYS.SETTINGS
     ]);
   }

@@ -12,14 +12,25 @@ import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import { ExamSession, WrongQuestion } from '../types';
+import { ExamSession, WrongQuestion, RealExamSession, RealExamWrongQuestion } from '../types';
+
+/** 统一的"最近练习"视图模型，合并考题与真题两套 session。 */
+type RecentItem = {
+  key: string;
+  createdAt: string;
+  label: string;
+  count: number;
+  accuracy: number; // 0-1
+};
 
 export default function PracticeHubScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
   const styles = useStyles();
   const [examSessions, setExamSessions] = useState<ExamSession[]>([]);
+  const [realExamSessions, setRealExamSessions] = useState<RealExamSession[]>([]);
   const [wrongQuestions, setWrongQuestions] = useState<WrongQuestion[]>([]);
+  const [realExamWrong, setRealExamWrong] = useState<RealExamWrongQuestion[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -29,24 +40,56 @@ export default function PracticeHubScreen() {
 
   const loadData = async () => {
     try {
-      const [sessions, wrongs] = await Promise.all([
+      const [sessions, realSessions, wrongs, realWrongs] = await Promise.all([
         StorageService.getExamSessions(),
+        StorageService.getRealExamSessions(),
         StorageService.getWrongQuestions(),
+        StorageService.getRealExamWrongQuestions(),
       ]);
       setExamSessions(sessions);
+      setRealExamSessions(realSessions);
       setWrongQuestions(wrongs);
+      setRealExamWrong(realWrongs);
     } catch (error) {
       console.error('加载练习数据失败:', error);
       setExamSessions([]);
+      setRealExamSessions([]);
       setWrongQuestions([]);
+      setRealExamWrong([]);
     }
   };
 
-  const totalExams = examSessions.length;
-  const avgAccuracy = totalExams > 0
-    ? Math.round(examSessions.reduce((sum, s) => sum + (s.accuracy || 0), 0) / totalExams * 100)
+  // 概览聚合考题 + 真题两套 session
+  const totalExams = examSessions.length + realExamSessions.length;
+  const allAccuracies = [
+    ...examSessions.map(s => s.accuracy || 0),
+    ...realExamSessions.map(s => (s.total > 0 ? s.score / s.total : 0)),
+  ];
+  const avgAccuracy = allAccuracies.length > 0
+    ? Math.round(allAccuracies.reduce((sum, a) => sum + a, 0) / allAccuracies.length * 100)
     : 0;
-  const recentSessions = examSessions.slice(0, 5);
+  // 待复习错题聚合单词错题本 + 真题错题本
+  const totalWrong = wrongQuestions.length + realExamWrong.length;
+
+  // 最近练习：合并两套 session，按时间倒序取前 5
+  const recentItems: RecentItem[] = [
+    ...examSessions.map(s => ({
+      key: `exam-${s.id}`,
+      createdAt: s.created_at,
+      label: s.question_type === 'definition' ? '释义选择题' : '完形填空题',
+      count: s.questions?.length || 0,
+      accuracy: s.accuracy || 0,
+    })),
+    ...realExamSessions.map(s => ({
+      key: `real-${s.id}`,
+      createdAt: s.createdAt,
+      label: `真题·${s.mode === 'reading' ? '阅读' : '完形'} ${s.year}`,
+      count: s.total,
+      accuracy: s.total > 0 ? s.score / s.total : 0,
+    })),
+  ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5);
 
   return (
     <View style={styles.container}>
@@ -72,9 +115,9 @@ export default function PracticeHubScreen() {
               <View style={styles.statItem}>
                 <Text style={[
                   styles.statNumber,
-                  { color: wrongQuestions.length > 0 ? palette.danger : palette.success }
+                  { color: totalWrong > 0 ? palette.danger : palette.success }
                 ]}>
-                  {wrongQuestions.length}
+                  {totalWrong}
                 </Text>
                 <Text style={styles.statLabel}>待复习错题</Text>
               </View>
@@ -119,14 +162,14 @@ export default function PracticeHubScreen() {
                 style={styles.actionButton}
                 icon="alert-circle"
               >
-                错题本{wrongQuestions.length > 0 ? ` (${wrongQuestions.length})` : ''}
+                错题本{totalWrong > 0 ? ` (${totalWrong})` : ''}
               </Button>
             </View>
           </Card.Content>
         </Card>
 
         {/* 最近练习记录 */}
-        {recentSessions.length > 0 && (
+        {recentItems.length > 0 && (
           <Card style={styles.card}>
             <Card.Title
               title="最近练习"
@@ -138,12 +181,12 @@ export default function PracticeHubScreen() {
               )}
             />
             <Card.Content>
-              {recentSessions.map((session, index) => (
-                <Surface key={session.id || index} style={styles.sessionItem}>
+              {recentItems.map((item) => (
+                <Surface key={item.key} style={styles.sessionItem}>
                   <View style={styles.sessionInfo}>
                     <Text style={styles.sessionDate}>
-                      {session.created_at
-                        ? new Date(session.created_at).toLocaleDateString('zh-CN', {
+                      {item.createdAt
+                        ? new Date(item.createdAt).toLocaleDateString('zh-CN', {
                             month: 'short',
                             day: 'numeric',
                             hour: '2-digit',
@@ -152,16 +195,16 @@ export default function PracticeHubScreen() {
                         : '未知时间'}
                     </Text>
                     <Text style={styles.sessionType}>
-                      {session.question_type === 'definition' ? '释义选择题' : '完形填空题'}
+                      {item.label}
                       {' · '}
-                      {session.questions?.length || 0} 题
+                      {item.count} 题
                     </Text>
                   </View>
                   <Text style={[
                     styles.sessionAccuracy,
-                    { color: (session.accuracy || 0) >= 0.7 ? palette.success : palette.danger }
+                    { color: item.accuracy >= 0.7 ? palette.success : palette.danger }
                   ]}>
-                    {Math.round((session.accuracy || 0) * 100)}%
+                    {Math.round(item.accuracy * 100)}%
                   </Text>
                 </Surface>
               ))}
@@ -169,7 +212,7 @@ export default function PracticeHubScreen() {
           </Card>
         )}
 
-        {examSessions.length === 0 && (
+        {totalExams === 0 && (
           <Card style={[styles.card, styles.lastCard]}>
             <Card.Content>
               <View style={styles.emptyState}>

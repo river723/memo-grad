@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Card, Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { palette } from '../theme/tokens';
+import { stripLetterPrefix } from '../components/ReviewOption';
 import realExamsRaw from '../data/realExams.json';
+import StorageService from '../services/StorageService';
 import type {
   RealExamYear,
   RealExamClozePaper,
@@ -38,6 +40,14 @@ export default function RealExamClozeScreen() {
   // key: blank index -> selected letter
   const [selections, setSelections] = useState<Record<number, RealExamLetter>>({});
 
+  // 恢复上次未提交的草稿（中途退出后重进可继续）
+  useEffect(() => {
+    if (!paper) return;
+    StorageService.getRealExamDraft(paper.id).then(draft => {
+      if (Object.keys(draft).length > 0) setSelections(draft as Record<number, RealExamLetter>);
+    });
+  }, [paper]);
+
   if (!paper) {
     return (
       <View style={styles.emptyContainer}>
@@ -54,7 +64,11 @@ export default function RealExamClozeScreen() {
   const progress = total > 0 ? answeredCount / total : 0;
 
   const handleSelect = (index: number, letter: RealExamLetter) => {
-    setSelections(prev => ({ ...prev, [index]: letter }));
+    setSelections(prev => {
+      const next = { ...prev, [index]: letter };
+      StorageService.saveRealExamDraft(paper.id, next as Record<string, RealExamLetter>);
+      return next;
+    });
   };
 
   const handleSubmit = () => {
@@ -93,6 +107,7 @@ export default function RealExamClozeScreen() {
       total,
       createdAt: new Date(now).toISOString(),
     };
+    StorageService.clearRealExamDraft(paper.id);
     navigation.navigate('RealExamResult', { session, paper, setId });
   };
 
@@ -173,14 +188,6 @@ export default function RealExamClozeScreen() {
       </Surface>
     </View>
   );
-}
-
-function stripLetterPrefix(option: string, letter: RealExamLetter): string {
-  const prefix1 = `${letter}) `;
-  const prefix2 = `${letter}. `;
-  if (option.startsWith(prefix1)) return option.slice(prefix1.length);
-  if (option.startsWith(prefix2)) return option.slice(prefix2.length);
-  return option;
 }
 
 const useStyles = makeStyles(colors => ({

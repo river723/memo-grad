@@ -47,10 +47,10 @@ export default function ExamHistoryScreen() {
   };
 
   const handleRedo = (session: ExamSession) => {
+    // 不传 sessionId：重做走新建而非覆盖，保留原成绩记录以呈现进步轨迹。
     navigation.navigate('ExamAnswer', {
       questions: session.questions,
       questionType: session.question_type,
-      sessionId: session.id,
     });
   };
 
