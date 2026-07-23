@@ -293,9 +293,6 @@ function ClozeQuestionCard({
             )}
           </Text>
         </Surface>
-        {question.chinese_hint ? (
-          <Text style={styles.chineseHint}>💡 {question.chinese_hint}</Text>
-        ) : null}
         <Text style={styles.promptText}>选择正确的单词填入空白处：</Text>
         <View style={styles.optionsGrid}>
           {question.options.map((option, idx) => {
@@ -410,7 +407,6 @@ const useStyles = makeStyles(colors => ({
   sentenceText: { fontSize: 16, color: colors.onSurface, lineHeight: 26, fontStyle: 'italic' },
   underlinedWord: { color: colors.primary, fontWeight: '800', textDecorationLine: 'underline', textDecorationColor: colors.primary, textDecorationStyle: 'solid' },
   blankMarker: { color: colors.primary, fontWeight: '800', fontSize: 20, textDecorationLine: 'underline' },
-  chineseHint: { fontSize: 13, color: colors.tertiary, marginBottom: 16, lineHeight: 20 },
   optionsGrid: { gap: 10 },
   optionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.outline, minHeight: 48 },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primaryContainer },

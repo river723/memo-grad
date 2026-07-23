@@ -426,7 +426,7 @@ ${wordList}
             return parsed.questions.map((q: any) => ({
               target_word: q.target_word || '',
               sentence: q.sentence || '',
-              options: Array.isArray(q.options) ? q.options : [],
+              options: this.shuffleOptions(Array.isArray(q.options) ? q.options : []),
               correct_answer: q.correct_answer || '',
               chinese_hint: q.chinese_hint || '',
             }));
@@ -440,7 +440,7 @@ ${wordList}
               return parsed.questions.map((q: any) => ({
                 target_word: q.target_word || '',
                 sentence: q.sentence || '',
-                options: Array.isArray(q.options) ? q.options : [],
+                options: this.shuffleOptions(Array.isArray(q.options) ? q.options : []),
                 correct_answer: q.correct_answer || '',
                 chinese_hint: q.chinese_hint || '',
               }));
@@ -534,7 +534,7 @@ ${wordList}
             return parsed.questions.map((q: any) => ({
               target_word: q.target_word || '',
               sentence: q.sentence || '',
-              options: Array.isArray(q.options) ? q.options : [],
+              options: this.shuffleOptions(Array.isArray(q.options) ? q.options : []),
               correct_definition: q.correct_definition || '',
             }));
           }
@@ -547,7 +547,7 @@ ${wordList}
               return parsed.questions.map((q: any) => ({
                 target_word: q.target_word || '',
                 sentence: q.sentence || '',
-                options: Array.isArray(q.options) ? q.options : [],
+                options: this.shuffleOptions(Array.isArray(q.options) ? q.options : []),
                 correct_definition: q.correct_definition || '',
               }));
             }
@@ -624,6 +624,23 @@ ${params.options.join('\n')}
       console.error('Generate explanation error:', error);
       throw new Error('解析生成失败，请重试');
     }
+  }
+
+  /**
+   * Fisher–Yates 打乱选项顺序。
+   * AI prompt 约定正确答案放在 options[0]，若直接采用会让正确答案恒为 A；
+   * 这里在返回前随机打乱，使正确选项均匀分布在 A/B/C/D。判分按文本比对
+   * （option === correct_answer / correct_definition），故打乱不影响正确性。
+   */
+  private shuffleOptions(options: string[]): string[] {
+    const arr = [...options];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    // 临时诊断日志：确认新代码已生效、且正确项（AI 约定在 options[0]）已被打乱到其他位置
+    console.log('[shuffleOptions] before:', JSON.stringify(options), 'after:', JSON.stringify(arr));
+    return arr;
   }
 
   private getRandomTheme(): string {

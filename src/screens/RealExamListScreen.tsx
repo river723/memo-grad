@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, ScrollView, TouchableOpacity, Text } from 'react-native';
 import { Card, SegmentedButtons } from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
@@ -212,7 +212,7 @@ function EntryRow({
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
       <View style={styles.entryRow}>
-        <MaterialIcons name={icon as any} size={18} color={colors.tertiary} />
+        <MaterialCommunityIcons name={icon as any} size={18} color={colors.tertiary} />
         <View style={styles.entryText}>
           <Text style={styles.entryTitle}>{title} ({count}题)</Text>
           {status ? <Text style={[styles.entryStatus, { color: status.color }]}>{status.text}</Text> : null}
