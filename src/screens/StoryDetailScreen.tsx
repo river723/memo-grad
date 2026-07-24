@@ -39,6 +39,57 @@ function dictEntryToWord(wordKey: string): Word | undefined {
   };
 }
 
+/**
+ * 判断短文本是否像标题（无句末标点），用于识别英文正文开头多出的章节标题行。
+ */
+function isTitleLike(text: string): boolean {
+  const t = text.trim();
+  if (!t || t.length >= 40) return false;
+  return !/[.!?。！？]$/.test(t);
+}
+
+/**
+ * 将英文正文与中文译文按 `\n\n` 拆成段落并按下标配对，得到段落级中英对照结构。
+ * - 英文比中文多一段且首段为标题时，标题单独成段不配对译文（避免整章错位）；
+ * - 其余按顺序配对，多出的一方以单语段落补齐。
+ */
+function buildBilingualPairs(
+  content: string,
+  translation: string
+): { en: string; zh?: string }[] {
+  const enParas = content.split(/\n\n+/).map(s => s.trim()).filter(Boolean);
+  const zhParas = translation
+    ? translation.split(/\n\n+/).map(s => s.trim()).filter(Boolean)
+    : [];
+
+  const pairs: { en: string; zh?: string }[] = [];
+
+  // 英文开头多出的标题行（如 "Chapter 2: Awakening"）单独成段
+  let enStart = 0;
+  if (
+    enParas.length === zhParas.length + 1 &&
+    zhParas.length > 0 &&
+    isTitleLike(enParas[0])
+  ) {
+    pairs.push({ en: enParas[0] });
+    enStart = 1;
+  }
+
+  const maxLen = Math.max(enParas.length - enStart, zhParas.length);
+  for (let i = 0; i < maxLen; i++) {
+    const en = enParas[enStart + i];
+    const zh = zhParas[i];
+    if (en !== undefined && zh !== undefined) {
+      pairs.push({ en, zh });
+    } else if (en !== undefined) {
+      pairs.push({ en });
+    } else if (zh !== undefined) {
+      pairs.push({ en: '', zh });
+    }
+  }
+  return pairs;
+}
+
 export default function StoryDetailScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
@@ -68,11 +119,16 @@ export default function StoryDetailScreen() {
     return map;
   }, [chapter]);
 
-  // 解析段落
-  const segments = useMemo(
-    () => (chapter ? parseArticleContent(chapter.content, chapter.words, wordMap) : []),
-    [chapter, wordMap]
-  );
+  // 段落级中英对照：将英文正文与中文译文按段落拆分配对，并为每段英文解析生词片段
+  const pairsWithSegs = useMemo(() => {
+    if (!chapter) return [];
+    const pairs = buildBilingualPairs(chapter.content, chapter.translation);
+    return pairs.map(p => ({
+      en: p.en,
+      zh: p.zh,
+      segs: parseArticleContent(p.en, chapter.words, wordMap),
+    }));
+  }, [chapter, wordMap]);
 
   const handleWordTap = useCallback((wordObj?: Word) => {
     if (wordObj) {
@@ -108,22 +164,36 @@ export default function StoryDetailScreen() {
         {/* 正文 */}
         <Card style={styles.contentCard}>
           <Card.Content>
-            <Text style={styles.articleText}>
-              {segments.map((seg, index) => {
-                if (seg.isWord) {
-                  return (
-                    <Text
-                      key={index}
-                      style={styles.highlightedWord}
-                      onPress={() => handleWordTap(seg.wordObj)}
-                    >
-                      {seg.text}
+            {pairsWithSegs.map((pair, index) => {
+              const showEn = !!pair.en;
+              const showZh = !!pair.zh && showTranslation;
+              if (!showEn && !showZh) return null;
+              return (
+                <View key={index} style={styles.bilingualPara}>
+                  {showEn ? (
+                    <Text style={styles.articleText}>
+                      {pair.segs.map((seg, j) => {
+                        if (seg.isWord) {
+                          return (
+                            <Text
+                              key={j}
+                              style={styles.highlightedWord}
+                              onPress={() => handleWordTap(seg.wordObj)}
+                            >
+                              {seg.text}
+                            </Text>
+                          );
+                        }
+                        return <Text key={j}>{seg.text}</Text>;
+                      })}
                     </Text>
-                  );
-                }
-                return <Text key={index}>{seg.text}</Text>;
-              })}
-            </Text>
+                  ) : null}
+                  {showZh ? (
+                    <Text style={styles.bilingualZh}>{pair.zh}</Text>
+                  ) : null}
+                </View>
+              );
+            })}
 
             {chapter.translation ? (
               <View style={styles.translationToggleArea}>
@@ -139,15 +209,6 @@ export default function StoryDetailScreen() {
                 </Button>
               </View>
             ) : null}
-            {chapter.translation && showTranslation && (
-              <View>
-                <View style={styles.translationDivider} />
-                <Text style={styles.translationLabel}>中文翻译</Text>
-                <Text style={styles.translationContent}>
-                  {chapter.translation}
-                </Text>
-              </View>
-            )}
           </Card.Content>
         </Card>
 
@@ -328,21 +389,17 @@ const useStyles = makeStyles((colors) => ({
     fontSize: 12,
     color: colors.primary,
   },
-  translationDivider: {
-    height: 1,
-    backgroundColor: colors.outline,
-    marginVertical: 16,
+  bilingualPara: {
+    marginBottom: 16,
   },
-  translationLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 8,
-  },
-  translationContent: {
-    fontSize: 15,
+  bilingualZh: {
+    fontSize: 14,
     color: colors.onSurfaceVariant,
-    lineHeight: 26,
+    lineHeight: 22,
+    marginTop: 6,
+    paddingLeft: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primaryContainer,
   },
   tapHint: {
     fontSize: 12,

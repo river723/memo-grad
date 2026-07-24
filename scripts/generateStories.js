@@ -6,8 +6,8 @@
 //
 // 用法：
 //   API_KEY=sk-xxx node scripts/generateStories.js
-//   API_KEY=sk-xxx CHAPTERS=20 CHAPTER_WORDS=250 node scripts/generateStories.js
 //   API_KEY=sk-xxx START_CHAPTER=5 node scripts/generateStories.js  # 从第5章续跑（增量）
+//   API_KEY=sk-xxx CHAPTER_IDS=1,6,7,10,16,18 node scripts/generateStories.js  # 原地重生成指定章节
 //
 // 环境变量：
 //   API_KEY         必填，AI provider 的 API Key（默认走 DeepSeek）
@@ -17,16 +17,20 @@
 //   MAX_CHAPTERS    可选，本次实际生成的章节数（用于测试少量章节），默认等于 CHAPTERS
 //   BATCH_SIZE      可选，每批次目标词数，默认 60（越小越容易全覆盖）
 //   START_CHAPTER   可选，从第几章开始（断点续传），默认 1
-//   RETRY           可选，单批失败重试次数，默认 3
+//   CHAPTER_IDS     可选，逗号分隔的章节号，原地重生成这些章节（保留其他章节），优先于 START_CHAPTER
+//   RETRY           可选，单批失败/重复句/译文段数不符的重试次数，默认 3
 //   DELAY_MS        可选，请求间延迟毫秒数，默认 1500
 //
-// 不引入 npm 依赖，只用 Node 内置模块。
+// 质量保障：每批生成后检测与上文的重复句、校验译文段数与英文一致，不符则重试；
+//   章末统一经 remediateStories.js 的 processChapter 清理（去残留重复句、拆 60-90 词段、
+//   译文段锁步对齐）。不引入 npm 依赖，只用 Node 内置模块。
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const { processChapter } = require('./remediateStories.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const DICT_PATH = path.join(ROOT, 'src/data/worddict.json');
@@ -34,13 +38,17 @@ const OUT_PATH = path.join(ROOT, 'src/data/stories.json');
 
 const API_KEY = process.env.API_KEY || '';
 const API_BASE = process.env.API_BASE || 'https://api.deepseek.com/v1';
-const API_MODEL = process.env.API_MODEL || 'deepseek-chat';
+const API_MODEL = process.env.API_MODEL || 'deepseek-v4-flash';
 const CHAPTERS = Number(process.env.CHAPTERS || 20);
 const MAX_CHAPTERS = Number(process.env.MAX_CHAPTERS || CHAPTERS);
 const BATCH_SIZE = Number(process.env.BATCH_SIZE || 60);
 const START_CHAPTER = Number(process.env.START_CHAPTER || 1);
 const RETRY = Number(process.env.RETRY || 3);
 const DELAY_MS = Number(process.env.DELAY_MS || 1500);
+// 非连续原地重生成指定章节（不丢失其他章节），如 CHAPTER_IDS=1,6,7,10,16,18
+const CHAPTER_IDS = process.env.CHAPTER_IDS
+  ? process.env.CHAPTER_IDS.split(',').map((x) => Number(x.trim())).filter(Boolean)
+  : null;
 
 if (!API_KEY) {
   console.error('❌ 缺少 API_KEY 环境变量');
@@ -183,10 +191,30 @@ function callAI(prompt, systemPrompt) {
 
 /**
  * 从 AI 返回的文本中提取 JSON 对象。
+ * 优先尝试从标准 API 响应结构中提取 `choices[0].message.content`；
+ * 若失败，再回退到查找首个 {...} 这样的 JSON 代码块。
  */
 function extractJson(content) {
+  // 尝试解析整个响应获取 standard OpenAI 格式
+  try {
+    const full = JSON.parse(content);
+    if (full.choices && full.choices[0] && full.choices[0].message) {
+      const inner = full.choices[0].message.content;
+      // inner 里面还是 JSON 字符串？再解析一次
+      if (typeof inner === 'string') {
+        const match = inner.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+      }
+    }
+  } catch { /* fall through */ }
+
+  // 回退：直接查找 JSON 代码块
   const match = content.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('未找到 JSON 内容');
+  if (!match) {
+    // 尝试打印诊断：看看 AI 返回了什么结构
+    const preview = content.slice(0, 400).replace(/\n/g, '\\n');
+    throw new Error(`未找到 JSON 内容（前400字：${preview}）`);
+  }
   return JSON.parse(match[0]);
 }
 
@@ -203,9 +231,36 @@ function sanitizeContent(text) {
       if (!t) return false;
       // 剔除以 Translation: / Summary: / translation: / summary: 开头的段
       if (/^(Translation|Summary|translation|summary)\s*[:：]/.test(t)) return false;
+      // 剔除混入正文的 "Chapter N: 标题" 行
+      if (/^Chapter\s+\d+\s*[:：]/i.test(t)) return false;
       return true;
     })
     .join('\n\n');
+}
+
+/**
+ * 检测 newText 中与 prevText 重复的整句（章内循环生成的迹象）。
+ * 仅比较长度 >= 30 的句子，归一化（trim/小写/压缩空白）后比对。
+ * 返回去重后的重复句子列表（归一化形式），用于在重试时提示 AI 避开。
+ */
+function findDupSentences(newText, prevText) {
+  if (!prevText || !newText) return [];
+  const prevSet = new Set(
+    (prevText.match(/[^.!?]+[.!?]+/g) || [])
+      .map((s) => s.trim().toLowerCase().replace(/\s+/g, ' '))
+      .filter((s) => s.length >= 30)
+  );
+  const dups = [];
+  const seen = new Set();
+  for (const raw of newText.match(/[^.!?]+[.!?]+/g) || []) {
+    const s = raw.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (s.length < 30) continue;
+    if (prevSet.has(s) && !seen.has(s)) {
+      dups.push(s);
+      seen.add(s);
+    }
+  }
+  return dups;
 }
 
 /**
@@ -231,7 +286,10 @@ const SYSTEM_PROMPT =
   '严格禁止：使用 * / _ / 【】 等任何特殊符号包裹或标注单词；' +
   '严格禁止：把词性名称（如 noun、verb、adjective）当作故事内容写进正文；' +
   '严格禁止：重复复制上文段落作为回答；' +
-  '严格禁止：在中文翻译字段中夹杂未翻译的英文单词（人名如 Alex/Elara 除外，其余英文词必须译成中文）。';
+  '严格禁止：在中文翻译字段中夹杂未翻译的英文单词（人名如 Alex/Elara 除外，其余英文词必须译成中文）。' +
+  '严格禁止：复用本章已出现过的整句（尤其是"the X of Y was a Z"这类格言式总结句），每段必须推进新剧情、提供新信息；' +
+  '格式要求：英文正文每段 60-90 词，段落之间用空行分隔；' +
+  '对照要求：translation 的段落数必须与 content 完全一致，且逐段对应（第 i 段英文对应第 i 段中文），不要合并或拆散段落。';
 
 /**
  * 构造首批（开场段落）的 prompt —— 需要产出章节标题、开场英文+译文、以及本批词覆盖。
@@ -250,8 +308,9 @@ ${batchWords.join(', ')}
 1. 开场部分英文 500-700 词，交代场景与主角境况
 2. 上述每个英文单词必须以其原形或常见变形（复数、时态、派生词）出现在英文正文中
 3. 目标词以外的词汇简单易懂
-4. 章节中文标题 8 字以内（如"星门之启"）
-5. 中文翻译与英文段落对应
+4. 英文正文每段 60-90 词，段落之间用空行分隔；每段必须推进新剧情，禁止复用任何整句
+5. 章节中文标题 8 字以内（如"星门之启"）
+6. 中文翻译的段落数必须与英文完全一致，逐段对应
 
 严格返回以下 JSON（无额外文本）：
 {
@@ -278,8 +337,9 @@ ${batchWords.join(', ')}
 1. 续写 500-700 词的英文段落，情节自然承接上文
 2. 上述每个英文单词必须以其原形或常见变形出现在英文正文中
 3. 目标词以外的词汇简单易懂
-${isLast ? '4. 本段是本章最后一段，请给出合适的段落收尾，并另附本章一句话中文梗概（15 字内）\n' : ''}
-4. 提供本段英文对应的中文翻译
+4. 英文正文每段 60-90 词，段落之间用空行分隔；每段必须推进新剧情，禁止复用上文任何整句
+5. 提供本段英文对应的中文翻译，段落数与英文一致、逐段对应
+${isLast ? '6. 本段是本章最后一段，请给出合适的段落收尾，并另附本章一句话中文梗概（15 字内）\n' : ''}
 
 严格返回以下 JSON（无额外文本）：
 {
@@ -289,33 +349,30 @@ ${isLast ? '4. 本段是本章最后一段，请给出合适的段落收尾，�
 }
 
 /**
- * 构造补齐段落的 prompt —— 用独立的小插曲（回忆、书页、梦境、日记）
- * 塞入缺词，避免"续写"式追加导致的语言重复循环。
+ * 构造补齐段落的 prompt -- 承接本章主线剧情续写，自然融入缺词。
+ * 不再使用独立的回忆/梦境/日记插曲，避免与主线割裂。
  */
-function buildPatchPrompt(missingWords, arc, chapterTitle) {
-  return `请为一部英文小说中的第 "${chapterTitle}" 章补写一个【独立小插曲】（英文 200-400 词）。
+function buildPatchPrompt(missingWords, arc, chapterTitle, prevEnglishTail) {
+  return `请为第 "${chapterTitle}" 章续写一段承接主线的英文剧情（200-400 词），自然融入尚未使用的目标词。
 
-【所在章节的场景】${arc.setting}
+【本章场景】${arc.setting}
 【故事地点】${arc.location}
+【上文结尾】${prevEnglishTail.slice(-400)}
 
-【必须使用的英文单词】（共 ${missingWords.length} 个，每个至少出现一次；专有名词/生僻词可作为角色名、地名、书名、对话中的引用等出现）
+【必须使用的英文单词】（共 ${missingWords.length} 个，每个至少出现一次；专有名词/生僻词可作为角色名、地名、书名、对话引用等出现）
 ${missingWords.join(', ')}
 
 【创作要求】
-1. 这是一段独立的小插曲，可采用以下任一形式：
-   - 主角翻阅一本古籍/日记，其中记载的一段往事或传说
-   - 主角回忆自己童年、家人或师长的一个场景
-   - 主角做的一个奇异梦境
-   - 一位路人/NPC 讲述的短故事
-2. 情节自成体系，不需要与主线剧情紧密衔接，但语气与本章场景协调
-3. 上述每个英文单词必须以其原形或常见变形自然出现在正文中
-4. 目标词以外的词汇简单易懂
+1. 续写一段连贯的英文剧情，自然承接上文，不要写成独立的回忆/梦境/日记插曲
+2. 上述每个英文单词必须以其原形或常见变形自然出现在正文中
+3. 目标词以外的词汇简单易懂
+4. 英文正文每段 60-90 词，段落之间用空行分隔；禁止复用上文任何整句
 5. 不要用 * / 【 】 等符号标注目标词，保持自然
-6. 提供对应中文翻译
+6. 提供对应中文翻译，段落数与英文一致、逐段对应
 
 严格返回 JSON（无额外文本）：
 {
-  "content": "英文插曲正文",
+  "content": "英文续写正文",
   "translation": "对应中文翻译"
 }`;
 }
@@ -336,9 +393,10 @@ function batchArray(arr, size) {
  * 策略：
  *   1. 将章节的目标词分为若干批（默认每批 BATCH_SIZE 个）
  *   2. 首批用 opening prompt 产出标题 + 开场英文/译文
- *   3. 后续批用 continuation prompt 承接续写（每批最多重试 RETRY 次，但不做 patch）
- *   4. 主体全部生成完毕后，统一检查全章缺词，用 patch 追加"独立小插曲"补齐
- *   5. 独立插曲不复读主线，避免语言循环
+ *   3. 后续批用 continuation prompt 承接续写；每批生成后检测与上文的重复句、
+ *      校验译文段数与英文一致，不符则重试（最多 RETRY 次）
+ *   4. 主体生成完毕后，统一检查全章缺词，用承接主线续写补齐（不再用独立插曲）
+ *   5. 章末经 processChapter 清理：去残留重复句、拆 60-90 词段、译文段锁步对齐
  */
 async function generateChapter(chapterIdx, arc, targetWords, prevSummary) {
   const batches = batchArray(targetWords, BATCH_SIZE);
@@ -357,14 +415,43 @@ async function generateChapter(chapterIdx, arc, targetWords, prevSummary) {
     const prevTail = contentParts.join('\n\n');
 
     let result = null;
+    let batchContent = '';
+    let batchTranslation = '';
     let lastErr;
+    let avoidHint = '';
     for (let attempt = 1; attempt <= RETRY; attempt++) {
       try {
-        const prompt = isFirst
+        let prompt = isFirst
           ? buildOpeningPrompt(chapterIdx, arc, batchWords, prevSummary)
           : buildContinuationPrompt(chapterIdx, arc, batchWords, prevTail, isLast);
+        if (avoidHint) {
+          prompt += `\n\n【重要】以下句子已在本章出现过，请勿再次使用或改写复用，每段必须推进新剧情：\n${avoidHint}`;
+        }
         const raw = await callAI(prompt, SYSTEM_PROMPT);
-        result = extractJson(raw);
+        const candidate = extractJson(raw);
+        const candContent = sanitizeContent(candidate.content || '');
+        const candTranslation = sanitizeContent(candidate.translation || '');
+
+        // 重复句检测 + 译文段落数校验
+        const dups = findDupSentences(candContent, prevTail);
+        const enParas = candContent.split(/\n\n+/).filter(Boolean);
+        const zhParas = candTranslation.split(/\n\n+/).filter(Boolean);
+        const parityOk = enParas.length === zhParas.length;
+
+        if ((dups.length > 0 || !parityOk) && attempt < RETRY) {
+          const reason = [
+            dups.length > 0 ? `重复句 ${dups.length}` : '',
+            !parityOk ? `译文段数不符(en=${enParas.length}/zh=${zhParas.length})` : '',
+          ].filter(Boolean).join('、');
+          console.log(`    批 ${bi + 1} 第 ${attempt}/${RETRY} 次：${reason}，重试`);
+          if (dups.length > 0) avoidHint = dups.slice(0, 8).join('\n');
+          lastErr = new Error(reason);
+          await new Promise((r) => setTimeout(r, DELAY_MS));
+          continue;
+        }
+        result = candidate;
+        batchContent = candContent;
+        batchTranslation = candTranslation;
         break;
       } catch (err) {
         console.log(`    批 ${bi + 1} 第 ${attempt}/${RETRY} 次失败: ${err.message}`);
@@ -377,8 +464,6 @@ async function generateChapter(chapterIdx, arc, targetWords, prevSummary) {
     if (isFirst && result.title) title = result.title;
     if (isLast && result.summary) summary = result.summary;
 
-    const batchContent = sanitizeContent(result.content || '');
-    const batchTranslation = sanitizeContent(result.translation || '');
     const batchMissing = findMissingWords(batchContent, batchWords);
     // 检查翻译中夹杂的未译英文词（AI 偷懒的迹象），仅提示，不阻塞
     const untranslated = (batchTranslation.match(/[a-zA-Z][a-zA-Z']{3,}/g) || [])
@@ -391,18 +476,18 @@ async function generateChapter(chapterIdx, arc, targetWords, prevSummary) {
     if (!isLast) await new Promise((r) => setTimeout(r, DELAY_MS));
   }
 
-  // 章末统一补齐：将全章所有缺词收集起来，用独立小插曲一次性补
+  // 章末统一补齐：将全章缺词收集起来，用承接主线续写一次性补
   const chapterTitle = title || `第 ${chapterIdx + 1} 章`;
   let remainingMissing = findMissingWords(contentParts.join('\n\n'), targetWords);
   if (remainingMissing.length > 0) {
-    console.log(`  🔧 主体生成后共缺 ${remainingMissing.length} 词，开始独立小插曲补齐...`);
+    console.log(`  🔧 主体生成后共缺 ${remainingMissing.length} 词，开始续写补齐...`);
     // 每次补齐处理至多 60 词一批，避免单次 prompt 词太多
     const MAX_PATCH_ROUNDS = 3;
     for (let round = 1; round <= MAX_PATCH_ROUNDS && remainingMissing.length > 0; round++) {
       const roundWords = remainingMissing.slice(0, Math.min(60, remainingMissing.length));
       console.log(`    第 ${round} 轮补齐（本轮 ${roundWords.length} 词）: ${roundWords.slice(0, 5).join(', ')}${roundWords.length > 5 ? '...' : ''}`);
       try {
-        const patchPrompt = buildPatchPrompt(roundWords, arc, chapterTitle);
+        const patchPrompt = buildPatchPrompt(roundWords, arc, chapterTitle, contentParts.join('\n\n'));
         const raw = await callAI(patchPrompt, SYSTEM_PROMPT);
         const patch = extractJson(raw);
         const patchContent = sanitizeContent(patch.content || '');
@@ -420,14 +505,22 @@ async function generateChapter(chapterIdx, arc, targetWords, prevSummary) {
     }
   }
 
-  const fullContent = contentParts.join('\n\n');
-  const finalMissing = findMissingWords(fullContent, targetWords);
-  console.log(`  📊 章末统计：全章 ${fullContent.split(/\s+/).filter(Boolean).length} 词，覆盖 ${targetWords.length - finalMissing.length}/${targetWords.length}${finalMissing.length > 0 ? `（仍缺 ${finalMissing.length}: ${finalMissing.slice(0, 10).join(', ')}${finalMissing.length > 10 ? '...' : ''}）` : '（全覆盖 ✅）'}`);
+  // 程序化清理：去除残留重复句、拆分超长段（60-90 词）、译文段锁步对齐
+  const cleaned = processChapter({
+    content: contentParts.join('\n\n'),
+    translation: translationParts.join('\n\n'),
+    words: targetWords,
+  });
+  const finalMissing = findMissingWords(cleaned.content, targetWords);
+  const enP = cleaned.content.split(/\n\n+/).filter(Boolean).length;
+  const zhP = cleaned.translation.split(/\n\n+/).filter(Boolean).length;
+  console.log(`  📊 章末统计：${cleaned.word_count} 词，覆盖 ${targetWords.length - finalMissing.length}/${targetWords.length}${finalMissing.length > 0 ? `（仍缺 ${finalMissing.length}: ${finalMissing.slice(0, 10).join(', ')}${finalMissing.length > 10 ? '...' : ''}）` : '（全覆盖 ✅）'} | 段 ${enP}(en)/${zhP}(zh)${enP === zhP ? '' : ' ✗错位'} | 清理去重 ${cleaned.stats.dedupRemoved} 句`);
 
   return {
     title: chapterTitle,
-    content: fullContent,
-    translation: translationParts.join('\n\n'),
+    content: cleaned.content,
+    translation: cleaned.translation,
+    word_count: cleaned.word_count,
     summary,
     missingWords: finalMissing,
   };
@@ -444,14 +537,68 @@ function loadExisting() {
   }
 }
 
+function saveStories(chapters, totalWords) {
+  const out = {
+    series_title: SERIES_TITLE,
+    total_chapters: CHAPTERS,
+    total_words: totalWords,
+    chapters,
+  };
+  fs.writeFileSync(OUT_PATH, JSON.stringify(out, null, 2), 'utf8');
+}
+
 async function main() {
   const words = loadWords();
   // 用固定 seed 确定性打乱，把 A-Z 各字母的词均匀混入每章。
   // 固定 seed 保证同一份词典每次运行分组一致，便于断点续传。
   const shuffled = shuffleDeterministic(words, 20260720);
   const chunks = chunkWords(shuffled, CHAPTERS);
-  const endChapter = Math.min(MAX_CHAPTERS, CHAPTERS);
   console.log(`🔀 已确定性打乱 ${words.length} 个单词，切分为 ${CHAPTERS} 组`);
+
+  if (CHAPTER_IDS) {
+    // 非连续原地重生成：仅替换 CHAPTER_IDS 指定的章节，保留其他章节
+    const existing = loadExisting();
+    const chapters =
+      existing && Array.isArray(existing.chapters) ? existing.chapters.slice() : [];
+    const ids = CHAPTER_IDS.slice().sort((a, b) => a - b);
+    console.log(`📖 原地重生成章节：${ids.join(', ')}（其他章节保留不动）`);
+    for (const id of ids) {
+      if (id < 1 || id > CHAPTERS) {
+        console.log(`  跳过非法章节号 ${id}`);
+        continue;
+      }
+      const idx = id - 1;
+      const arc = STORY_ARC[idx] || STORY_ARC[STORY_ARC.length - 1];
+      const targetWords = chunks[idx];
+      const prevChap = chapters.find((c) => c.id === id - 1);
+      const prevSummary = (prevChap && prevChap.summary) || '';
+      console.log(`\n=== 第 ${id}/${CHAPTERS} 章 (${arc.location} / ${arc.theme}) ===`);
+      const result = await generateChapter(idx, arc, targetWords, prevSummary);
+      const chapter = {
+        id,
+        title: result.title || `第 ${id} 章`,
+        content: result.content,
+        translation: result.translation,
+        words: targetWords,
+        word_count: result.word_count,
+        theme: arc.theme,
+      };
+      if (result.summary) chapter.summary = result.summary;
+      const replaceIdx = chapters.findIndex((c) => c.id === id);
+      if (replaceIdx >= 0) chapters[replaceIdx] = chapter;
+      else {
+        chapters.push(chapter);
+        chapters.sort((a, b) => a.id - b.id);
+      }
+      saveStories(chapters, words.length);
+      console.log(`  💾 已保存到 ${path.relative(ROOT, OUT_PATH)} (${result.word_count} 词)`);
+      await new Promise((r) => setTimeout(r, DELAY_MS));
+    }
+    console.log(`\n🎉 章节重生成完成：${ids.join(', ')}`);
+    return;
+  }
+
+  const endChapter = Math.min(MAX_CHAPTERS, CHAPTERS);
   console.log(`📖 计划：共 ${CHAPTERS} 章，每章约 ${chunks[0].length} 个目标词`);
   if (endChapter < CHAPTERS) {
     console.log(`   本次只生成第 ${START_CHAPTER}-${endChapter} 章（MAX_CHAPTERS=${MAX_CHAPTERS}）`);
@@ -472,14 +619,13 @@ async function main() {
     console.log(`\n=== 第 ${i + 1}/${CHAPTERS} 章 (${arc.location} / ${arc.theme}) ===`);
 
     const result = await generateChapter(i, arc, targetWords, prevSummary);
-    const wordCount = (result.content || '').split(/\s+/).filter(Boolean).length;
     const chapter = {
       id: i + 1,
       title: result.title || `第 ${i + 1} 章`,
       content: result.content,
       translation: result.translation,
       words: targetWords,
-      word_count: wordCount,
+      word_count: result.word_count,
       theme: arc.theme,
     };
     if (result.summary) chapter.summary = result.summary;
@@ -487,14 +633,8 @@ async function main() {
     prevSummary = result.summary || '';
 
     // 每章生成后立即持久化，防止中断丢失
-    const out = {
-      series_title: SERIES_TITLE,
-      total_chapters: CHAPTERS,
-      total_words: words.length,
-      chapters,
-    };
-    fs.writeFileSync(OUT_PATH, JSON.stringify(out, null, 2), 'utf8');
-    console.log(`  💾 已保存到 ${path.relative(ROOT, OUT_PATH)} (${wordCount} 词)`);
+    saveStories(chapters, words.length);
+    console.log(`  💾 已保存到 ${path.relative(ROOT, OUT_PATH)} (${result.word_count} 词)`);
 
     if (i < endChapter - 1) {
       await new Promise((r) => setTimeout(r, DELAY_MS));
