@@ -120,8 +120,11 @@ export default function RealExamResultScreen() {
           </Card.Content>
         </Card>
 
-        {/* 原文与译文（默认收起，展开后段落级中英对照） */}
-        <BilingualCard paragraphs={isReading ? passage?.paragraphs : paper?.paragraphs} />
+        {/* 原文与译文：阅读=文章原文；完形=完形原文（含 [N] 占位）。默认展开，可收起。 */}
+        <BilingualCard
+          paragraphs={isReading ? passage?.paragraphs : paper?.paragraphs}
+          mode={isReading ? 'reading' : 'cloze'}
+        />
 
         {/* 逐题回顾 */}
         <Text style={styles.reviewTitle}>逐题回顾</Text>
@@ -144,10 +147,18 @@ export default function RealExamResultScreen() {
   );
 }
 
-function BilingualCard({ paragraphs }: { paragraphs?: PassageParagraph[] }) {
+function BilingualCard({
+  paragraphs,
+  mode,
+}: {
+  paragraphs?: PassageParagraph[];
+  mode: 'reading' | 'cloze';
+}) {
   const styles = useStyles();
-  const [expanded, setExpanded] = useState(false);
+  // 默认展开——用户明确要求原文+翻译在结果页显式呈现
+  const [expanded, setExpanded] = useState(true);
   if (!paragraphs || paragraphs.length === 0) return null;
+  const title = mode === 'reading' ? '📖 文章原文 & 中文译文' : '📖 完形原文 & 中文译文';
   return (
     <Card style={styles.bilingualCard}>
       <TouchableOpacity
@@ -157,7 +168,7 @@ function BilingualCard({ paragraphs }: { paragraphs?: PassageParagraph[] }) {
         accessibilityLabel={expanded ? '收起原文与译文' : '展开原文与译文'}
       >
         <View style={styles.bilingualHeader}>
-          <Text style={styles.bilingualTitle}>📖 原文与中文对照 ({paragraphs.length} 段)</Text>
+          <Text style={styles.bilingualTitle}>{title}（{paragraphs.length} 段）</Text>
           <Text style={styles.bilingualToggle}>{expanded ? '收起 ▲' : '展开 ▼'}</Text>
         </View>
       </TouchableOpacity>
@@ -165,6 +176,7 @@ function BilingualCard({ paragraphs }: { paragraphs?: PassageParagraph[] }) {
         <Card.Content style={styles.bilingualBody}>
           {paragraphs.map((p, i) => (
             <View key={i} style={styles.bilingualPara}>
+              <Text style={styles.bilingualParaIndex}>§{i + 1}</Text>
               <Text style={styles.bilingualEn}>{p.en}</Text>
               <Text style={styles.bilingualZh}>{p.zh}</Text>
             </View>
@@ -309,6 +321,13 @@ const useStyles = makeStyles(colors => ({
   },
   bilingualPara: {
     marginBottom: 14,
+  },
+  bilingualParaIndex: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 4,
+    letterSpacing: 0.3,
   },
   bilingualEn: {
     fontSize: 14,

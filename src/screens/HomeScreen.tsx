@@ -470,7 +470,7 @@ export default function HomeScreen() {
                       onPress={() => navigation.navigate('WordList')}
                       textColor={colors.primary}
                     >
-                      查看全部
+                      查看生词本
                     </Button>
                   )}
                 />

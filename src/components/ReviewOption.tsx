@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { makeStyles } from '../utils/useStyles';
-import { palette } from '../theme/tokens';
 import type { RealExamLetter } from '../types';
 
 /**
@@ -69,14 +68,14 @@ const useStyles = makeStyles(colors => ({
     borderColor: colors.outline,
     marginBottom: 6,
   },
-  reviewOptionCorrect: { borderColor: palette.success, backgroundColor: palette.successLight },
-  reviewOptionIncorrect: { borderColor: palette.danger, backgroundColor: palette.dangerLight },
+  reviewOptionCorrect: { borderColor: colors.success, backgroundColor: colors.primaryContainer },
+  reviewOptionIncorrect: { borderColor: colors.error, backgroundColor: colors.errorContainer },
   reviewOptionIndex: { fontSize: 13, fontWeight: '700', color: colors.tertiary, width: 20, textAlign: 'center' },
-  reviewOptionIndexCorrect: { color: palette.successDark },
-  reviewOptionIndexIncorrect: { color: palette.dangerDark },
+  reviewOptionIndexCorrect: { color: colors.success },
+  reviewOptionIndexIncorrect: { color: colors.error },
   reviewOptionText: { fontSize: 13, color: colors.onSurface, flex: 1 },
-  reviewOptionTextCorrect: { color: palette.successDark, fontWeight: '500' },
-  reviewOptionTextIncorrect: { color: palette.dangerDark },
-  checkIcon: { fontSize: 16, color: palette.success, fontWeight: '800', marginLeft: 4 },
-  crossIcon: { fontSize: 16, color: palette.danger, fontWeight: '800', marginLeft: 4 },
+  reviewOptionTextCorrect: { color: colors.success, fontWeight: '500' },
+  reviewOptionTextIncorrect: { color: colors.error },
+  checkIcon: { fontSize: 16, color: colors.success, fontWeight: '800', marginLeft: 4 },
+  crossIcon: { fontSize: 16, color: colors.error, fontWeight: '800', marginLeft: 4 },
 }));

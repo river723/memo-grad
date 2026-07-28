@@ -136,7 +136,7 @@ export default function PracticeHubScreen() {
               icon="play-circle"
               labelStyle={styles.primaryButtonLabel}
             >
-              开始练习
+              AI出题练习
             </Button>
             <Button
               mode="contained-tonal"
@@ -154,7 +154,7 @@ export default function PracticeHubScreen() {
                 style={styles.actionButton}
                 icon="history"
               >
-                练习历史
+                AI题库
               </Button>
               <Button
                 mode="outlined"

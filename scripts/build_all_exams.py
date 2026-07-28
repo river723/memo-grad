@@ -18,7 +18,7 @@ ROOT = os.path.dirname(__file__)
 RAW = os.path.join(ROOT, 'raw', 'exams')
 DATA = os.path.abspath(os.path.join(ROOT, '..', 'src', 'data', 'realExams.json'))
 
-YEARS = list(range(2017, 2027))
+YEARS = list(range(2010, 2027))
 SETS = [('english-one', 'english1'), ('english-two', 'english2')]
 
 

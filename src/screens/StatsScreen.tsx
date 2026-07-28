@@ -177,11 +177,11 @@ export default function StatsScreen() {
 
           <View style={styles.settingPreview}>
             <SettingRow icon="brightness-6" label="主题" value={themeLabel} colors={colors} />
-            <SettingRow icon="school-outline" label="每日新词" value={`${settings.dailyNewWords} 个`} colors={colors} />
+            <SettingRow icon="school" label="每日新词" value={`${settings.dailyNewWords} 个`} colors={colors} />
             <SettingRow icon="format-list-numbered" label="考题题数" value={`${settings.examQuestionCount} 题`} colors={colors} />
             <SettingRow
-              icon={settings.apiKey ? 'lock-open-variant' : 'lock-outline'}
-              label="AI API Key"
+              icon={settings.apiKey ? 'lock-open' : 'lock'}
+              label="API Key"
               value={settings.apiKey ? '已配置' : '未配置'}
               valueColor={settings.apiKey ? colors.success : colors.tertiary}
               colors={colors}

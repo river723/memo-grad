@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -69,10 +69,10 @@ function LearnStack() {
 
   return (
     <Stack.Navigator>
-      <Stack.Screen name="Home" component={HomeScreen} options={headerOptions('学习', 'menu-book')} />
-      <Stack.Screen name="Study" component={StudyScreen} options={headerOptions('开始学习', 'menu-book')} />
+      <Stack.Screen name="Home" component={HomeScreen} options={headerOptions('学习', 'menu')} />
+      <Stack.Screen name="Study" component={StudyScreen} options={headerOptions('开始学习', 'menu')} />
       <Stack.Screen name="WordDetail" component={WordDetailScreen} options={headerOptions('单词详情', 'menu-book')} />
-      <Stack.Screen name="AddWord" component={AddWordScreen} options={headerOptions('添加生词', 'plus')} />
+      <Stack.Screen name="AddWord" component={AddWordScreen} options={headerOptions('添加生词', 'add')} />
       <Stack.Screen name="WordbankPicker" component={WordbankPickerScreen} options={headerOptions('从词库选词', 'menu-book')} />
       <Stack.Screen name="WordList" component={WordListScreen} options={headerOptions('生词本', 'menu-book')} />
       <Stack.Screen name="Dictionary" component={DictionaryScreen} options={headerOptions('词库', 'menu-book')} />
@@ -106,10 +106,10 @@ function ReadStack() {
 
   return (
     <Stack.Navigator>
-      <Stack.Screen name="ReadHome" component={ReadHomeScreen} options={headerOptions('阅读', 'auto-stories')} />
-      <Stack.Screen name="StoryDetail" component={StoryDetailScreen} options={headerOptions('故事阅读', 'auto-stories')} />
-      <Stack.Screen name="ArticleGenerate" component={ArticleGenerateScreen} options={headerOptions('生成文章', 'article')} />
-      <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} options={headerOptions('文章阅读', 'article')} />
+      <Stack.Screen name="ReadHome" component={ReadHomeScreen} options={headerOptions('阅读', 'book')} />
+      <Stack.Screen name="StoryDetail" component={StoryDetailScreen} options={headerOptions('故事阅读', 'book')} />
+      <Stack.Screen name="ArticleGenerate" component={ArticleGenerateScreen} options={headerOptions('生成文章', 'description')} />
+      <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} options={headerOptions('文章阅读', 'description')} />
     </Stack.Navigator>
   );
 }
@@ -138,16 +138,16 @@ function PracticeStack() {
 
   return (
     <Stack.Navigator>
-      <Stack.Screen name="PracticeHub" component={PracticeHubScreen} options={headerOptions('练习', 'edit-note')} />
-      <Stack.Screen name="ExamSetup" component={ExamSetupScreen} options={headerOptions('考题练习', 'edit-note')} />
-      <Stack.Screen name="ExamAnswer" component={ExamAnswerScreen} options={headerOptions('答题中', 'edit-note')} />
-      <Stack.Screen name="ExamResult" component={ExamResultScreen} options={headerOptions('练习结果', 'edit-note')} />
-      <Stack.Screen name="WrongQuestionReview" component={WrongQuestionReviewScreen} options={headerOptions('错题本', 'edit-note')} />
-      <Stack.Screen name="ExamHistory" component={ExamHistoryScreen} options={headerOptions('练习历史', 'edit-note')} />
-      <Stack.Screen name="RealExamList" component={RealExamListScreen} options={headerOptions('真题练习', 'menu-book')} />
-      <Stack.Screen name="RealExamReading" component={RealExamReadingScreen} options={headerOptions('阅读理解', 'menu-book')} />
-      <Stack.Screen name="RealExamCloze" component={RealExamClozeScreen} options={headerOptions('完形填空', 'menu-book')} />
-      <Stack.Screen name="RealExamResult" component={RealExamResultScreen} options={headerOptions('练习结果', 'menu-book')} />
+      <Stack.Screen name="PracticeHub" component={PracticeHubScreen} options={headerOptions('练习', 'edit')} />
+      <Stack.Screen name="ExamSetup" component={ExamSetupScreen} options={headerOptions('考题练习', 'edit')} />
+      <Stack.Screen name="ExamAnswer" component={ExamAnswerScreen} options={headerOptions('答题中', 'edit')} />
+      <Stack.Screen name="ExamResult" component={ExamResultScreen} options={headerOptions('练习结果', 'edit')} />
+      <Stack.Screen name="WrongQuestionReview" component={WrongQuestionReviewScreen} options={headerOptions('错题本', 'edit')} />
+      <Stack.Screen name="ExamHistory" component={ExamHistoryScreen} options={headerOptions('练习历史', 'edit')} />
+      <Stack.Screen name="RealExamList" component={RealExamListScreen} options={headerOptions('真题练习', 'menu')} />
+      <Stack.Screen name="RealExamReading" component={RealExamReadingScreen} options={headerOptions('阅读理解', 'menu')} />
+      <Stack.Screen name="RealExamCloze" component={RealExamClozeScreen} options={headerOptions('完形填空', 'menu')} />
+      <Stack.Screen name="RealExamResult" component={RealExamResultScreen} options={headerOptions('练习结果', 'menu')} />
     </Stack.Navigator>
   );
 }
@@ -187,9 +187,9 @@ function StatsStack() {
 
 // 图标名映射
 const TAB_ICONS: Record<string, string> = {
-  Home: 'menu-book',
-  Read: 'article',
-  Practice: 'edit-note',
+  Home: 'menu',
+  Read: 'description',
+  Practice: 'edit',
   Stats: 'person',
 };
 
@@ -228,6 +228,18 @@ function MainTabs() {
 // ==================== 根导航器 ====================
 export default function AppNavigator() {
   const { dark } = useAppTheme();
+
+  // 固定浏览器标签标题：确保无论哪个屏幕被激活，标题始终保持不变
+  useEffect(() => {
+    document.title = '考研英语生词本AI版';
+    const interval = setInterval(() => {
+      if (document.title !== '考研英语生词本AI版') {
+        document.title = '考研英语生词本AI版';
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <NavigationContainer theme={dark ? darkNavTheme : lightNavTheme}>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>

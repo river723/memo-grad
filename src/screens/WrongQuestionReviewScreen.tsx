@@ -18,7 +18,6 @@ import { WrongQuestion, ExamQuestion, ExamQuestionType, RealExamWrongQuestion, R
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
-import { palette } from '../theme/tokens';
 
 const LETTERS: RealExamLetter[] = ['A', 'B', 'C', 'D'];
 
@@ -205,8 +204,8 @@ export default function WrongQuestionReviewScreen() {
                 <Card key={wq.id} style={styles.reviewCard}>
                   <Card.Content>
                     <View style={styles.cardHeader}>
-                      <View style={[styles.typeTag, { backgroundColor: wq.question.type === 'definition' ? palette.primaryLight : palette.accentLight }]}>
-                        <Text style={[styles.typeTagText, { color: wq.question.type === 'definition' ? colors.primary : palette.accentDark }]}>
+                      <View style={[styles.typeTag, { backgroundColor: wq.question.type === 'definition' ? colors.primaryContainer : colors.secondaryContainer }]}>
+                        <Text style={[styles.typeTagText, { color: wq.question.type === 'definition' ? colors.onPrimaryContainer : colors.onSecondaryContainer }]}>
                           {wq.question.type === 'definition' ? '释义单选' : '完形选词'}
                         </Text>
                       </View>
@@ -250,8 +249,8 @@ export default function WrongQuestionReviewScreen() {
                   <Card.Content>
                     <View style={styles.cardHeader}>
                       <View style={styles.metaRow}>
-                        <View style={[styles.typeTag, { backgroundColor: wq.mode === 'reading' ? palette.primaryLight : palette.accentLight }]}>
-                          <Text style={[styles.typeTagText, { color: wq.mode === 'reading' ? colors.primary : palette.accentDark }]}>
+                        <View style={[styles.typeTag, { backgroundColor: wq.mode === 'reading' ? colors.primaryContainer : colors.secondaryContainer }]}>
+                          <Text style={[styles.typeTagText, { color: wq.mode === 'reading' ? colors.onPrimaryContainer : colors.onSecondaryContainer }]}>
                             {wq.mode === 'reading' ? '阅读' : '完形'}
                           </Text>
                         </View>
@@ -333,19 +332,19 @@ const useStyles = makeStyles(colors => ({
   typeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   typeTagText: { fontSize: 11, fontWeight: '600' },
   attemptInfo: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  attemptText: { fontSize: 12, color: palette.danger, fontWeight: '500' },
-  correctCountText: { fontSize: 12, color: palette.success, fontWeight: '500' },
+  attemptText: { fontSize: 12, color: colors.error, fontWeight: '500' },
+  correctCountText: { fontSize: 12, color: colors.success, fontWeight: '500' },
   divider: { marginVertical: 10, backgroundColor: colors.outline },
   qSentence: { fontSize: 15, color: colors.onSurfaceVariant, lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
   qWordTag: { fontSize: 13, color: colors.primary, fontWeight: '600', marginBottom: 4 },
   qHint: { fontSize: 12, color: colors.tertiary, marginBottom: 6 },
-  qCorrectAnswer: { fontSize: 14, color: palette.successDark, fontWeight: '500', marginTop: 4 },
-  qWrongAnswer: { fontSize: 14, color: palette.dangerDark, marginTop: 2 },
+  qCorrectAnswer: { fontSize: 14, color: colors.success, fontWeight: '500', marginTop: 4 },
+  qWrongAnswer: { fontSize: 14, color: colors.error, marginTop: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
   metaText: { fontSize: 12, color: colors.onSurfaceVariant, flexShrink: 1 },
   qStem: { fontSize: 14, color: colors.onSurface, lineHeight: 20, marginBottom: 10 },
-  explanationBox: { marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: colors.primaryContainer, elevation: 0 },
-  explanationLabel: { fontSize: 12, fontWeight: '700', color: colors.primary, marginBottom: 4 },
+  explanationBox: { marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: colors.surfaceVariant, elevation: 0 },
+  explanationLabel: { fontSize: 12, fontWeight: '700', color: colors.onSurfaceVariant, marginBottom: 4 },
   explanationText: { fontSize: 13, color: colors.onSurface, lineHeight: 20 },
   explainBtn: { alignSelf: 'flex-start', marginTop: 8, borderRadius: 8 },
   counters: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },

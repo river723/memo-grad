@@ -16,7 +16,7 @@ BASE = 'https://english-exam.lazynote.cn'
 OUT = os.path.join(os.path.dirname(__file__), 'raw', 'exams')
 os.makedirs(OUT, exist_ok=True)
 
-YEARS = list(range(2017, 2027))
+YEARS = list(range(2010, 2027))
 SETS = ['english-one', 'english-two']
 
 UA = {'User-Agent': 'Mozilla/5.0 (batch-exam-fetch)'}
