@@ -802,6 +802,21 @@ export default function StudyScreen() {
                   </Text>
                 )}
 
+                {/* 释义列表 */}
+                {currentWord.definitions.map((def, index) => (
+                  <Surface key={index} style={styles.definitionItem}>
+                    <View style={styles.definitionHeader}>
+                      <Text style={styles.partOfSpeech}>{def.part_of_speech}</Text>
+                      {def.is_core && <Chip mode="flat" compact style={styles.coreTag}>核心</Chip>}
+                      {def.is_rare_sense && <Chip mode="flat" compact style={styles.rareTag}>熟词僻义</Chip>}
+                    </View>
+                    <Text style={styles.meaning}>{def.meaning}</Text>
+                    {def.example && (
+                      <Text style={styles.example}>例句: {def.example}</Text>
+                    )}
+                  </Surface>
+                ))}
+
                 {/* 词根词缀 */}
                 {currentWord.etymology && (
                   <Surface style={styles.etymologyBox}>
@@ -818,20 +833,17 @@ export default function StudyScreen() {
                   </Surface>
                 )}
 
-                {/* 释义列表 */}
-                {currentWord.definitions.map((def, index) => (
-                  <Surface key={index} style={styles.definitionItem}>
-                    <View style={styles.definitionHeader}>
-                      <Text style={styles.partOfSpeech}>{def.part_of_speech}</Text>
-                      {def.is_core && <Chip mode="flat" compact style={styles.coreTag}>核心</Chip>}
-                      {def.is_rare_sense && <Chip mode="flat" compact style={styles.rareTag}>熟词僻义</Chip>}
-                    </View>
-                    <Text style={styles.meaning}>{def.meaning}</Text>
-                    {def.example && (
-                      <Text style={styles.example}>例句: {def.example}</Text>
-                    )}
+                {/* 形近词 / 易混词提醒 */}
+                {Array.isArray(currentWord.similar_words) && currentWord.similar_words.length > 0 && (
+                  <Surface style={styles.etymologyBox}>
+                    <Text style={styles.etymologyTitle}>🔗 易混词提醒</Text>
+                    {currentWord.similar_words.map((sw, index) => (
+                      <Text key={index} style={styles.etymologyText}>
+                        · {sw.word}（{sw.relation === 'spelling' ? '形近' : sw.relation === 'meaning' ? '义近' : '同根'}）— {sw.description}
+                      </Text>
+                    ))}
                   </Surface>
-                ))}
+                )}
 
                 {/* AI 补全：仅当词条信息不全且已配置 AI 时显示 */}
                 {canWordBeEnhanced(currentWord, appSettings) && (
