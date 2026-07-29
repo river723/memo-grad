@@ -103,10 +103,10 @@ export default function StatsDetailScreen() {
       .map(word => word.id)
       .filter((id): id is number => typeof id === 'number');
     if (wordIds.length === 0) return;
-    navigation.navigate('Main', { screen: 'Home' as any });
-    setTimeout(() => {
-      navigation.navigate('Home' as any, { screen: 'Study' as any });
-    }, 100);
+    navigation.navigate('Main', {
+      screen: 'Home' as any,
+      params: { screen: 'Study' as any, params: { wordIds } },
+    });
   };
 
   const maxStudyCount = Math.max(...stats.weeklyTrend.map(day => day.studyCount), 1);

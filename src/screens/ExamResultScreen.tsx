@@ -205,10 +205,10 @@ export default function ExamResultScreen() {
         <Button
           mode="outlined"
           onPress={() => {
-            navigation.navigate('Main', { screen: 'Home' as any });
-            setTimeout(() => {
-              navigation.navigate('Home' as any, { screen: 'WordList' as any });
-            }, 100);
+            navigation.navigate('Main', {
+              screen: 'Home' as any,
+              params: { screen: 'WordList' as any },
+            });
           }}
           style={styles.actionButton}
           icon="book"

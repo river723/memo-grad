@@ -89,7 +89,6 @@ export default function DictionaryWordDetailScreen() {
           setSoundEnabled(settings.soundEnabled !== false);
           setShowRareSense(settings.showRareSense !== false);
           setShowEtymology(settings.showEtymology !== false);
-          setShowMemoryTip(settings.showMemoryTip !== false);
         } catch {
           setInWordbook(false);
         }

@@ -142,12 +142,18 @@ export default function ExamSetupScreen() {
         meaning: w.definitions.find(d => d.is_core)?.meaning || w.definitions[0]?.meaning || '',
       }));
 
+      // 按单词文本回查原始 Word，避免 AI 返回条数/顺序与入参不一致时 word_id 错配
+      const wordByText = new Map<string, typeof selectedWords[number]>();
+      selectedWords.forEach(w => wordByText.set(w.word.toLowerCase(), w));
+      const resolveWord = (targetWord: string, i: number) =>
+        wordByText.get((targetWord || '').toLowerCase()) || selectedWords[i] || selectedWords[0];
+
       let allQuestions: ExamQuestion[] = [];
 
       if (questionType === 'definition') {
         const results = await aiService.generateDefinitionQuestions(wordData);
         allQuestions = results.map((q, i) => {
-          const word = selectedWords[i] || selectedWords[0];
+          const word = resolveWord(q.target_word, i);
           return {
             type: 'definition' as const,
             word_id: word.id!,
@@ -160,7 +166,7 @@ export default function ExamSetupScreen() {
       } else {
         const results = await aiService.generateClozeQuestions(wordData);
         allQuestions = results.map((q, i) => {
-          const word = selectedWords[i] || selectedWords[0];
+          const word = resolveWord(q.target_word, i);
           return {
             type: 'cloze' as const,
             word_id: word.id!,

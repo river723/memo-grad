@@ -59,46 +59,10 @@ export default function AddWordScreen() {
 
   const loadApiKey = async () => {
     try {
-      console.log('开始加载 AI API 设置...');
       const settings = await StorageService.getSettings();
-      console.log('获取到的设置:', settings);
       setAiSettings(settings);
-
-      // 测试API密钥有效性
-      if (settings.apiKey && settings.aiModel) {
-        console.log('开始测试API密钥...');
-        const testResult = await testApiKeyValidity(settings);
-        console.log('API密钥测试结果:', testResult);
-      }
     } catch (error) {
       console.error('Failed to load API key:', error);
-    }
-  };
-
-  const testApiKeyValidity = async (settings: AppSettings): Promise<boolean> => {
-    try {
-      const aiService = AIService.fromSettings(settings);
-      console.log('开始测试API密钥有效性...');
-
-      // 测试网络连接
-      const networkOk = await aiService.testNetworkConnection();
-      if (!networkOk) {
-        console.error('网络连接测试失败');
-        return false;
-      }
-
-      // 测试API密钥
-      const apiKeyOk = await aiService.testApiKey();
-      if (apiKeyOk) {
-        console.log('API密钥验证成功');
-        return true;
-      } else {
-        console.error('API密钥验证失败');
-        return false;
-      }
-    } catch (error) {
-      console.error('API密钥测试错误:', error);
-      return false;
     }
   };
 
@@ -125,7 +89,6 @@ export default function AddWordScreen() {
   // 分析单词
   const analyzeWords = async () => {
     const words = getWordInfo();
-    console.log('解析到的单词:', words);
 
     if (words.length === 0) {
       Alert.alert('提示', '请输入有效的单词');
@@ -156,9 +119,6 @@ export default function AddWordScreen() {
         }
       });
 
-      console.log('本地词库命中:', Array.from(localResults.keys()));
-      console.log('需要AI分析:', missingWords);
-
       if (missingWords.length > 0) {
         const latestSettings = await StorageService.getSettings();
         setAiSettings(latestSettings);
@@ -177,16 +137,13 @@ export default function AddWordScreen() {
           }
           return;
         }
-        console.log('使用AI服务商:', latestSettings.aiProvider, '模型:', latestSettings.aiModel);
 
         const aiService = AIService.fromSettings(latestSettings);
         if (missingWords.length === 1) {
-          console.log('AI分析单个未命中单词:', missingWords[0]);
           const result = await aiService.analyzeWord(missingWords[0]);
           aiResults.set(missingWords[0], result);
           resultMap.set(missingWords[0], result);
         } else {
-          console.log('AI批量分析未命中单词:', missingWords);
           const aiResultMap = await aiService.analyzeWords(missingWords);
           aiResultMap.forEach((result, word) => {
             aiResults.set(word, result);
@@ -196,7 +153,6 @@ export default function AddWordScreen() {
       }
 
       setAnalysisSources({ local: localResults, ai: aiResults });
-      console.log('合并分析结果:', resultMap);
       if (words.length === 1) {
         setAnalysisResult(resultMap.get(words[0]) || null);
       } else {
@@ -340,7 +296,6 @@ export default function AddWordScreen() {
           : {}),
       };
       await StorageService.updateWord(existing.id!, updates);
-      console.log(`✏️ 单词 ${existing.word} 覆盖成功`);
 
       const wordText = existing.word;
       resetForm();
@@ -360,14 +315,8 @@ export default function AddWordScreen() {
 
   // 保存单词
   const saveWords = async () => {
-    console.log('🔵 saveWords 被调用');
-    console.log('canSave():', canSave());
-    console.log('parsedWords.length:', parsedWords.length);
-    console.log('analysisResult:', analysisResult);
-    console.log('customDefinitions:', customDefinitions);
 
     if (!canSave() || parsedWords.length === 0) {
-      console.log('❌ 保存条件不满足');
       Alert.alert('提示', '请先进行本地词库/AI分析或填写手动释义');
       return;
     }
@@ -376,24 +325,20 @@ export default function AddWordScreen() {
     if (parsedWords.length === 1) {
       const word = parsedWords[0];
       const existingWords = await StorageService.getWords();
-      console.log('🔍 [Overwrite] 单个单词重复检查 - 输入:', word, '词本总数:', existingWords.length);
       const existing = existingWords.find(
         w => (w.word || '').trim().toLowerCase() === word.trim().toLowerCase()
       );
-      console.log('🔍 [Overwrite] 命中已有单词:', existing ? `${existing.word} (id=${existing.id})` : '(无)');
       if (existing) {
         const analysis = getAnalysisFor(word);
         if (!analysis) {
           Alert.alert('提示', '请先进行本地词库/AI分析或填写手动释义');
           return;
         }
-        console.log('🔔 [Overwrite] 打开覆盖确认 Dialog');
         setOverwriteDialog({ visible: true, word, existing, analysis });
         return;
       }
     }
 
-    console.log('✅ 开始保存流程');
     try {
       let successCount = 0;
       let failCount = 0;
@@ -405,11 +350,8 @@ export default function AddWordScreen() {
       const existingWordSet = new Set(existingWords.map(w => w.word.toLowerCase()));
 
       for (const word of parsedWords) {
-        console.log(`📝 处理单词: ${word}`);
-
         // 检查单词是否已存在（批量场景静默跳过）
         if (existingWordSet.has(word.toLowerCase())) {
-          console.log(`⏭️ 单词 ${word} 已存在，跳过`);
           duplicateCount++;
           continue;
         }
@@ -417,7 +359,6 @@ export default function AddWordScreen() {
         try {
           const analysis = getAnalysisFor(word);
           if (!analysis) {
-            console.log(`⏭️ 单词 ${word} 没有分析结果，跳过`);
             skippedUnanalyzedCount++;
             continue;
           }
@@ -445,7 +386,6 @@ export default function AddWordScreen() {
           };
 
           await StorageService.addWord(wordData);
-          console.log(`✅ 单词 ${word} 保存成功`);
           successCount++;
         } catch (error) {
           console.error(`❌ 保存单词 ${word} 失败:`, error);
@@ -453,7 +393,6 @@ export default function AddWordScreen() {
         }
       }
 
-      console.log(`📊 保存统计: 成功${successCount}个，失败${failCount}个，重复${duplicateCount}个，未分析跳过${skippedUnanalyzedCount}个`);
       const message = `成功保存 ${successCount} 个单词${failCount > 0 ? `，失败 ${failCount} 个` : ''}${duplicateCount > 0 ? `，已有 ${duplicateCount} 个` : ''}${skippedUnanalyzedCount > 0 ? `，未分析跳过 ${skippedUnanalyzedCount} 个` : ''}`;
 
       // 立即清空数据，让用户看到单词数变为0

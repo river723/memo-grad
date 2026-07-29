@@ -192,9 +192,9 @@ export default function WordListScreen() {
           </TouchableOpacity>
           <View style={styles.frequencyBar}>
             <View style={[styles.frequencyFill, {
-              width: `${Math.min(item.frequency * 10, 100)}%`,
-              backgroundColor: item.frequency >= 7 ? palette.success :
-                              item.frequency >= 4 ? palette.accent : palette.danger
+              width: `${Math.min(Math.max(item.frequency, 0) / 5, 1) * 100}%`,
+              backgroundColor: item.frequency >= 4 ? palette.success :
+                              item.frequency >= 3 ? palette.accent : palette.danger
             }]} />
           </View>
         </View>
@@ -303,7 +303,7 @@ export default function WordListScreen() {
               </PaperButton>
               <PaperButton
                 onPress={confirmDelete}
-                style={{ color: palette.danger }}
+                textColor={palette.danger}
               >
                 删除
               </PaperButton>

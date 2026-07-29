@@ -29,6 +29,8 @@ const BACKUP_FIELDS = [
   'examSessions',
   'wrongQuestions',
   'ignoredWordbankWords',
+  'realExamSessions',
+  'realExamWrongQuestions',
   'settings',
 ];
 
@@ -743,7 +745,7 @@ export default function SettingsScreen() {
       {/* 版本信息 */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>版本 1.0.0</Text>
-        <Text style={styles.footerSub}>考研英语生词本</Text>
+        <Text style={styles.footerSub}>考研英语生词本AI版</Text>
         <Text style={styles.footerSub}>专注考研 · 科学背词</Text>
       </View>
     </ScrollView>

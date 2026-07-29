@@ -134,7 +134,7 @@ export default function DictionaryBrowseScreen() {
   const navigation = useAppNavigation();
   const styles = useStyles();
 
-  const dict = getDictionaryById(route.params.dictId);
+  const dict = route.params ? getDictionaryById(route.params.dictId) : null;
 
   // 全量数据（字母序）。useState 惰性初始化，避免每次 render 重建。
   const [list] = useState<DictEntry[]>(() => getLocalWordDictWords());

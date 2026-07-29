@@ -205,7 +205,7 @@ export default function WrongQuestionReviewScreen() {
                   <Card.Content>
                     <View style={styles.cardHeader}>
                       <View style={[styles.typeTag, { backgroundColor: wq.question.type === 'definition' ? colors.primaryContainer : colors.secondaryContainer }]}>
-                        <Text style={[styles.typeTagText, { color: wq.question.type === 'definition' ? colors.onPrimaryContainer : colors.onSecondaryContainer }]}>
+                        <Text style={[styles.typeTagText, { color: wq.question.type === 'definition' ? colors.onPrimaryContainer : colors.onSurface }]}>
                           {wq.question.type === 'definition' ? '释义单选' : '完形选词'}
                         </Text>
                       </View>
@@ -250,14 +250,14 @@ export default function WrongQuestionReviewScreen() {
                     <View style={styles.cardHeader}>
                       <View style={styles.metaRow}>
                         <View style={[styles.typeTag, { backgroundColor: wq.mode === 'reading' ? colors.primaryContainer : colors.secondaryContainer }]}>
-                          <Text style={[styles.typeTagText, { color: wq.mode === 'reading' ? colors.onPrimaryContainer : colors.onSecondaryContainer }]}>
+                          <Text style={[styles.typeTagText, { color: wq.mode === 'reading' ? colors.onPrimaryContainer : colors.onSurface }]}>
                             {wq.mode === 'reading' ? '阅读' : '完形'}
                           </Text>
                         </View>
                         <Text style={styles.metaText}>
                           {wq.year} · {wq.setId === 'english1' ? '英语一' : '英语二'}
                           {wq.paperTitle ? ` · ${wq.paperTitle}` : ''}
-                          {wq.blankIndex ? ` · [${wq.blankIndex}]` : ''}
+                          {wq.blankIndex != null ? ` · [${wq.blankIndex}]` : ''}
                         </Text>
                       </View>
                       <IconButton icon="delete-outline" size={18} onPress={() => handleRemove(wq.questionId)} accessibilityLabel="移除该错题" />

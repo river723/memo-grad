@@ -638,8 +638,6 @@ ${params.options.join('\n')}
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
-    // 临时诊断日志：确认新代码已生效、且正确项（AI 约定在 options[0]）已被打乱到其他位置
-    console.log('[shuffleOptions] before:', JSON.stringify(options), 'after:', JSON.stringify(arr));
     return arr;
   }
 

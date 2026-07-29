@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, TextInput, Platform, Alert } from 'react-native';
+import { View, ScrollView, Platform, Alert } from 'react-native';
 import {
   Card,
   Text,
@@ -9,6 +9,7 @@ import {
   Chip,
   SegmentedButtons,
   Modal,
+  TextInput,
   ActivityIndicator,
   IconButton
 } from 'react-native-paper';
@@ -133,6 +134,9 @@ export default function StudyScreen() {
   // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
   const retryMapRef = useRef<Map<number, number>>(new Map());
   const pendingIndexRef = useRef<number>(0);
+  // 本轮新词 id 集合，用于在 finishWord 时按新词/复习词分别累计真实完成数
+  const newWordIdSetRef = useRef<Set<number>>(new Set());
+  const [completedByType, setCompletedByType] = useState({ newDone: 0, reviewDone: 0 });
 
   useEffect(() => {
     loadStudyWords();
@@ -203,6 +207,8 @@ export default function StudyScreen() {
         setIsContinueSession(false);
         setShowCompletion(false);
         retryMapRef.current = new Map();
+        newWordIdSetRef.current = new Set();
+        setCompletedByType({ newDone: 0, reviewDone: 0 });
         setTrulyCompleted(0);
         return;
       }
@@ -272,6 +278,8 @@ export default function StudyScreen() {
         newCount: newWordList.length,
         reviewCount: reviewWordList.length,
       });
+      newWordIdSetRef.current = new Set(newWordList.map(w => w.id!).filter(Boolean));
+      setCompletedByType({ newDone: 0, reviewDone: 0 });
       setStudyStats({
         total: studyWords.length,
         completed: 0,
@@ -318,6 +326,13 @@ export default function StudyScreen() {
   // 处理单词正式完成后的收尾工作（创建复习计划、标记计划完成）
   const finishWord = async (word: Word) => {
     try {
+      // 按新词/复习词累计真实完成数（每个词过关时只调用一次）
+      const isNewWord = word.id != null && newWordIdSetRef.current.has(word.id);
+      setCompletedByType(prev => ({
+        newDone: prev.newDone + (isNewWord ? 1 : 0),
+        reviewDone: prev.reviewDone + (isNewWord ? 0 : 1),
+      }));
+
       const allPlans = await StorageService.getStudyPlans();
       const today = format(new Date(), 'yyyy-MM-dd');
       const matchingPlan = allPlans.find(
@@ -1105,14 +1120,13 @@ export default function StudyScreen() {
               <View style={styles.completionStats}>
                 <View style={styles.completionStatItem}>
                   <Text style={styles.completionStatNumber}>
-                    {Math.min(wordTypeCounts.newCount, studyStats.completed)}
+                    {completedByType.newDone}
                   </Text>
                   <Text style={styles.completionStatLabel}>新词</Text>
                 </View>
                 <View style={styles.completionStatItem}>
                   <Text style={styles.completionStatNumber}>
-                    {Math.max(0, studyStats.completed -
-                      Math.min(wordTypeCounts.newCount, studyStats.completed))}
+                    {completedByType.reviewDone}
                   </Text>
                   <Text style={styles.completionStatLabel}>复习</Text>
                 </View>
@@ -1176,9 +1190,7 @@ export default function StudyScreen() {
       {/* Exit confirmation Modal */}
       <Modal
         visible={showExitConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowExitConfirm(false)}
+        onDismiss={() => setShowExitConfirm(false)}
       >
         <View style={styles.modalOverlay}>
           <Surface style={styles.modalContent}>

@@ -83,16 +83,16 @@ const useStyles = makeStyles((colors) => ({
   header: {
     padding: 20,
     paddingBottom: 16,
-    backgroundColor: colors.appBar,
+    backgroundColor: colors.primary,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.onAppBar,
+    color: '#fff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: colors.onAppBar,
+    color: '#fff',
     opacity: 0.8,
     marginTop: 4,
     lineHeight: 18,

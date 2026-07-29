@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, ScrollView } from 'react-native';
 import { Card, Text, Button, Divider } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -78,7 +78,6 @@ export default function StatsScreen() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const masteryPercent = stats.totalWords > 0
@@ -203,7 +202,7 @@ export default function StatsScreen() {
       {/* 底部版本信息 */}
       <View style={styles.footer}>
         <MaterialIcons name="menu-book" size={22} color={colors.tertiary} />
-        <Text style={styles.footerText}>考研英语生词本</Text>
+        <Text style={styles.footerText}>考研英语生词本AI版</Text>
         <Text style={styles.footerSub}>v1.0.0 · 专注考研 · 科学背词</Text>
       </View>
     </ScrollView>

@@ -284,13 +284,12 @@ export default function HomeScreen() {
 
   const handleSuggestionPress = () => {
     const { route } = todaySuggestion;
-    // 跨 Tab 导航：先切换到目标 Tab
+    // 跨 Tab 导航：一次调用嵌套到目标 Tab 的具体屏幕（无需 setTimeout 等待挂载）
     if (route.tab !== 'Home') {
-      navigation.navigate('Main', { screen: route.tab as any });
-      // 延迟到目标 Tab 的 Stack 中导航到具体屏幕
-      setTimeout(() => {
-        navigation.navigate(route.tab as any, { screen: route.screen });
-      }, 100);
+      navigation.navigate('Main', {
+        screen: route.tab as any,
+        params: { screen: route.screen, params: ('params' in route ? route.params : undefined) as any },
+      });
       return;
     }
     // 同 Tab（Home/Learn）内导航
@@ -431,10 +430,10 @@ export default function HomeScreen() {
                   <Button
                     mode="outlined"
                     onPress={() => {
-                      navigation.navigate('Main', { screen: 'Practice' as any });
-                      setTimeout(() => {
-                        navigation.navigate('Practice' as any, { screen: 'WrongQuestionReview' as any });
-                      }, 100);
+                      navigation.navigate('Main', {
+                        screen: 'Practice' as any,
+                        params: { screen: 'WrongQuestionReview' as any },
+                      });
                     }}
                     icon="alert-circle-outline"
                     textColor={palette.danger}
