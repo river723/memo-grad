@@ -44,7 +44,7 @@ export default function RealExamReadingScreen() {
   useEffect(() => {
     if (!passage) return;
     StorageService.getRealExamDraft(passage.id).then(draft => {
-      if (Object.keys(draft).length > 0) setSelections(draft);
+      if (Object.keys(draft).length > 0) setSelections(draft as Record<string, RealExamLetter>);
     });
   }, [passage]);
 

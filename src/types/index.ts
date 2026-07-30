@@ -177,6 +177,9 @@ export interface WrongQuestion {
 
 export type RealExamLetter = 'A' | 'B' | 'C' | 'D';
 
+/** 新题型选项池字母（段落排序 A–H；标题匹配/7选5 A–G；正误判断 T/F）。是 RealExamLetter 的超集。 */
+export type RealExamOptionLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'T';
+
 /** 段落级中英对照（结果页复习用；完形英文段中 [N] 表示挖空占位） */
 export interface PassageParagraph {
   en: string;
@@ -217,16 +220,85 @@ export interface RealExamClozePaper {
   blanks: RealExamClozeBlank[];
 }
 
+/** 新题型子类型：段落排序 / 段落小标题 / 7选5选句填空 / 多项对应信息匹配 / 正误判断（英二2010） */
+export type RealExamNewTypeSubtype = 'ordering' | 'heading' | 'sentence' | 'matching' | 'truefalse';
+
+/** 新题型选项池单项（A–H；排序题为整段正文，其余为标题/句子/信息项；正误判断为 T/F） */
+export interface RealExamNewTypeOption {
+  letter: RealExamOptionLetter;
+  text: string;               // 段落正文 / 标题 / 句子 / 正误判断的"正确"/"错误"
+  fixed?: boolean;            // 排序题中已预先给定位置的段落（不可作答）
+}
+
+/** 新题型单个作答位号（41–45） */
+export interface RealExamNewTypeQuestion {
+  index: number;              // 卷面题号 41..45
+  stem?: string;              // 正误判断题的陈述句（其余子类型无，作答位号在 passage 内）
+  answer: RealExamOptionLetter;
+  explanation?: string;       // 中文解析（可选）
+}
+
+/** 新题型整篇（Part B）——统一为"位号→从选项池选字母"匹配题；正误判断为每题选 T/F */
+export interface RealExamNewTypePaper {
+  id: string;                 // 如 '2025-e1-newtype'
+  subtype: RealExamNewTypeSubtype;
+  direction: string;          // Directions 英文说明
+  passage?: string;           // 标题匹配/7选5/多项对应的带编号文章正文；正误判断为共享阅读文章（排序题无）
+  options: RealExamNewTypeOption[];  // 选项池 A–H；正误判断为 [T, F]
+  questions: RealExamNewTypeQuestion[]; // 5 个位号
+}
+
+/** 翻译子类型：英一划线句翻译 / 英二段落翻译 */
+export type RealExamTranslationSubtype = 'sentence' | 'paragraph';
+
+/** 翻译单项（英一 = 一句划线句；英二 = 整段/逐句） */
+export interface RealExamTranslationItem {
+  index: number;              // 卷面题号（英一 46–50；英二可用 1..N）
+  en: string;                 // 英文原文
+  zh: string;                 // 参考译文
+  note?: string;              // 逐句解析/采分点（可选）
+}
+
+/** 翻译整篇（Part C / Section III）——纯阅览，无自动判分 */
+export interface RealExamTranslationPaper {
+  id: string;                 // 如 '2025-e1-translation'
+  subtype: RealExamTranslationSubtype;
+  direction: string;          // Directions 英文说明
+  passage?: string;           // 完整英文原文（划线句嵌于其中）
+  items: RealExamTranslationItem[];
+}
+
+/** 写作单篇（小作文 / 大作文） */
+export interface RealExamWritingPart {
+  label: string;              // 如 "Part A 小作文" / "Part B 大作文"
+  direction: string;          // 题目要求（英文，可能含图表说明）
+  sample?: string;            // 参考范文（英文）
+  sampleTranslation?: string; // 参考范文的中文译文（可选）
+  analysis?: string;          // 中文写作解析/思路（可选，暂未抽取）
+}
+
+/** 写作整块——纯阅览，无自动判分 */
+export interface RealExamWritingPaper {
+  id: string;                 // 如 '2025-e1-writing'
+  parts: RealExamWritingPart[];
+}
+
 /** 按年份组织的真题集（英语一 + 英语二） */
 export interface RealExamYear {
   year: number;
   english1: {
     reading: RealExamReadingPassage[];    // 英语一通常 5 篇
     cloze: RealExamClozePaper | null;     // 英语一 1 篇完形
+    newType?: RealExamNewTypePaper | null;      // Part B 新题型（可选）
+    translation?: RealExamTranslationPaper | null; // Part C 翻译（可选）
+    writing?: RealExamWritingPaper | null;      // 写作（可选）
   };
   english2: {
     reading: RealExamReadingPassage[];    // 英语二通常 4 篇
     cloze: RealExamClozePaper | null;     // 英语二 1 篇完形
+    newType?: RealExamNewTypePaper | null;
+    translation?: RealExamTranslationPaper | null;
+    writing?: RealExamWritingPaper | null;
   };
 }
 
@@ -254,12 +326,12 @@ export interface RealExamPaperSet {
   cloze: RealExamClozePaper | null;
 }
 
-export type RealExamMode = 'reading' | 'cloze';
+export type RealExamMode = 'reading' | 'cloze' | 'newtype';
 
-/** 单题作答记录（阅读题 questionId 为 question.id；完形题 questionId 为 `${paperId}-b${index}`） */
+/** 单题作答记录（阅读题 questionId 为 question.id；完形题 questionId 为 `${paperId}-b${index}`；新题型为 `${paperId}-p${index}`） */
 export interface RealExamAnswerItem {
   questionId: string;
-  selected: RealExamLetter | null;
+  selected: RealExamOptionLetter | null;
   correct: boolean;
 }
 
@@ -287,11 +359,11 @@ export interface RealExamWrongQuestion {
   mode: RealExamMode;
   paperId: string;                  // 用于跳回 RealExamReading / RealExamCloze 重做
   paperTitle?: string;              // 阅读的 Text 标题；完形留空
-  blankIndex?: number;              // 完形题号 1-20；阅读留空
+  blankIndex?: number;              // 完形题号 1-20 / 新题型位号 41-45；阅读留空
   stem?: string;                    // 阅读题干；完形留空
   options: string[];                // 4 项（含 "A) " 前缀，直接沿用原字段）
-  correctAnswer: RealExamLetter;
-  userAnswer: RealExamLetter | null;
+  correctAnswer: RealExamOptionLetter;
+  userAnswer: RealExamOptionLetter | null;
   explanation?: string;
   wrong_count: number;
   correct_count: number;            // 重做时递增；≥ WRONG_QUESTION_MASTERY_THRESHOLD 自动移除

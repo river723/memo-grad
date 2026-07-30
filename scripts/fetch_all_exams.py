@@ -64,6 +64,30 @@ def section_slugs(landing_html, setslug):
     return slugs
 
 
+# 新题型 / 翻译 / 写作分节 slug（按套别固定）。仅对 NEW_YEARS 抓取。
+NEW_YEARS = list(range(2010, 2027))
+EXTRA_SLUGS = {
+    'english-one': ['section2-part-b', 'section2-part-c', 'section3-part-a', 'section3-part-b'],
+    'english-two': ['section2-part-b', 'section3', 'section-iv-part-a', 'section-iv-part-b'],
+}
+
+
+def fetch_extra():
+    """抓取新题型/翻译/写作分节的题目页与解析页（幂等）。"""
+    for year in NEW_YEARS:
+        for setslug in SETS:
+            for slug in EXTRA_SLUGS[setslug]:
+                purl = f'{BASE}/kaoyan/paper/{year}-{setslug}/{slug}/'
+                pname = f'{year}-{setslug}-{slug}-paper.html'
+                jurl = f'{BASE}/kaoyan/sections/{year}-{setslug}/{slug}/'
+                jname = f'{year}-{setslug}-{slug}-jiexi.html'
+                for url, name in [(purl, pname), (jurl, jname)]:
+                    try:
+                        get(url, name)
+                    except Exception as e:
+                        print(f'  ! {name} failed: {e}')
+
+
 def main():
     manifest = []
     for year in YEARS:
@@ -90,6 +114,8 @@ def main():
                     except Exception as e:
                         print(f'  ! {name} failed: {e}')
             manifest.append((year, setslug, slugs))
+    # 新题型 / 翻译 / 写作分节（仅 NEW_YEARS，slug 固定）
+    fetch_extra()
     # 记 manifest
     with open(os.path.join(OUT, '_manifest.txt'), 'w', encoding='utf-8') as f:
         for year, setslug, slugs in manifest:

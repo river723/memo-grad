@@ -571,7 +571,7 @@ ${wordList}
    * 用于真题错题本中无解析的题目补全讲解。
    */
   async generateRealExamExplanation(params: {
-    mode: 'reading' | 'cloze';
+    mode: 'reading' | 'cloze' | 'newtype';
     stem?: string;
     blankIndex?: number;
     options: string[];
@@ -580,7 +580,9 @@ ${wordList}
   }): Promise<string> {
     const subject = params.mode === 'reading'
       ? `题干：${params.stem || '（无题干）'}`
-      : `完形填空第 ${params.blankIndex ?? '?'} 空`;
+      : params.mode === 'newtype'
+        ? `新题型第 ${params.blankIndex ?? '?'} 题（从选项池选最匹配项）`
+        : `完形填空第 ${params.blankIndex ?? '?'} 空`;
     const userLine = params.userAnswer && params.userAnswer !== params.correctAnswer
       ? `\n考生误选：${params.userAnswer}（请重点说明为何不选它）`
       : '';

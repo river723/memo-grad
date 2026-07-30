@@ -14,12 +14,12 @@ import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import AIService from '../services/AIService';
 import ReviewOption from '../components/ReviewOption';
-import { WrongQuestion, ExamQuestion, ExamQuestionType, RealExamWrongQuestion, RealExamLetter } from '../types';
+import { WrongQuestion, ExamQuestion, ExamQuestionType, RealExamWrongQuestion, RealExamOptionLetter } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
 
-const LETTERS: RealExamLetter[] = ['A', 'B', 'C', 'D'];
+const LETTERS: RealExamOptionLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 type Tab = 'word' | 'real';
 
@@ -76,6 +76,8 @@ export default function WrongQuestionReviewScreen() {
   const handleOpenPaper = (wq: RealExamWrongQuestion) => {
     if (wq.mode === 'reading') {
       navigation.navigate('RealExamReading', { year: wq.year, setId: wq.setId, passageId: wq.paperId });
+    } else if (wq.mode === 'newtype') {
+      navigation.navigate('RealExamNewType', { year: wq.year, setId: wq.setId, paperId: wq.paperId });
     } else {
       navigation.navigate('RealExamCloze', { year: wq.year, setId: wq.setId, paperId: wq.paperId });
     }
@@ -251,7 +253,7 @@ export default function WrongQuestionReviewScreen() {
                       <View style={styles.metaRow}>
                         <View style={[styles.typeTag, { backgroundColor: wq.mode === 'reading' ? colors.primaryContainer : colors.secondaryContainer }]}>
                           <Text style={[styles.typeTagText, { color: wq.mode === 'reading' ? colors.onPrimaryContainer : colors.onSurface }]}>
-                            {wq.mode === 'reading' ? '阅读' : '完形'}
+                            {wq.mode === 'reading' ? '阅读' : wq.mode === 'newtype' ? '新题型' : '完形'}
                           </Text>
                         </View>
                         <Text style={styles.metaText}>

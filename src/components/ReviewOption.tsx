@@ -1,13 +1,13 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { makeStyles } from '../utils/useStyles';
-import type { RealExamLetter } from '../types';
+import type { RealExamOptionLetter } from '../types';
 
 /**
  * 真题选项前缀剥离：数据里 options 已带 "A) ..." / "A. ..." 前缀，
  * UI 单独渲染字母，需去掉前缀避免重复。无前缀则原样返回。
  */
-export function stripLetterPrefix(option: string, letter: RealExamLetter): string {
+export function stripLetterPrefix(option: string, letter: RealExamOptionLetter): string {
   const prefix1 = `${letter}) `;
   const prefix2 = `${letter}. `;
   if (option.startsWith(prefix1)) return option.slice(prefix1.length);
@@ -26,7 +26,7 @@ export default function ReviewOption({
   isCorrect,
   isSelected,
 }: {
-  letter: RealExamLetter;
+  letter: RealExamOptionLetter;
   option: string;
   isCorrect: boolean;
   isSelected: boolean;

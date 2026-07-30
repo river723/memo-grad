@@ -67,6 +67,9 @@ export type PracticeStackParamList = {
   RealExamList: undefined;
   RealExamReading: { year: number; setId: 'english1' | 'english2'; passageId: string };
   RealExamCloze: { year: number; setId: 'english1' | 'english2'; paperId: string };
+  RealExamNewType: { year: number; setId: 'english1' | 'english2'; paperId: string };
+  RealExamTranslation: { year: number; setId: 'english1' | 'english2'; paperId: string };
+  RealExamWriting: { year: number; setId: 'english1' | 'english2'; paperId: string };
   RealExamResult: {
     session: RealExamSession;
     passage?: RealExamReadingPassage;

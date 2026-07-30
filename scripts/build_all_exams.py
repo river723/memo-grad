@@ -146,7 +146,9 @@ FOOTER = '本页数据最后更新'
 
 
 def clean_exp(s):
-    s = re.split(r'\s*20(1[7-9]|2[0-6])\s*年考研英语[一二]\s*(完形填空|阅读理解)', s)[0]
+    # 切掉解析末尾泄漏的页内标题/FAQ导航，统一以 "20YY年考研英语[一二]" 开头
+    # （完形/阅读/新题型/翻译/写作各题型的标题与 FAQ 均以此起头，正文极少这样自我引用）
+    s = re.split(r'\s*20\d\d\s*年\s*考研英语\s*[一二]', s)[0]
     s = s.split(FOOTER)[0]
     return s.strip()
 
@@ -193,6 +195,327 @@ def reading_slugs(landing_text_or_html, set_url_slug):
     return ordered[:4]
 
 
+# ---------- new-type (Part B) / translation / writing ----------
+# 新题型子类型：从落地页答案表标签识别
+NEWTYPE_SUBTYPE = [
+    ('段落排序', 'ordering'),
+    ('段落小标题', 'heading'),
+    ('选句填空', 'sentence'),
+    ('多项对应', 'matching'),
+]
+
+
+def parse_newtype_answers(landing_text):
+    """从落地页答案表抽取新题型（Part B）子类型与 41-45 答案。
+
+    返回 (subtype, {41:'B', ...}) 或 (None, {})。
+    覆盖三种表述：
+      排序题   "41=B → 预给A → 42=F → ..."
+      匹配类   "41 F · 42 C · 43 A · ..."（A–H）
+      正误判断 "41 F · 42 T · ..."（英二2010，答案仅 T/F）
+    """
+    tbl = landing_text[landing_text.find('客观题参考答案速查表'):]
+    if not tbl:
+        return None, {}
+    subtype = None
+    for label, st in NEWTYPE_SUBTYPE:
+        if re.search(label + r'[^A-Za-z]*Section II Part B', tbl):
+            subtype = st
+            break
+    m = re.search(r'Section II Part B(.*?)(?=英译汉|写作|Section III|Section IV|整卷|$)', tbl, re.S)
+    seg = m.group(1) if m else ''
+    ans = {}
+    for n, letter in re.findall(r'(4[1-5])\s*=?\s*([A-H])\b', seg):
+        n = int(n)
+        if 41 <= n <= 45 and n not in ans:
+            ans[n] = letter
+    # 正误判断题：标签未命中且答案里含 T（A–H 正则会漏掉 T）
+    if subtype is None:
+        tf = {}
+        for n, letter in re.findall(r'(4[1-5])\s*([TF])\b', seg):
+            n = int(n)
+            if 41 <= n <= 45 and n not in tf:
+                tf[n] = letter
+        if len(tf) == 5:
+            return 'truefalse', tf
+    return subtype, ans
+
+
+def _split_option_pool(body):
+    """把 "[ A ] xxx [ B ] yyy ... [ H ] zzz" 切成 {letter: text}。取最后一处连续的选项池。"""
+    # 找到最后一个从 [ A ] 起、含 [ B ] 的选项池区块
+    starts = [m.start() for m in re.finditer(r'\[\s*A\s*\]', body)]
+    for s in reversed(starts):
+        region = body[s:]
+        if re.search(r'\[\s*B\s*\]', region):
+            out = {}
+            marks = list(re.finditer(r'\[\s*([A-H])\s*\]', region))
+            for i, mk in enumerate(marks):
+                letter = mk.group(1)
+                end = marks[i + 1].start() if i + 1 < len(marks) else len(region)
+                text = region[mk.end():end].strip()
+                out[letter] = text
+            if len(out) >= 5:
+                return out
+    return {}
+
+
+def extract_newtype_exp(jiexi_html):
+    """新题型逐位号解析。返回 {41: '...'}。
+
+    各子类型真正的解析锚点不统一，但都有唯一的"强锚点"（含实质解析词）：
+      排序   '第 N 位正确答案'
+      标题/选句 '第 N 空应选'
+      多项对应 '第 N 题答案为'
+      正误   '第 N 题…正确答案'
+    优先用强锚点（每种页面只出现一次，直指解析正文）；无强锚点再回退到
+    '第 N 题/空'（跳过以问号结尾的 FAQ 问句与页尾残句）。
+    """
+    if jiexi_html is None:
+        return {}
+    t = to_text(jiexi_html)
+
+    def marker(n):
+        # 1) 强锚点：唯一且直指解析正文
+        strong = [
+            r'第\s*%d\s*位正确答案' % n,
+            r'第\s*%d\s*空应选' % n,
+            r'第\s*%d\s*题答案为' % n,
+            r'第\s*%d\s*题[^？?]{0,10}正确答案' % n,
+        ]
+        for pat in strong:
+            m = re.search(pat, t)
+            if m:
+                return m.start()
+        # 2) 回退：第 N 题/空，取其后 60 字不含问号的最后一处（避开 FAQ 问句）
+        best = None
+        for pat in (r'第\s*%d\s*题' % n, r'第\s*%d\s*空' % n, r'\b%d\.\s' % n):
+            for m in re.finditer(pat, t):
+                nxt = t[m.end():m.end() + 60]
+                if '？' in nxt or '?' in nxt:
+                    continue
+                if best is None or m.start() > best:
+                    best = m.start()
+        return best
+
+    starts = {n: marker(n) for n in range(41, 46)}
+    valid = sorted(s for s in starts.values() if s is not None)
+    out = {}
+    for n in range(41, 46):
+        s = starts[n]
+        if s is None:
+            continue
+        # 结束位置：下一个（任意位号的）锚点起点，避免串题
+        after = [v for v in valid if v > s]
+        end = min(after) if after else len(t)
+        out[n] = clean_exp(t[s:end])
+    return out
+
+
+def _extract_truefalse_statements(body):
+    """正误判断题：从题目页抽 41-45 的陈述句。格式 'NN. statement [ T ] [ F ]'。"""
+    out = {}
+    for n in range(41, 46):
+        end_pat = r'(?=\s*%d\.\s)' % (n + 1) if n < 45 else r'(?=\s*选文出处|\s*本页数据|$)'
+        pat = re.compile(r'%d\.\s*(.*?)\[\s*T\s*\]' % n + r'.*?' + end_pat, re.S)
+        m = pat.search(body)
+        if m:
+            out[n] = re.sub(r'\s+', ' ', m.group(1)).strip()
+    return out
+
+
+def build_newtype(year, url_slug, key_slug, landing_text, errors):
+    """构建新题型（Part B）。答案取落地页表；选项池/正文取题目页；解析取 jiexi。"""
+    subtype, ans = parse_newtype_answers(landing_text)
+    paper = read(f'{year}-{url_slug}-section2-part-b-paper.html')
+    if paper is None:
+        return None
+    if not subtype or len(ans) != 5:
+        errors.append(f'{year}-{url_slug} newtype answers={ans} subtype={subtype}')
+        return None
+    raw = paper
+    t = to_text(raw)
+    i = t.find('Directions')
+    j = t.find('本页数据')
+    body = t[i:j] if i >= 0 and j > i else t
+    # Directions：截到 "(N points)" 处
+    md = re.search(r'Directions.*?\(\d+\s*points?\)', body, re.S)
+    direction = md.group(0).strip() if md else ''
+    eshort = 'e1' if key_slug == 'english1' else 'e2'
+    exp = extract_newtype_exp(read(f'{year}-{url_slug}-section2-part-b-jiexi.html'))
+
+    # 正误判断题（英二2010）：无 A–H 选项池；每题一个陈述句，选 T/F
+    if subtype == 'truefalse':
+        stmts = _extract_truefalse_statements(body)
+        if len(stmts) != 5:
+            errors.append(f'{year}-{url_slug} truefalse statements={len(stmts)}/5')
+            return None
+        # 共享阅读文章：Directions 之后、第 41 题之前
+        first_q = re.search(r'\b41\.\s', body)
+        passage = None
+        if md and first_q:
+            passage = re.sub(r'\s+', ' ', body[md.end():first_q.start()]).strip() or None
+        if len(exp) != 5:
+            errors.append(f'{year}-{url_slug} newtype explanations={len(exp)}/5')
+        return {
+            'id': f'{year}-{eshort}-newtype',
+            'subtype': 'truefalse',
+            'direction': direction,
+            **({'passage': passage} if passage else {}),
+            'options': [{'letter': 'T', 'text': '正确 (True)'}, {'letter': 'F', 'text': '错误 (False)'}],
+            'questions': [
+                {
+                    'index': n,
+                    'stem': stmts[n],
+                    'answer': ans[n],
+                    **({'explanation': exp[n]} if exp.get(n) else {}),
+                } for n in range(41, 46)
+            ],
+        }
+
+    pool = _split_option_pool(body)
+    if len(pool) < 5:
+        errors.append(f'{year}-{url_slug} newtype option pool={len(pool)}')
+        return None
+    # 正文（标题匹配/7选5/多项对应有带编号文章；排序题无）
+    passage = None
+    if subtype != 'ordering':
+        first_a = re.search(r'\[\s*A\s*\]', body)
+        p_region = body[md.end():first_a.start()] if md and first_a else ''
+        # 站点用 "(NN) 占位符这是等待完型填空的句子位置" 标记待填空位，清成简洁的 "(NN) ____"
+        p_region = re.sub(r'占位符这是等待完型填空的句子位置', '____', p_region)
+        passage = re.sub(r'\s+', ' ', p_region).strip() or None
+    fixed_letters = set()
+    if subtype == 'ordering':
+        # 从答案表 seg 里"预给X"识别固定段
+        tbl = landing_text[landing_text.find('客观题参考答案速查表'):]
+        mseg = re.search(r'Section II Part B(.*?)(?=英译汉|写作|Section III|$)', tbl, re.S)
+        if mseg:
+            fixed_letters = set(re.findall(r'预给\s*([A-H])', mseg.group(1)))
+    options = [
+        {
+            'letter': L,
+            'text': pool[L],
+            **({'fixed': True} if L in fixed_letters else {}),
+        } for L in sorted(pool.keys())
+    ]
+    questions = [
+        {
+            'index': n,
+            'answer': ans[n],
+            **({'explanation': exp[n]} if exp.get(n) else {}),
+        } for n in range(41, 46)
+    ]
+    if len(exp) != 5:
+        errors.append(f'{year}-{url_slug} newtype explanations={len(exp)}/5')
+    return {
+        'id': f'{year}-{eshort}-newtype',
+        'subtype': subtype,
+        'direction': direction,
+        **({'passage': passage} if passage else {}),
+        'options': options,
+        'questions': questions,
+    }
+
+
+def build_translation(year, url_slug, key_slug, errors):
+    """构建翻译（英一 section2-part-c 划线句；英二 section3 段落）。纯阅览。"""
+    is_e1 = key_slug == 'english1'
+    pslug = 'section2-part-c' if is_e1 else 'section3'
+    paper = read(f'{year}-{url_slug}-{pslug}-paper.html')
+    jiexi = read(f'{year}-{url_slug}-{pslug}-jiexi.html')
+    if paper is None:
+        return None
+    t = to_text(paper)
+    i = t.find('Directions')
+    j = t.find('本页数据')
+    body = t[i:j] if i >= 0 and j > i else t
+    md = re.search(r'Directions.*?\(\d+\s*points?\)', body, re.S)
+    direction = md.group(0).strip() if md else ''
+    passage = body[md.end():].strip() if md else body.strip()
+    eshort = 'e1' if is_e1 else 'e2'
+    items = []
+    jt = to_text(jiexi) if jiexi else ''
+    if is_e1:
+        # 英一：逐句 "第 N 题「英文」...参考译文是「中文」"
+        for n in range(46, 51):
+            m = re.search(r'第\s*%d\s*题[「『""]([^」』""]*)' % n, jt)
+            if not m:
+                continue
+            en = m.group(1).strip()
+            rest = jt[m.end():]
+            mz = re.search(r'参考译文是[「『""]([^」』""]*)', rest)
+            zh = mz.group(1).strip() if mz else ''
+            items.append({'index': n, 'en': en, 'zh': zh})
+        if len(items) != 5:
+            errors.append(f'{year}-{url_slug} translation items={len(items)}/5')
+    else:
+        # 英二：整段译文 "P1 ... P2 ..."
+        m = re.search(r'参考译文是[^P]*?(P1\s.*?)(?=本页数据|逐句解析|FAQ|$)', jt, re.S)
+        block = m.group(1) if m else ''
+        paras = re.split(r'\bP\d+\s', block)
+        paras = [p.strip() for p in paras if p.strip()]
+        zh = ' '.join(paras).strip()
+        if zh:
+            items.append({'index': 1, 'en': passage, 'zh': zh})
+        else:
+            errors.append(f'{year}-{url_slug} translation paragraph zh missing')
+    return {
+        'id': f'{year}-{eshort}-translation',
+        'subtype': 'sentence' if is_e1 else 'paragraph',
+        'direction': direction,
+        'passage': passage,
+        'items': items,
+    }
+
+
+def _extract_writing_part(jiexi_html, label):
+    """从写作 jiexi 页抽 Directions + 参考范文 + 参考译文。"""
+    if jiexi_html is None:
+        return None
+    t = to_text(jiexi_html)
+    md = re.search(r'Directions:.*?\(\d+\s*points?\)', t, re.S)
+    direction = md.group(0).strip() if md else ''
+    # 参考范文：【参考范文 ...】 至 【参考译文】
+    ms = re.search(r'【\s*参考范文[^】]*】(.*?)(?=【\s*参考译文|【|本页数据|$)', t, re.S)
+    sample = None
+    if ms:
+        s = ms.group(1)
+        # 去掉 "写作无唯一标准答案，以下为达标示范" 之类前缀
+        s = re.sub(r'^[^A-Za-z]*(?=[A-Z])', '', s, count=1)
+        sample = s.strip() or None
+    ma = re.search(r'【\s*参考译文\s*】(.*?)(?=【|本页数据|逐段|审题|ANALYSIS|$)', t, re.S)
+    sample_zh = ma.group(1).strip() if ma else None
+    if not direction and not sample:
+        return None
+    return {
+        'label': label,
+        'direction': direction,
+        **({'sample': sample} if sample else {}),
+        **({'sampleTranslation': sample_zh} if sample_zh else {}),
+    }
+
+
+def build_writing(year, url_slug, key_slug, errors):
+    """构建写作（小作文 + 大作文）。纯阅览。"""
+    is_e1 = key_slug == 'english1'
+    if is_e1:
+        specs = [('section3-part-a', 'Part A 小作文'), ('section3-part-b', 'Part B 大作文')]
+    else:
+        specs = [('section-iv-part-a', 'Part A 小作文'), ('section-iv-part-b', 'Part B 大作文')]
+    parts = []
+    for slug, label in specs:
+        part = _extract_writing_part(read(f'{year}-{url_slug}-{slug}-jiexi.html'), label)
+        if part:
+            parts.append(part)
+        else:
+            errors.append(f'{year}-{url_slug} writing {slug} empty')
+    if not parts:
+        return None
+    eshort = 'e1' if is_e1 else 'e2'
+    return {'id': f'{year}-{eshort}-writing', 'parts': parts}
+
+
 # ---------- main ----------
 def build_set(year, url_slug, key_slug, errors):
     landing_raw = read(f'{year}-{url_slug}-landing.html')
@@ -224,7 +547,9 @@ def build_set(year, url_slug, key_slug, errors):
     slugs = reading_slugs(landing_raw, f'{year}-{url_slug}')
     if len(slugs) != 4:
         errors.append(f'{year}-{url_slug} reading slugs={slugs}')
-        return {'reading': [], 'cloze': cloze}
+        fallback = {'reading': [], 'cloze': cloze}
+        _attach_extra(fallback, year, url_slug, key_slug, landing_text, errors)
+        return fallback
     readings = []
     for idx, slug in enumerate(slugs, 1):
         q_lo = 21 + (idx - 1) * 5
@@ -258,7 +583,37 @@ def build_set(year, url_slug, key_slug, errors):
         })
         if len(rexp) != 5:
             errors.append(f'{year}-{url_slug} text{idx} explanations={len(rexp)}/5')
-    return {'reading': readings, 'cloze': cloze}
+    result = {'reading': readings, 'cloze': cloze}
+    _attach_extra(result, year, url_slug, key_slug, landing_text, errors)
+    return result
+
+
+# 仅这些年份补新题型/翻译/写作（与 fetch_all_exams.NEW_YEARS 保持一致）
+NEW_YEARS = set(range(2010, 2027))
+
+
+def _attach_extra(result, year, url_slug, key_slug, landing_text, errors):
+    """把新题型/翻译/写作挂到 set 结果上（仅 NEW_YEARS）。缺失不阻塞。"""
+    if year not in NEW_YEARS:
+        return
+    try:
+        nt = build_newtype(year, url_slug, key_slug, landing_text, errors)
+        if nt:
+            result['newType'] = nt
+    except Exception as e:
+        errors.append(f'{year}-{url_slug} newtype FAIL: {e}')
+    try:
+        tr = build_translation(year, url_slug, key_slug, errors)
+        if tr:
+            result['translation'] = tr
+    except Exception as e:
+        errors.append(f'{year}-{url_slug} translation FAIL: {e}')
+    try:
+        wr = build_writing(year, url_slug, key_slug, errors)
+        if wr:
+            result['writing'] = wr
+    except Exception as e:
+        errors.append(f'{year}-{url_slug} writing FAIL: {e}')
 
 
 def main():
@@ -280,8 +635,10 @@ def main():
     print('\n=== SUMMARY ===')
     for y in result:
         e1 = y['english1']; e2 = y['english2']
-        print(f'{y["year"]} | E1 r={len(e1["reading"])} cloze={bool(e1["cloze"])} | '
-              f'E2 r={len(e2["reading"])} cloze={bool(e2["cloze"])}')
+        def tag(s):
+            return (f'r={len(s["reading"])} cl={bool(s["cloze"])} '
+                    f'nt={bool(s.get("newType"))} tr={bool(s.get("translation"))} wr={bool(s.get("writing"))}')
+        print(f'{y["year"]} | E1 {tag(e1)} | E2 {tag(e2)}')
     print(f'\n{len(errors)} warnings:')
     for e in errors:
         print(' -', e)

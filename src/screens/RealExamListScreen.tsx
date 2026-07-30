@@ -94,6 +94,18 @@ export default function RealExamListScreen() {
     navigation.navigate('RealExamCloze', { year, setId, paperId });
   };
 
+  const goNewType = (year: number, setId: 'english1' | 'english2', paperId: string) => {
+    navigation.navigate('RealExamNewType', { year, setId, paperId });
+  };
+
+  const goTranslation = (year: number, setId: 'english1' | 'english2', paperId: string) => {
+    navigation.navigate('RealExamTranslation', { year, setId, paperId });
+  };
+
+  const goWriting = (year: number, setId: 'english1' | 'english2', paperId: string) => {
+    navigation.navigate('RealExamWriting', { year, setId, paperId });
+  };
+
   const toggleYear = (year: number) => {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -115,38 +127,65 @@ export default function RealExamListScreen() {
 
   const renderSet = (
     label: string,
-    reading: NonNullable<RealExamYear['english1']>['reading'],
-    cloze: RealExamYear['english1']['cloze'],
+    set: RealExamYear['english1'],
     setId: 'english1' | 'english2',
     yearObj: RealExamYear,
-  ) => (
-    <View style={styles.setGroup}>
-      <Text style={styles.setTitle}>{label}</Text>
-      {reading.length > 0 && (
-        <View style={styles.entryList}>
-          {reading.map((passage, idx) => (
-            <EntryRow
-              key={passage.id}
-              icon="book-open-variant"
-              title={passage.title || `Text ${idx + 1}`}
-              count={passage.questions.length}
-              status={statusFor(passage.id)}
-              onPress={() => goReading(yearObj.year, setId, passage.id)}
-            />
-          ))}
-        </View>
-      )}
-      {cloze && (
-        <EntryRow
-          icon="format-letter-matches"
-          title="完形填空"
-          count={20}
-          status={statusFor(cloze.id)}
-          onPress={() => goCloze(yearObj.year, setId, cloze.id)}
-        />
-      )}
-    </View>
-  );
+  ) => {
+    const { reading, cloze, newType, translation, writing } = set;
+    return (
+      <View style={styles.setGroup}>
+        <Text style={styles.setTitle}>{label}</Text>
+        {reading.length > 0 && (
+          <View style={styles.entryList}>
+            {reading.map((passage, idx) => (
+              <EntryRow
+                key={passage.id}
+                icon="book-open-variant"
+                title={passage.title || `Text ${idx + 1}`}
+                count={passage.questions.length}
+                status={statusFor(passage.id)}
+                onPress={() => goReading(yearObj.year, setId, passage.id)}
+              />
+            ))}
+          </View>
+        )}
+        {cloze && (
+          <EntryRow
+            icon="format-letter-matches"
+            title="完形填空"
+            count={20}
+            status={statusFor(cloze.id)}
+            onPress={() => goCloze(yearObj.year, setId, cloze.id)}
+          />
+        )}
+        {newType && (
+          <EntryRow
+            icon="sort-variant"
+            title="新题型"
+            count={newType.questions.length}
+            status={statusFor(newType.id)}
+            onPress={() => goNewType(yearObj.year, setId, newType.id)}
+          />
+        )}
+        {translation && (
+          <EntryRow
+            icon="translate"
+            title="翻译"
+            badge="阅览"
+            onPress={() => goTranslation(yearObj.year, setId, translation.id)}
+          />
+        )}
+        {writing && (
+          <EntryRow
+            icon="pencil-outline"
+            title="写作"
+            badge="阅览"
+            onPress={() => goWriting(yearObj.year, setId, writing.id)}
+          />
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -181,8 +220,8 @@ export default function RealExamListScreen() {
               </TouchableOpacity>
               {isExpanded && (
                 <Card.Content>
-                  {filter !== 'english2' && renderSet('英语一', year.english1.reading, year.english1.cloze, 'english1', year)}
-                  {filter !== 'english1' && renderSet('英语二', year.english2.reading, year.english2.cloze, 'english2', year)}
+                  {filter !== 'english2' && renderSet('英语一', year.english1, 'english1', year)}
+                  {filter !== 'english1' && renderSet('英语二', year.english2, 'english2', year)}
                 </Card.Content>
               )}
             </Card>
@@ -198,13 +237,15 @@ function EntryRow({
   icon,
   title,
   count,
+  badge,
   status,
   onPress,
 }: {
   icon: string;
   title: string;
-  count: number;
-  status: PaperStatus | null;
+  count?: number;
+  badge?: string;
+  status?: PaperStatus | null;
   onPress: () => void;
 }) {
   const { colors } = useAppTheme();
@@ -214,7 +255,9 @@ function EntryRow({
       <View style={styles.entryRow}>
         <MaterialCommunityIcons name={icon as any} size={18} color={colors.tertiary} />
         <View style={styles.entryText}>
-          <Text style={styles.entryTitle}>{title} ({count}题)</Text>
+          <Text style={styles.entryTitle}>
+            {title}{count != null ? ` (${count}题)` : ''}{badge ? ` · ${badge}` : ''}
+          </Text>
           {status ? <Text style={[styles.entryStatus, { color: status.color }]}>{status.text}</Text> : null}
         </View>
         <Text style={styles.entryArrow}>›</Text>

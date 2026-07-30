@@ -1,4 +1,4 @@
-import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId, RealExamSession, RealExamWrongQuestion, RealExamReadingPassage, RealExamClozePaper, RealExamLetter } from '../types';
+import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId, RealExamSession, RealExamWrongQuestion, RealExamReadingPassage, RealExamClozePaper, RealExamNewTypePaper, RealExamLetter, RealExamOptionLetter } from '../types';
 import { AI_PROVIDERS, WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 
 // 跨平台存储接口
@@ -423,7 +423,7 @@ class StorageService {
    */
   async addOrUpdateRealExamWrongQuestions(
     session: RealExamSession,
-    paper: RealExamReadingPassage | RealExamClozePaper | undefined,
+    paper: RealExamReadingPassage | RealExamClozePaper | RealExamNewTypePaper | undefined,
     setId: 'english1' | 'english2',
   ): Promise<void> {
     if (!paper) return;
@@ -446,6 +446,24 @@ class StorageService {
           paperTitle: passage.title,
           stem: q.stem,
           options: q.options,
+          correctAnswer: q.answer,
+          explanation: q.explanation,
+        });
+      }
+    } else if (session.mode === 'newtype') {
+      const ntPaper = paper as RealExamNewTypePaper;
+      // 选项池转成带字母前缀的字符串，供错题本回顾展示
+      const optionStrings = ntPaper.options.map(o => `${o.letter}) ${o.text}`);
+      for (const q of ntPaper.questions) {
+        const qid = `${ntPaper.id}-p${q.index}`;
+        snapshots.set(qid, {
+          questionId: qid,
+          year: session.year,
+          setId,
+          mode: 'newtype',
+          paperId: ntPaper.id,
+          blankIndex: q.index,
+          options: optionStrings,
           correctAnswer: q.answer,
           explanation: q.explanation,
         });
@@ -517,12 +535,12 @@ class StorageService {
   }
 
   // ==================== 真题答题草稿（中途暂存，重进可恢复）====================
-  // 以 paperId 为键存 selections（Record<string, RealExamLetter>）。阅读用 questionId、
-  // 完形用 blank index 的字符串形式作内部 key；提交后清除。
-  async getRealExamDraft(paperId: string): Promise<Record<string, RealExamLetter>> {
+  // 以 paperId 为键存 selections（Record<string, RealExamOptionLetter>）。阅读用 questionId、
+  // 完形用 blank index、新题型用位号的字符串形式作内部 key；提交后清除。
+  async getRealExamDraft(paperId: string): Promise<Record<string, RealExamOptionLetter>> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
-      const all: Record<string, Record<string, RealExamLetter>> = data ? JSON.parse(data) : {};
+      const all: Record<string, Record<string, RealExamOptionLetter>> = data ? JSON.parse(data) : {};
       return all[paperId] ?? {};
     } catch (error) {
       console.error('Get real exam draft error:', error);
@@ -530,16 +548,16 @@ class StorageService {
     }
   }
 
-  async saveRealExamDraft(paperId: string, selections: Record<string, RealExamLetter>): Promise<void> {
+  async saveRealExamDraft(paperId: string, selections: Record<string, RealExamOptionLetter>): Promise<void> {
     const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
-    const all: Record<string, Record<string, RealExamLetter>> = data ? JSON.parse(data) : {};
+    const all: Record<string, Record<string, RealExamOptionLetter>> = data ? JSON.parse(data) : {};
     all[paperId] = selections;
     await AsyncStorage.setItem(this.KEYS.REAL_EXAM_DRAFTS, JSON.stringify(all));
   }
 
   async clearRealExamDraft(paperId: string): Promise<void> {
     const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
-    const all: Record<string, Record<string, RealExamLetter>> = data ? JSON.parse(data) : {};
+    const all: Record<string, Record<string, RealExamOptionLetter>> = data ? JSON.parse(data) : {};
     delete all[paperId];
     await AsyncStorage.setItem(this.KEYS.REAL_EXAM_DRAFTS, JSON.stringify(all));
   }

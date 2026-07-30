@@ -33,6 +33,9 @@ import ExamHistoryScreen from '../screens/ExamHistoryScreen';
 import RealExamListScreen from '../screens/RealExamListScreen';
 import RealExamReadingScreen from '../screens/RealExamReadingScreen';
 import RealExamClozeScreen from '../screens/RealExamClozeScreen';
+import RealExamNewTypeScreen from '../screens/RealExamNewTypeScreen';
+import RealExamTranslationScreen from '../screens/RealExamTranslationScreen';
+import RealExamWritingScreen from '../screens/RealExamWritingScreen';
 import RealExamResultScreen from '../screens/RealExamResultScreen';
 
 // --- 我的 Tab 组件 ---
@@ -147,6 +150,9 @@ function PracticeStack() {
       <Stack.Screen name="RealExamList" component={RealExamListScreen} options={headerOptions('真题练习', 'menu')} />
       <Stack.Screen name="RealExamReading" component={RealExamReadingScreen} options={headerOptions('阅读理解', 'menu')} />
       <Stack.Screen name="RealExamCloze" component={RealExamClozeScreen} options={headerOptions('完形填空', 'menu')} />
+      <Stack.Screen name="RealExamNewType" component={RealExamNewTypeScreen} options={headerOptions('新题型', 'menu')} />
+      <Stack.Screen name="RealExamTranslation" component={RealExamTranslationScreen} options={headerOptions('翻译', 'menu')} />
+      <Stack.Screen name="RealExamWriting" component={RealExamWritingScreen} options={headerOptions('写作', 'menu')} />
       <Stack.Screen name="RealExamResult" component={RealExamResultScreen} options={headerOptions('练习结果', 'menu')} />
     </Stack.Navigator>
   );
