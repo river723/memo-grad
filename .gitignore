@@ -57,6 +57,13 @@ yarn-error.*
 build/
 android/app/build/
 ios/build/
+release/
+
+# Tauri (Rust build cache)
+src-tauri/target/
+
+# Rust installer - never commit
+rustup.exe
 
 # React Native
 # Xcode
