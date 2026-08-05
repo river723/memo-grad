@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>考研英语生词本 AI 版 · 手机宣传页</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=Noto+Serif+SC:wght@400;600;900&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0F0E0C;
+  --ink-2:#1A1814;
+  --paper:#F4EFE6;
+  --paper-2:#EDE6D6;
+  --paper-3:#E2D9C4;
+  --cream:#FAF6EC;
+  --gold:#C8A24B;
+  --gold-2:#E6C56C;
+  --oxblood:#7A2E1F;
+  --terra:#C7604A;
+  --moss:#3F4A2E;
+  --line-light:rgba(244,239,230,0.16);
+}
+html,body{background:#1A1814;font-family:'Manrope','Noto Serif SC',sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;color:var(--paper)}
+body{padding:24px 0 80px;min-height:100vh}
+.feed{max-width:480px;margin:0 auto;padding:0 16px;display:flex;flex-direction:column;gap:24px}
+.intro{max-width:480px;margin:0 auto 8px;padding:0 20px;text-align:center}
+.intro .badge{display:inline-block;padding:5px 12px;border:1px solid var(--line-light);border-radius:999px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-2);margin-bottom:14px}
+.intro h1{font-family:'Fraunces','Noto Serif SC',serif;font-size:18px;font-weight:500;letter-spacing:-0.01em;color:var(--cream);margin-bottom:6px}
+.intro p{font-size:12px;color:var(--paper-3);line-height:1.5;letter-spacing:0.02em}
+
+/* Card shell */
+.card{position:relative;border-radius:20px;overflow:hidden;background:var(--ink);box-shadow:0 20px 50px -20px rgba(0,0,0,0.7),0 0 0 1px rgba(244,239,230,0.06);aspect-ratio:3/4;width:100%;display:flex;flex-direction:column}
+.card-tag{position:absolute;top:18px;left:18px;z-index:5;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-2);display:flex;align-items:center;gap:8px}
+.card-tag::before{content:"";width:18px;height:1px;background:var(--gold)}
+.card-no{position:absolute;top:18px;right:18px;z-index:5;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.18em;color:rgba(244,239,230,0.4)}
+.card-grain{position:absolute;inset:0;pointer-events:none;z-index:2;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.85  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");opacity:0.6;mix-blend-mode:overlay}
+.card-mark{position:absolute;bottom:18px;right:18px;z-index:5;font-family:'Fraunces',serif;font-size:11px;font-style:italic;color:rgba(244,239,230,0.5);letter-spacing:0.04em}
+.card-mark b{font-style:normal;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold-2);margin-right:6px}
+
+.dark{background:var(--ink);color:var(--paper)}
+.dark2{background:#141210;color:var(--paper)}
+.cream{background:var(--cream);color:var(--ink)}
+.oxblood{background:linear-gradient(160deg,#3a1a12 0%,#5a2418 50%,#3a1a12 100%);color:var(--cream)}
+.gold-deep{background:linear-gradient(160deg,#1A1814 0%,#2a2418 100%);color:var(--cream)}
+.moss{background:linear-gradient(165deg,#1f2418 0%,#2c3520 100%);color:var(--cream)}
+
+.card-body{flex:1;padding:60px 28px 56px;display:flex;flex-direction:column;position:relative;z-index:3}
+.card-body.tight{padding:54px 24px 48px}
+.card-body.crest{padding:54px 24px 48px}
+.kicker{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-2);margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.kicker::before{content:"";width:20px;height:1px;background:var(--gold)}
+.cream .kicker{color:var(--oxblood)}
+.cream .kicker::before{background:var(--oxblood)}
+.card-h{font-family:'Fraunces','Noto Serif SC',serif;line-height:1.05;letter-spacing:-0.025em;font-weight:500;font-variation-settings:'opsz' 144,'SOFT' 30;color:var(--cream);margin-bottom:18px}
+.card-h.huge{font-size:54px}
+.card-h.large{font-size:42px}
+.card-h.mid{font-size:36px}
+.card-h em{font-style:italic;color:var(--gold-2);font-variation-settings:'opsz' 144,'SOFT' 100}
+.card-h u{text-decoration:none;border-bottom:2px solid var(--oxblood);padding-bottom:1px}
+.cream .card-h{color:var(--ink)}
+.cream .card-h em{color:var(--oxblood)}
+.cream .card-h u{border-bottom-color:var(--gold)}
+.card-p{font-size:15px;line-height:1.65;color:var(--paper-2);font-weight:300}
+.cream .card-p{color:rgba(15,14,12,0.7)}
+.card-p.lh{font-size:14px;line-height:1.7}
+.lead-mono{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(244,239,230,0.4);margin-bottom:auto;display:flex;flex-direction:column;gap:6px}
+.lead-mono b{color:var(--gold-2);font-weight:500}
+.cream .lead-mono{color:rgba(15,14,12,0.4)}
+.cream .lead-mono b{color:var(--oxblood)}
+.card-footer{margin-top:auto;padding-top:18px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;position:relative;z-index:3}
+.stamp{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--line-light);border-radius:999px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold-2)}
+.cream .stamp{border-color:rgba(15,14,12,0.2);color:var(--oxblood)}
+.stamp .dot{width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;background:var(--gold);color:var(--ink);border-radius:999px;font-weight:600;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;text-decoration:none}
+.btn.dark{background:var(--ink);color:var(--cream);border:1px solid var(--ink)}
+.btn.outline{background:transparent;color:var(--cream);border:1px solid var(--cream)}
+
+.ornament-line{position:absolute;left:28px;right:28px;height:1px;background:rgba(244,239,230,0.12);z-index:2}
+.cream .ornament-line{background:rgba(15,14,12,0.12)}
+.ornament-dot{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold);z-index:2}
+.glow{position:absolute;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(200,162,75,0.22) 0%,transparent 70%);filter:blur(30px);pointer-events:none;z-index:1}
+.bigword{font-family:'Fraunces','Noto Serif SC',serif;font-size:120px;font-style:italic;font-weight:500;letter-spacing:-0.04em;line-height:0.85;color:var(--cream);font-variation-settings:'opsz' 144,'SOFT' 100;position:relative;z-index:2}
+.bigword .strike{position:absolute;top:50%;left:0;right:0;height:4px;background:var(--oxblood);transform:rotate(-3deg)}
+.bigword em{color:var(--gold-2);font-style:italic}
+.strike-text{text-decoration:line-through;text-decoration-color:var(--oxblood);text-decoration-thickness:2px;color:rgba(244,239,230,0.3);font-style:italic}
+.hilite{background:linear-gradient(180deg,transparent 60%,rgba(200,162,75,0.35) 60%);padding:0 2px}
+.arrow{display:inline-block;width:14px;height:1px;background:currentColor;position:relative;margin-left:6px}
+.arrow::after{content:"";position:absolute;right:0;top:-3px;border:3px solid transparent;border-left-color:currentColor}
+.divider-row{display:flex;align-items:center;gap:10px;color:rgba(244,239,230,0.3);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase}
+.cream .divider-row{color:rgba(15,14,12,0.3)}
+.divider-row .bar{flex:1;height:1px;background:currentColor;opacity:0.4}
+
+/* Word contrast card */
+.word-compare{background:rgba(244,239,230,0.04);border:1px solid var(--line-light);border-radius:14px;padding:16px 18px;position:relative;z-index:3}
+.cream .word-compare{background:rgba(15,14,12,0.03);border-color:rgba(15,14,12,0.12)}
+.wc-row{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+.wc-row:last-child{margin-bottom:0}
+.wc-row .lbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:rgba(244,239,230,0.4);min-width:54px}
+.cream .wc-row .lbl{color:rgba(15,14,12,0.45)}
+.wc-row .text{font-size:18px;font-weight:500;line-height:1.3;flex:1}
+.wc-row.muted .text{color:rgba(244,239,230,0.35);text-decoration:line-through;text-decoration-color:rgba(122,46,31,0.5);text-decoration-thickness:1.5px}
+.cream .wc-row.muted .text{color:rgba(15,14,12,0.35);text-decoration-color:rgba(122,46,31,0.5)}
+.wc-row.gold .text{color:var(--gold-2);font-style:italic;font-family:'Fraunces','Noto Serif SC',serif;font-size:19px}
+.cream .wc-row.gold .text{color:var(--oxblood)}
+
+.curve-box{position:relative;height:120px;margin:18px 0;z-index:3}
+.curve-box svg{width:100%;height:100%;display:block}
+.tag-row{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(244,239,230,0.5);margin-top:6px;position:relative;z-index:3}
+.cream .tag-row{color:rgba(15,14,12,0.45)}
+.tag-row span{text-align:center;flex:1}
+.tag-row span b{display:block;font-family:'Fraunces',serif;font-style:italic;font-size:12px;color:var(--gold-2);margin-bottom:2px;letter-spacing:0}
+.cream .tag-row span b{color:var(--oxblood)}
+.tag-row span em{font-style:normal}
+
+/* Big number grid */
+.numbers{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:8px;border-top:1px solid var(--line-light);position:relative;z-index:3}
+.cream .numbers{border-top-color:rgba(15,14,12,0.15)}
+.num-cell{padding:16px 0;padding-right:12px;border-right:1px solid var(--line-light)}
+.num-cell:nth-child(2n){border-right:none;padding-right:0;padding-left:12px}
+.num-cell:nth-child(-n+2){border-bottom:1px solid var(--line-light);padding-bottom:18px;margin-bottom:18px}
+.cream .num-cell{border-color:rgba(15,14,12,0.15)}
+.num-cell .n{font-family:'Fraunces',serif;font-size:44px;font-weight:400;letter-spacing:-0.03em;line-height:1;color:var(--cream);font-variation-settings:'opsz' 144}
+.cream .num-cell .n{color:var(--ink)}
+.num-cell .n sub{font-size:14px;font-style:italic;color:var(--oxblood);font-weight:400;margin-left:2px;vertical-align:baseline;letter-spacing:0}
+.num-cell .lbl{font-size:11px;color:rgba(244,239,230,0.55);margin-top:6px;line-height:1.4}
+.cream .num-cell .lbl{color:rgba(15,14,12,0.55)}
+.num-cell .meta{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-2);margin-top:8px}
+.cream .num-cell .meta{color:var(--oxblood)}
+
+/* Feature bullets */
+.feat-list{display:flex;flex-direction:column;gap:14px;position:relative;z-index:3}
+.feat-item{display:flex;align-items:flex-start;gap:14px}
+.feat-item .ic{width:36px;height:36px;border-radius:10px;border:1px solid var(--line-light);display:grid;place-items:center;flex-shrink:0;color:var(--gold-2)}
+.cream .feat-item .ic{border-color:rgba(15,14,12,0.18);color:var(--oxblood)}
+.feat-item .ic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5}
+.feat-item .text h4{font-family:'Fraunces','Noto Serif SC',serif;font-size:18px;font-weight:500;font-style:italic;letter-spacing:-0.01em;color:var(--cream);margin-bottom:4px;line-height:1.2}
+.cream .feat-item .text h4{color:var(--ink)}
+.feat-item .text p{font-size:12.5px;line-height:1.55;color:var(--paper-2);font-weight:300}
+.cream .feat-item .text p{color:rgba(15,14,12,0.65)}
+
+/* Tiny year strip */
+.year-strip{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;position:relative;z-index:3}
+.year-strip span{padding:4px 10px;border:1px solid var(--line-light);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(244,239,230,0.6);letter-spacing:0.04em}
+.cream .year-strip span{border-color:rgba(15,14,12,0.18);color:rgba(15,14,12,0.6)}
+.year-strip span.gold{background:var(--gold);color:var(--ink);border-color:var(--gold)}
+
+/* Centered hero layout */
+.center{flex:1;display:flex;flex-direction:column;justify-content:center;position:relative;z-index:3}
+</style></head><body>
+<div class="intro">
+  <div class="badge">考研英语 · AI 生词本</div>
+  <h1>把"认识"的词，真正学透。</h1>
+  <p>6 张图 · 1 个 App · 攻克制胜关键</p>
+</div>
+<div class="feed">
+
+<div class="card dark">
+  <div class="card-grain"></div>
+  <div class="glow" style="top:-100px;right:-100px"></div>
+  <div class="card-tag">01 / Hook</div>
+  <div class="card-no">01 — 06</div>
+  <div class="card-body center" style="text-align:center;align-items:center">
+    <div class="kicker" style="justify-content:center">考研英语生词本 · AI 版</div>
+    <div style="font-family:'Fraunces','Noto Serif SC',serif;font-size:72px;font-style:italic;font-weight:500;line-height:0.9;letter-spacing:-0.04em;color:var(--cream);font-variation-settings:'opsz' 144,'SOFT' 100;margin:18px 0;position:relative">
+      <span style="position:relative;display:inline-block">address<span style="position:absolute;left:-4px;right:-4px;top:55%;height:5px;background:var(--oxblood);transform:rotate(-3deg);border-radius:2px"></span></span>
+    </div>
+    <div class="card-h large" style="text-align:center;margin-bottom:14px">不只是<span style="color:var(--gold-2);font-style:italic">「地址」</span>。</div>
+    <p class="card-p" style="text-align:center;max-width:340px">你以为已经背下的词，<br/>正在真题里悄悄丢分。</p>
+    <div style="margin-top:32px;display:flex;gap:8px;align-items:center;justify-content:center">
+      <span class="stamp"><span class="dot"></span>2026 考研</span>
+    </div>
+  </div>
+  <div class="card-mark"><b>Memograd</b> · 宣传页</div>
+</div>
+
+<div class="card oxblood">
+  <div class="card-grain"></div>
+  <div class="card-tag">02 / The Problem</div>
+  <div class="card-no">02 — 06</div>
+  <div class="card-body">
+    <div class="kicker">真 题 翻 车 现 场</div>
+    <div class="card-h huge" style="margin-bottom:24px">熟词，<br/><em>未必</em>真熟。</div>
+    <p class="card-p lh">考研英语淘汰人的，从来不是生词——<br/>而是那些你自信满满的「熟词」。<br/>它们的第二义、第三义，才是考场上真正的刺客。</p>
+    <div class="word-compare" style="margin-top:auto">
+      <div class="wc-row muted"><span class="lbl">address</span><span class="text">地址；住址</span></div>
+      <div class="wc-row gold"><span class="lbl">考研</span><span class="text">处理；针对；演说</span></div>
+    </div>
+  </div>
+  <div class="card-mark"><b>Memograd</b> · 熟词僻义</div>
+</div>
+
+<div class="card dark2">
+  <div class="card-grain"></div>
+  <div class="card-tag">03 / The Examples</div>
+  <div class="card-no">03 — 06</div>
+  <div class="card-body">
+    <div class="kicker">你 可 能 不 知 道 的 词</div>
+    <div class="card-h large" style="margin-bottom:18px">五个常见词的<br/><em>隐藏</em>含义。</div>
+    <div class="word-compare" style="margin-top:8px">
+      <div style="margin-bottom:14px">
+        <div style="font-family:'Fraunces',serif;font-style:italic;font-size:22px;color:var(--cream);font-weight:500;line-height:1">accommodate</div>
+        <div class="wc-row muted" style="margin-top:8px"><span class="lbl">常意</span><span class="text">容纳；提供住宿</span></div>
+        <div class="wc-row gold"><span class="lbl">僻义</span><span class="text">适应；迁就；满足需求</span></div>
+      </div>
+      <div style="height:1px;background:var(--line-light);margin:14px 0"></div>
+      <div>
+        <div style="font-family:'Fraunces',serif;font-style:italic;font-size:22px;color:var(--cream);font-weight:500;line-height:1">abandon</div>
+        <div class="wc-row muted" style="margin-top:8px"><span class="lbl">常意</span><span class="text">抛弃；放弃</span></div>
+        <div class="wc-row gold"><span class="lbl">僻义</span><span class="text">n. 放纵（with abandon）</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="card-mark"><b>Memograd</b> · 示例 1/2</div>
+</div>
+
+<div class="card dark2">
+  <div class="card-grain"></div>
+  <div class="card-tag">04 / Still More</div>
+  <div class="card-no">04 — 06</div>
+  <div class="card-body">
+    <div class="kicker">还 有 这 些 · 不 要 错 过</div>
+    <div class="card-h large" style="margin-bottom:18px">apply、escape<br/>你<em>真的</em>懂吗？</div>
+    <div class="word-compare" style="margin-top:8px">
+      <div style="margin-bottom:14px">
+        <div style="font-family:'Fraunces',serif;font-style:italic;font-size:22px;color:var(--cream);font-weight:500;line-height:1">apply</div>
+        <div class="wc-row muted" style="margin-top:8px"><span class="lbl">常意</span><span class="text">申请；应用</span></div>
+        <div class="wc-row gold"><span class="lbl">僻义</span><span class="text">适用；与……相关（apply to）</span></div>
+      </div>
+      <div style="height:1px;background:var(--line-light);margin:14px 0"></div>
+      <div>
+        <div style="font-family:'Fraunces',serif;font-style:italic;font-size:22px;color:var(--cream);font-weight:500;line-height:1">escape</div>
+        <div class="wc-row muted" style="margin-top:8px"><span class="lbl">常意</span><span class="text">逃跑；逃脱</span></div>
+        <div class="wc-row gold"><span class="lbl">僻义</span><span class="text">泄露；被遗忘；逃避现实</span></div>
+      </div>
+    </div>
+    <p class="card-p" style="margin-top:18px;font-size:12.5px;color:rgba(244,239,230,0.55)">每一词都配套：考研释义、词根、记忆口诀、形近词。</p>
+  </div>
+  <div class="card-mark"><b>Memograd</b> · 示例 2/2</div>
+</div>
+
+<div class="card gold-deep">
+  <div class="card-grain"></div>
+  <div class="card-tag">05 / The Method</div>
+  <div class="card-no">05 — 06</div>
+  <div class="card-body">
+    <div class="kicker">艾 宾 浩 斯 遗 忘 曲 线</div>
+    <div class="card-h large" style="margin-bottom:6px">不靠意志力，<br/>靠<em>节奏</em>。</div>
+    <p class="card-p lh" style="margin-bottom:18px;font-size:13.5px">在记忆衰减的关键节点复习——<br/>每次重拾都让记忆更深。App 自动按 [1, 2, 4, 7, 15] 天排期。</p>
+    <div class="curve-box">
+      <svg viewBox="0 0 400 120" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mgrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#C8A24B" stop-opacity="0.45"/>
+            <stop offset="100%" stop-color="#C8A24B" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <g stroke="rgba(244,239,230,0.1)" stroke-width="1">
+          <line x1="0" y1="30" x2="400" y2="30"/>
+          <line x1="0" y1="60" x2="400" y2="60"/>
+          <line x1="0" y1="90" x2="400" y2="90"/>
+        </g>
+        <path d="M 0 20 Q 60 90, 110 100 L 400 110" stroke="#C8A24B" stroke-width="2" fill="none" opacity="0.35" stroke-dasharray="3 4"/>
+        <path d="M 0 20 Q 50 25, 90 22 L 160 18 L 240 22 L 320 20 L 400 20" stroke="#C8A24B" stroke-width="2.5" fill="none"/>
+        <path d="M 0 20 Q 50 25, 90 22 L 160 18 L 240 22 L 320 20 L 400 20 L 400 120 L 0 120 Z" fill="url(#mgrad)"/>
+        <g>
+          <circle cx="90" cy="22" r="4" fill="#1A1814" stroke="#C8A24B" stroke-width="2"/>
+          <circle cx="160" cy="18" r="4" fill="#1A1814" stroke="#C8A24B" stroke-width="2"/>
+          <circle cx="240" cy="22" r="4" fill="#1A1814" stroke="#C8A24B" stroke-width="2"/>
+          <circle cx="320" cy="20" r="4" fill="#1A1814" stroke="#C8A24B" stroke-width="2"/>
+        </g>
+      </svg>
+    </div>
+    <div class="tag-row">
+      <span><b>1d</b>初学</span>
+      <span><b>2d</b>复 1</span>
+      <span><b>4d</b>复 2</span>
+      <span><b>7d</b>复 3</span>
+      <span><b>15d</b>巩 固</span>
+    </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line-light);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(244,239,230,0.45)">正确率越高 → 间隔越长</div>
+  </div>
+  <div class="card-mark"><b>Memograd</b> · 算法</div>
+</div>
+
+<div class="card cream">
+  <div class="card-grain"></div>
+  <div class="card-tag">06 / By The Numbers</div>
+  <div class="card-no">06 — 06</div>
+  <div class="card-body">
+    <div class="kicker">真 实 离 线 数 据</div>
+    <div class="card-h large" style="margin-bottom:18px">数据为骨，<br/>方法为<em>血肉</em>。</div>
+    <div class="numbers">
+      <div class="num-cell">
+        <div class="n">4,801<sub>词</sub></div>
+        <div class="lbl">核心词库，每词配释义、例句、词源、口诀。</div>
+        <div class="meta">VOCAB</div>
+      </div>
+      <div class="num-cell">
+        <div class="n">17<sub>年</sub></div>
+        <div class="lbl">2010–2026 考研英语全套真题，段落级中英对照。</div>
+        <div class="meta">EXAMS</div>
+      </div>
+      <div class="num-cell">
+        <div class="n">2,200<sub>+</sub></div>
+        <div class="lbl">完形 20 空 + 阅读 4 篇×5 题，自动评分。</div>
+        <div class="meta">QUESTIONS</div>
+      </div>
+      <div class="num-cell">
+        <div class="n">1·2·4·7·15<sub>天</sub></div>
+        <div class="lbl">艾宾浩斯黄金复习间隔，动态调整。</div>
+        <div class="meta">SPACED</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-mark" style="color:rgba(15,14,12,0.5)"><b style="color:var(--oxblood)">Memograd</b> · 数据</div>
+</div>
+
+<div class="card dark">
+  <div class="card-grain"></div>
+  <div class="glow" style="bottom:-100px;left:-100px"></div>
+  <div class="card-tag">07 / Features</div>
+  <div class="card-no">07 — 08</div>
+  <div class="card-body">
+    <div class="kicker">六 项 核 心 能 力</div>
+    <div class="card-h large" style="margin-bottom:18px">一个 App，<br/><em>走完全流程</em>。</div>
+    <div class="feat-list">
+      <div class="feat-item">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 2L3 7l9 5 9-5-9-5zM3 17l9 5 9-5M3 12l9 5 9-5"/></svg></div>
+        <div class="text">
+          <h4>考研专属 AI 解析</h4>
+          <p>只显示常考义项，自动标注熟词僻义。</p>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 3v18h18M7 14l4-4 4 4 5-5"/></svg></div>
+        <div class="text">
+          <h4>艾宾浩斯复习曲线</h4>
+          <p>动态间隔，越熟越远，越错越频。</p>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>
+        <div class="text">
+          <h4>17 年真题离线练习</h4>
+          <p>完形 + 阅读，自动评分，错题入本。</p>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6"/></svg></div>
+        <div class="text">
+          <h4>AI 无限生成题</h4>
+          <p>同源短文、完形、阅读，题永不重样。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card-mark"><b>Memograd</b> · 功能 1/2</div>
+</div>
+
+<div class="card moss">
+  <div class="card-grain"></div>
+  <div class="card-tag">08 / Cross-platform</div>
+  <div class="card-no">08 — 08</div>
+  <div class="card-body">
+    <div class="kicker">三 端 同 步 · 全 程 离 线</div>
+    <div class="card-h large" style="margin-bottom:18px">随时随地，<br/><em>背词</em>不停。</div>
+    <div class="feat-list">
+      <div class="feat-item">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+        <div class="text">
+          <h4>iOS · Android 原生</h4>
+          <p>地铁、教室、自习室——任何地方都能背。</p>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <div class="text">
+          <h4>Web 端无需下载</h4>
+          <p>浏览器即开即用，电脑端也能学。</p>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:auto;padding-top:18px">
+      <div class="divider-row"><span class="bar"></span><span>真 题 覆 盖</span><span class="bar"></span></div>
+      <div class="year-strip">
+        <span>2010</span><span>2011</span><span>2012</span><span>2013</span><span>2014</span><span>2015</span><span>2016</span>
+      </div>
+      <div class="year-strip" style="margin-top:6px">
+        <span>2017</span><span>2018</span><span>2019</span><span>2020</span><span>2021</span><span>2022</span><span>2023</span>
+      </div>
+      <div class="year-strip" style="margin-top:6px">
+        <span>2024</span><span>2025</span><span class="gold">2026</span>
+      </div>
+    </div>
+  </div>
+  <div class="card-mark"><b>Memograd</b> · 功能 2/2</div>
+</div>
+
+<div class="card dark">
+  <div class="card-grain"></div>
+  <div class="glow" style="top:30%;left:50%;transform:translate(-50%,-50%)"></div>
+  <div class="card-tag" style="left:50%;transform:translateX(-50%)">GET STARTED</div>
+  <div class="card-body center" style="text-align:center;align-items:center">
+    <div style="font-family:'Fraunces',serif;font-style:italic;font-size:36px;color:var(--gold-2);font-weight:500;letter-spacing:-0.02em;margin-bottom:6px;font-variation-settings:'opsz' 144,'SOFT' 100">Memograd</div>
+    <div class="card-h huge" style="text-align:center;margin-bottom:18px">把<em>熟词僻义</em>，<br/>变成你的<em>提分点</em>。</div>
+    <p class="card-p" style="text-align:center;max-width:340px">今天就开始，<br/>真正读懂那些你「认识」的词。</p>
+    <div style="margin-top:32px;display:flex;flex-direction:column;gap:10px;align-items:center;width:100%">
+      <a href="#" class="btn" style="width:100%;justify-content:center">App Store 下载</a>
+      <a href="#" class="btn dark" style="width:100%;justify-content:center">Google Play</a>
+      <a href="#" class="btn outline" style="width:100%;justify-content:center">访问 Web 版 →</a>
+    </div>
+    <div style="margin-top:24px;display:flex;gap:18px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(244,239,230,0.45)">
+      <span>iOS 15+</span><span>·</span><span>Android 8+</span><span>·</span><span>Web</span>
+    </div>
+  </div>
+  <div class="card-mark"><b>Memograd</b> · 下载</div>
+</div>
+
+</div>
+
+</body>
+</html>

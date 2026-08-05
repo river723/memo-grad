@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>考研英语生词本 AI 版 · 一页式宣传</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=Noto+Serif+SC:wght@400;600;900&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0F0E0C;
+  --paper:#F4EFE6;
+  --paper-2:#EDE6D6;
+  --paper-3:#E2D9C4;
+  --cream:#FAF6EC;
+  --gold:#C8A24B;
+  --gold-2:#E6C56C;
+  --oxblood:#7A2E1F;
+  --terra:#C7604A;
+  --line:rgba(244,239,230,0.16);
+}
+html,body{background:#1A1814;font-family:'Manrope','Noto Serif SC',sans-serif;-webkit-font-smoothing:antialiased;color:var(--paper);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;overflow-x:hidden}
+.stage{width:100%;max-width:480px;position:relative}
+.card{position:relative;width:100%;aspect-ratio:3/4;background:var(--ink);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px -30px rgba(0,0,0,0.8),0 0 0 1px rgba(244,239,230,0.08);display:flex;flex-direction:column}
+.grain{position:absolute;inset:0;pointer-events:none;z-index:3;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.85  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");opacity:0.5;mix-blend-mode:overlay}
+.glow{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(200,162,75,0.25) 0%,transparent 70%);filter:blur(40px);pointer-events:none;z-index:1}
+
+/* Header */
+.head{position:relative;z-index:4;padding:22px 26px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;color:var(--cream)}
+.brand-mark{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-2) 100%);display:grid;place-items:center;color:var(--ink);font-weight:900;font-style:italic;font-size:16px;font-family:'Fraunces',serif}
+.brand-name{font-family:'Fraunces',serif;font-size:16px;letter-spacing:-0.01em}
+.brand-name em{color:var(--gold-2);font-style:italic}
+.brand-name span{font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:0.18em;color:rgba(244,239,230,0.5);text-transform:uppercase;margin-left:4px}
+.tag{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-2);display:flex;align-items:center;gap:8px}
+.tag::before{content:"";width:14px;height:1px;background:var(--gold)}
+
+/* Hero */
+.hero{position:relative;z-index:4;flex:1;padding:10px 26px 0;display:flex;flex-direction:column}
+.kicker{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-2);margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.kicker::before{content:"";width:20px;height:1px;background:var(--gold)}
+.headline{font-family:'Fraunces','Noto Serif SC',serif;color:var(--cream);line-height:1;letter-spacing:-0.03em;font-weight:500;font-variation-settings:'opsz' 144,'SOFT' 30;margin-bottom:18px}
+.headline .hu{font-size:64px}
+.headline em{font-style:italic;color:var(--gold-2);font-variation-settings:'opsz' 144,'SOFT' 100}
+.sub{font-size:14px;line-height:1.65;color:var(--paper-2);font-weight:300;max-width:380px;margin-bottom:22px}
+.sub b{color:var(--cream);font-weight:500}
+
+.reveal{position:relative;background:rgba(244,239,230,0.04);border:1px solid var(--line);border-radius:16px;padding:18px 20px;position:relative;z-index:4;margin:6px 26px 16px}
+.r-row{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.r-row:last-child{margin-bottom:0}
+.r-row .lbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:rgba(244,239,230,0.4);min-width:46px;flex-shrink:0}
+.r-row .text{font-size:17px;line-height:1.3;flex:1}
+.r-row.muted .text{color:rgba(244,239,230,0.35);text-decoration:line-through;text-decoration-color:rgba(122,46,31,0.6);text-decoration-thickness:1.5px}
+.r-row.gold .text{color:var(--gold-2);font-style:italic;font-family:'Fraunces','Noto Serif SC',serif;font-size:19px}
+.arrow-icon{position:absolute;right:-10px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;background:var(--gold);color:var(--ink);display:grid;place-items:center;font-size:11px;font-weight:700;z-index:5}
+
+.features{position:relative;z-index:4;padding:0 26px 6px;display:flex;flex-direction:column;gap:10px}
+.feat-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.feat-row .ic{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);display:grid;place-items:center;color:var(--gold-2);flex-shrink:0}
+.feat-row .ic svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5}
+.feat-row .text{flex:1;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.feat-row .text h4{font-family:'Fraunces','Noto Serif SC',serif;font-size:14px;font-weight:500;font-style:italic;letter-spacing:-0.01em;color:var(--cream)}
+.feat-row .text p{font-size:11.5px;color:rgba(244,239,230,0.55);font-weight:300}
+.feat-row .text p b{color:var(--gold-2);font-weight:500}
+
+.numbers{position:relative;z-index:4;padding:10px 26px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--line);margin:8px 26px 0;width:calc(100% - 52px)}
+.num{padding:10px 8px 0;text-align:center;border-right:1px solid var(--line)}
+.num:last-child{border-right:none}
+.num .n{font-family:'Fraunces',serif;font-size:32px;font-weight:400;letter-spacing:-0.03em;line-height:1;color:var(--cream);font-variation-settings:'opsz' 144}
+.num .n sub{font-size:12px;font-style:italic;color:var(--oxblood);font-weight:400;margin-left:1px;vertical-align:baseline}
+.num .l{font-size:10px;color:rgba(244,239,230,0.55);margin-top:4px;line-height:1.3}
+.num .m{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold-2);margin-top:4px}
+
+.curve-strip{position:relative;z-index:4;margin:14px 26px 0;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.curve-strip svg{width:100%;height:46px;display:block}
+.curve-label{display:flex;justify-content:space-between;margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(244,239,230,0.45)}
+.curve-label span{text-align:center;flex:1}
+.curve-label span b{color:var(--gold-2);font-weight:500;font-family:'Fraunces',serif;font-style:italic;font-size:11px;display:block;letter-spacing:0}
+
+.cta-wrap{position:relative;z-index:4;padding:18px 26px 0;display:flex;flex-direction:column;gap:8px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px 18px;background:var(--gold);color:var(--ink);border-radius:999px;font-weight:700;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;border:1px solid var(--gold);transition:all 0.2s}
+.btn.outline{background:transparent;color:var(--cream);border:1px solid rgba(244,239,230,0.3)}
+.btn.outline:hover{border-color:var(--cream)}
+.btn-store{display:flex;align-items:center;gap:10px}
+.btn-store .logo{width:22px;height:22px;display:grid;place-items:center}
+.btn-store .label{text-align:left;line-height:1.1}
+.btn-store .label .top{font-size:9px;font-weight:400;letter-spacing:0.04em;opacity:0.7;display:block;text-transform:none}
+.btn-store .label .bot{font-size:13px;font-weight:700;letter-spacing:0.04em;display:block}
+
+.foot{position:relative;z-index:4;padding:14px 26px 18px;display:flex;align-items:center;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(244,239,230,0.35);border-top:1px solid var(--line);margin-top:14px}
+.foot .plat{display:flex;gap:12px}
+.foot .plat span{display:flex;align-items:center;gap:5px}
+.foot .plat span::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--gold)}
+
+/* Decorative orbs */
+.orb1{position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(200,162,75,0.18) 0%,transparent 70%);top:-120px;right:-120px;z-index:1;filter:blur(30px)}
+.orb2{position:absolute;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(122,46,31,0.22) 0%,transparent 70%);bottom:80px;left:-80px;z-index:1;filter:blur(30px)}
+.orb3{position:absolute;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(200,162,75,0.12) 0%,transparent 70%);bottom:30%;right:-50px;z-index:1;filter:blur(25px)}
+
+/* Watermark */
+.watermark{position:absolute;top:50%;right:-30px;transform:translateY(-50%) rotate(90deg);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.5em;text-transform:uppercase;color:rgba(244,239,230,0.06);z-index:2;white-space:nowrap;pointer-events:none}
+</style></head><body>
+<div class="stage">
+<div class="card">
+  <div class="orb1"></div>
+  <div class="orb2"></div>
+  <div class="orb3"></div>
+  <div class="watermark">MEMOGRAD · 2026 · KAOYAN ENGLISH</div>
+  <div class="grain"></div>
+
+  <!-- Header -->
+  <div class="head">
+    <div class="brand">
+      <span class="brand-mark">M</span>
+      <span class="brand-name">Memograd<em>·AI</em> <span>2026</span></span>
+    </div>
+    <div class="tag">考研英语</div>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="kicker">你 以 为 已 经 认 识 的 词</div>
+    <h1 class="headline"><span class="hu"><em>address</em></span><br/>不只是<span style="position:relative;display:inline-block">「地址」<span style="position:absolute;left:-2px;right:-2px;top:55%;height:4px;background:var(--oxblood);transform:rotate(-3deg);border-radius:2px"></span></span>。</h1>
+    <p class="sub">考研英语真正的淘汰项，从来不是生词——<br/>而是那些你<b>自信满满的「熟词」</b>。<br/>它们的第二义、第三义，才是真题里真正的刺客。</p>
+  </div>
+
+  <!-- Word reveal -->
+  <div class="reveal">
+    <div class="r-row muted"><span class="lbl">常意</span><span class="text">地址；住址</span></div>
+    <div class="r-row gold"><span class="lbl">考研</span><span class="text">处理；解决；演说；针对</span></div>
+  </div>
+
+  <!-- Features -->
+  <div class="features">
+    <div class="feat-row">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 2L3 7l9 5 9-5-9-5zM3 17l9 5 9-5M3 12l9 5 9-5"/></svg></div>
+      <div class="text"><h4>AI 解析</h4><p>只显示<b>常考义项</b>，自动标「熟词僻义」</p></div>
+    </div>
+    <div class="feat-row">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 3v18h18M7 14l4-4 4 4 5-5"/></svg></div>
+      <div class="text"><h4>艾宾浩斯</h4><p><b>1·2·4·7·15</b> 天动态间隔，精准复习</p></div>
+    </div>
+    <div class="feat-row">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>
+      <div class="text"><h4>17 年真题</h4><p><b>2,200+</b> 题，段落级中英对照，离线可用</p></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="numbers">
+    <div class="num">
+      <div class="n">4,801<sub>词</sub></div>
+      <div class="l">核心词库</div>
+      <div class="m">VOCAB</div>
+    </div>
+    <div class="num">
+      <div class="n">17<sub>年</sub></div>
+      <div class="l">真题覆盖</div>
+      <div class="m">EXAMS</div>
+    </div>
+    <div class="num">
+      <div class="n">2,200<sub>+</sub></div>
+      <div class="l">客观题</div>
+      <div class="m">QUIZ</div>
+    </div>
+  </div>
+
+  <!-- Mini curve -->
+  <div class="curve-strip">
+    <svg viewBox="0 0 400 46" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="cg2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#C8A24B" stop-opacity="0.4"/>
+          <stop offset="100%" stop-color="#C8A24B" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="M 0 8 Q 50 30, 90 36 L 400 40" stroke="#C8A24B" stroke-width="1.5" fill="none" opacity="0.3" stroke-dasharray="2 3"/>
+      <path d="M 0 8 Q 50 10, 90 8 L 160 5 L 240 8 L 320 6 L 400 6" stroke="#C8A24B" stroke-width="2" fill="none"/>
+      <path d="M 0 8 Q 50 10, 90 8 L 160 5 L 240 8 L 320 6 L 400 6 L 400 46 L 0 46 Z" fill="url(#cg2)"/>
+      <g>
+        <circle cx="90" cy="8" r="3" fill="#0F0E0C" stroke="#C8A24B" stroke-width="1.5"/>
+        <circle cx="160" cy="5" r="3" fill="#0F0E0C" stroke="#C8A24B" stroke-width="1.5"/>
+        <circle cx="240" cy="8" r="3" fill="#0F0E0C" stroke="#C8A24B" stroke-width="1.5"/>
+        <circle cx="320" cy="6" r="3" fill="#0F0E0C" stroke="#C8A24B" stroke-width="1.5"/>
+      </g>
+    </svg>
+    <div class="curve-label">
+      <span><b>1d</b>初学</span>
+      <span><b>2d</b>复 1</span>
+      <span><b>4d</b>复 2</span>
+      <span><b>7d</b>复 3</span>
+      <span><b>15d</b>巩 固</span>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-wrap">
+    <a href="#" class="btn">
+      <div class="btn-store">
+        <span class="logo">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+        </span>
+        <span class="label"><span class="top">Download on the</span><span class="bot">App Store</span></span>
+      </div>
+    </a>
+    <a href="#" class="btn outline">Google Play · Web 版</a>
+  </div>
+
+  <!-- Footer -->
+  <div class="foot">
+    <div class="plat"><span>iOS</span><span>Android</span><span>Web</span></div>
+    <div>© 2026 · 专注考研</div>
+  </div>
+</div>
+</div>
+</body>
+</html>
