@@ -22,8 +22,9 @@ class FileService {
     // Tauri 桌面端：弹出原生"另存为"对话框，由用户选择保存位置
     if (isTauri()) {
       try {
-        const { save } = await import('@tauri-apps/plugin-dialog');
-        const { writeFile } = await import('@tauri-apps/plugin-fs');
+        // 动态导入仅在 Tauri 桌面端走到；用 webpackIgnore 避免 web 构建试图解析这些模块。
+        const { save } = await import(/* webpackIgnore: true */ '@tauri-apps/plugin-dialog');
+        const { writeFile } = await import(/* webpackIgnore: true */ '@tauri-apps/plugin-fs');
         const filePath = await save({
           defaultPath: fileName,
           filters: [{ name: 'MemoGrad 备份', extensions: ['bk'] }],
