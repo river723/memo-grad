@@ -562,6 +562,17 @@ class StorageService {
     await AsyncStorage.setItem(this.KEYS.REAL_EXAM_DRAFTS, JSON.stringify(all));
   }
 
+  /** 导出备份用：返回全部草稿数据（raw Record<string, Record<string, RealExamOptionLetter>>）。 */
+  async getAllRealExamDrafts(): Promise<Record<string, Record<string, RealExamOptionLetter>>> {
+    try {
+      const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
+      return data ? JSON.parse(data) : {};
+    } catch (error) {
+      console.error('Get all real exam drafts error:', error);
+      return {};
+    }
+  }
+
   async getWordArticleCoverage(): Promise<Map<number, number>> {
     const articles = await this.getArticles();
     const coverage = new Map<number, number>();
@@ -623,6 +634,7 @@ class StorageService {
       ignoredWordbankWords: await this.getIgnoredWordbankWords(),
       realExamSessions: await this.getRealExamSessions(),
       realExamWrongQuestions: await this.getRealExamWrongQuestions(),
+      realExamDrafts: await this.getAllRealExamDrafts(),
       settings: {
         ...settings,
         apiKey: '',
@@ -680,6 +692,12 @@ class StorageService {
           JSON.stringify(data.realExamWrongQuestions)
         );
       }
+      if (data.realExamDrafts) {
+        await AsyncStorage.setItem(
+          this.KEYS.REAL_EXAM_DRAFTS,
+          JSON.stringify(data.realExamDrafts)
+        );
+      }
     } catch (error) {
       console.error('Import data error:', error);
       throw new Error('数据导入失败');
@@ -698,6 +716,7 @@ class StorageService {
       this.KEYS.IGNORED_WORDBANK_WORDS,
       this.KEYS.REAL_EXAM_SESSIONS,
       this.KEYS.REAL_EXAM_WRONG_QUESTIONS,
+      this.KEYS.REAL_EXAM_DRAFTS,
       this.KEYS.SETTINGS
     ]);
   }

@@ -31,16 +31,28 @@ const BACKUP_FIELDS = [
   'ignoredWordbankWords',
   'realExamSessions',
   'realExamWrongQuestions',
+  'realExamDrafts',
   'settings',
 ];
 
 const showMessage = (title: string, message: string) => {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
     window.alert(`${title}\n\n${message}`);
     return;
   }
-
   Alert.alert(title, message);
+};
+
+const showConfirmDialog = (title: string, message: string): Promise<boolean> => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+    return Promise.resolve(window.confirm(`${title}\n\n${message}`));
+  }
+  return new Promise(resolve => {
+    Alert.alert(title, message, [
+      { text: '取消', style: 'cancel', onPress: () => resolve(false) },
+      { text: '确定', onPress: () => resolve(true) },
+    ]);
+  });
 };
 
 const getBackupValidationError = (jsonData: string): string | null => {
@@ -180,11 +192,16 @@ export default function SettingsScreen() {
       const fileName = FileService.generateBackupFileName();
 
       const result = await FileService.exportBackupFile(exportedData, fileName);
+      if (result === 'canceled') {
+        return;
+      }
       showMessage(
         '导出成功',
-        result === 'downloaded'
-          ? '备份文件已开始下载，请妥善保存 .bk 文件。'
-          : '已打开系统分享面板，请选择保存位置并妥善保存 .bk 文件。'
+        result === 'saved'
+          ? '备份文件已保存到所选位置，请妥善保存 .bk 文件。'
+          : result === 'downloaded'
+            ? '备份文件已开始下载，请妥善保存 .bk 文件。'
+            : '已打开系统分享面板，请选择保存位置并妥善保存 .bk 文件。'
       );
     } catch (error: any) {
       showMessage('导出失败', error.message || '无法导出备份文件');
@@ -241,70 +258,56 @@ export default function SettingsScreen() {
   };
 
   const handleClearData = () => {
-    Alert.alert(
-      '确认清除',
-      '确定要清除所有数据吗？此操作无法撤销。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '清除',
-          style: 'destructive',
-          onPress: async () => {
-            await StorageService.clearAllData();
-            setSettings({
-              dailyNewWords: 10,
-              reviewInterval: [1, 2, 4, 7, 15],
-              soundEnabled: true,
-              theme: 'light',
-              fontSize: 14,
-              autoPlaySound: false,
-              showRareSense: true,
-              showEtymology: true,
-              articleWordCount: 10,
-              articleLength: 200,
-              examQuestionCount: 10,
-              examAutoAdvance: true,
-              aiProvider: 'deepseek',
-              aiModel: AI_PROVIDERS.deepseek.defaultModel,
-              apiKey: '',
-            });
-            setApiKey('');
-            Alert.alert('已清除', '所有数据已清除');
-          }
-        }
-      ]
-    );
+    showConfirmDialog('确认清除', '确定要清除所有数据吗？此操作无法撤销。').then(async confirmed => {
+      if (!confirmed) return;
+      await StorageService.clearAllData();
+      setSettings({
+        dailyNewWords: 10,
+        reviewInterval: [1, 2, 4, 7, 15],
+        soundEnabled: true,
+        theme: 'light',
+        fontSize: 14,
+        autoPlaySound: false,
+        showRareSense: true,
+        showEtymology: true,
+        articleWordCount: 10,
+        articleLength: 200,
+        examQuestionCount: 10,
+        examAutoAdvance: true,
+        aiProvider: 'deepseek',
+        aiModel: AI_PROVIDERS.deepseek.defaultModel,
+        apiKey: '',
+      });
+      setApiKey('');
+      setThemeMode('light');
+      showMessage('已清除', '所有数据已清除');
+    });
   };
 
   const handleResetDefaults = () => {
-    Alert.alert(
-      '恢复默认',
-      '确定要恢复所有设置为默认值吗？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '确定',
-          onPress: () => {
-            saveSettings({
-              dailyNewWords: 10,
-              reviewInterval: [1, 2, 4, 7, 15],
-              soundEnabled: true,
-              theme: 'light',
-              fontSize: 14,
-              autoPlaySound: false,
-              showRareSense: true,
-              showEtymology: true,
-              articleWordCount: 10,
-              articleLength: 200,
-              examQuestionCount: 10,
-              examAutoAdvance: true,
-              aiProvider: 'deepseek',
-              aiModel: AI_PROVIDERS.deepseek.defaultModel,
-            });
-          }
-        }
-      ]
-    );
+    showConfirmDialog('恢复默认', '确定要恢复所有设置为默认值吗？').then(async confirmed => {
+      if (!confirmed) return;
+      await saveSettings({
+        dailyNewWords: 10,
+        reviewInterval: [1, 2, 4, 7, 15],
+        soundEnabled: true,
+        theme: 'light',
+        fontSize: 14,
+        autoPlaySound: false,
+        showRareSense: true,
+        showEtymology: true,
+        articleWordCount: 10,
+        articleLength: 200,
+        examQuestionCount: 10,
+        examAutoAdvance: true,
+        aiProvider: 'deepseek',
+        aiModel: AI_PROVIDERS.deepseek.defaultModel,
+        apiKey: '',
+      });
+      setApiKey('');
+      setThemeMode('light');
+      showMessage('已恢复', '所有设置已恢复为默认值');
+    });
   };
 
   const handleAdjustDailyNewWords = (delta: number) => {

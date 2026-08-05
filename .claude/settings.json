@@ -7,7 +7,21 @@
       "Bash(npx tsc *)",
       "Bash(node -e ' *)",
       "Bash(node scripts/build-wordbank.js)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(npm info *)",
+      "Bash(npm search *)",
+      "Bash(npx tauri *)",
+      "Bash(npx electron *)",
+      "Bash(npx electron-builder *)",
+      "Bash(npx asar *)",
+      "Bash(npx expo *)",
+      "Bash(tasklist)",
+      "Bash(netstat -ano)",
+      "Bash(powershell -Command ' *)",
+      "Read(//c/Users/hewen/**)",
+      "Bash(xargs grep -l \"Alert\")",
+      "Bash(python3 -c \"import cv2; print\\('OpenCV available'\\)\")",
+      "Bash(cargo build *)"
     ]
   }
 }
