@@ -7,6 +7,7 @@ import { lightTheme, darkTheme } from './src/theme/theme';
 import type { MD3Theme } from 'react-native-paper';
 import StorageService from './src/services/StorageService';
 import { ThemeProvider } from './src/providers/ThemeProvider';
+import AuthProvider from './src/providers/AuthProvider';
 
 // 使用 @expo/vector-icons 替代 react-native-vector-icons
 // react-native-vector-icons 在 Expo SDK 55 + New Architecture 下字体加载可能失败
@@ -58,12 +59,25 @@ export default function App() {
       window.addEventListener('unhandledrejection', handleUnhandledRejection);
     }
 
-    setTimeout(() => {
-      console.log('App 组件加载完成');
-      setIsLoading(false);
-    }, 1000);
+    // 启动即触发 UUID schema 迁移，并让加载页一直显示到迁移完成。
+    // StorageService 的每个读写入口也会 await 同一个迁移 Promise（幂等），
+    // 这里提前触发只是为了把迁移耗时收进启动加载页，而不是让首屏闪一下空列表。
+    let cancelled = false;
+    StorageService.ensureMigrated()
+      .catch(err => {
+        // 迁移失败已在 StorageService 内部兜底（原始数据保留、下次重试），
+        // 这里不阻断启动，否则用户会被卡在加载页。
+        console.error('启动迁移异常:', err);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          console.log('App 组件加载完成');
+          setIsLoading(false);
+        }
+      });
 
     return () => {
+      cancelled = true;
       if (typeof window !== 'undefined') {
         window.removeEventListener('error', handleError);
         window.removeEventListener('unhandledrejection', handleUnhandledRejection);
@@ -93,7 +107,9 @@ export default function App() {
   try {
     return (
       <ThemeProvider>
-        <AppNavigator />
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
       </ThemeProvider>
     );
   } catch (err) {

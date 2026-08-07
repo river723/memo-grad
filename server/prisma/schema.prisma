@@ -1,0 +1,345 @@
+// MemoGrad 网络版数据模型。
+//
+// 命名沿用前端 AsyncStorage 里的 snake_case 字段名（word_id、created_at 等），
+// 让同步层可以近乎直传，不必维护一层字段名映射表。
+//
+// 每张用户数据表都带 updated_at / deleted_at，与前端 SyncMeta 一一对应：
+// 同步走 last-write-wins，靠 updated_at 比较；删除是软删除，否则删除动作
+// 无法传播到其他设备（本地物理删除后无痕迹，拉取时会被当成新数据复活）。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 账号与订阅 ====================
+
+model User {
+  id        String   @id @default(uuid())
+  /// 手机号是主登录标识。国内场景用短信验证码登录，规避密码找回流程。
+  phone     String?  @unique
+  /// 邮箱作为备选登录方式（海外用户/桌面端），与 phone 至少有一个非空。
+  email     String?  @unique
+  nickname  String?
+  /// 仅邮箱注册时使用（argon2/bcrypt 哈希）。短信登录用户此字段为 null。
+  passwordHash String? @map("password_hash")
+  role      String   @default("user") @map("role") // user | admin
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  /// 封禁标记，风控用
+  disabled  Boolean  @default(false)
+
+  devices                 Device[]
+  refreshTokens           RefreshToken[]
+  subscriptions           Subscription[]
+  orders                  Order[]
+  aiUsages                AiUsage[]
+  words                   Word[]
+  studyRecords            StudyRecord[]
+  studyPlans              StudyPlan[]
+  articles                Article[]
+  examSessions            ExamSession[]
+  wrongQuestions          WrongQuestion[]
+  realExamSessions        RealExamSession[]
+  realExamWrongQuestions  RealExamWrongQuestion[]
+
+  @@map("users")
+}
+
+/// 登录设备。用于"最近登录设备"展示与异地登录风控，也是同步的 lastSyncAt 载体。
+model Device {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  /// 客户端生成并持久化的设备标识
+  deviceId   String   @map("device_id")
+  platform   String   // ios | android | web | desktop
+  appVersion String?  @map("app_version")
+  /// 该设备最后一次成功同步的服务端时间，增量同步的游标
+  lastSyncAt DateTime? @map("last_sync_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@map("devices")
+}
+
+/// 短信/邮箱验证码。存哈希而非明文，防止库被读走后可直接登录任意账号。
+model VerificationCode {
+  id        String   @id @default(uuid())
+  /// 手机号或邮箱
+  target    String
+  codeHash  String   @map("code_hash")
+  purpose   String   // login | bind | reset
+  expiresAt DateTime @map("expires_at")
+  /// 已使用标记，保证验证码一次性
+  consumedAt DateTime? @map("consumed_at")
+  /// 尝试次数，超过阈值直接作废，防爆破
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([target, purpose])
+  @@index([expiresAt])
+  @@map("verification_codes")
+}
+
+/// Refresh token 白名单。存哈希；登出/轮换时删除，实现服务端可撤销。
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  deviceId  String?  @map("device_id")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// 订阅。月费为"买断一个月"而非自动续费——微信 Native 支付不支持免密续费，
+/// 主动续费模型省掉了代扣签约、续费失败重试、扣款前通知等一整套复杂度。
+model Subscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  plan      String   // monthly | quarterly | yearly
+  status    String   // active | expired | refunded
+  startsAt  DateTime @map("starts_at")
+  expiresAt DateTime @map("expires_at")
+  /// 来源渠道，用于对账与退款归因
+  source    String   // wechat | alipay | manual | gift
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@map("subscriptions")
+}
+
+/// 支付订单。out_trade_no 唯一，是 webhook 幂等的依据——
+/// 微信/支付宝都会重复投递回调，没有唯一约束会导致订阅被重复延期。
+model Order {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  outTradeNo  String   @unique @map("out_trade_no")
+  /// 渠道方返回的交易号，退款时需要
+  transactionId String? @map("transaction_id")
+  channel     String   // wechat | alipay
+  plan        String
+  /// 金额以「分」为单位存整数，绝不用浮点表示钱
+  amountFen   Int      @map("amount_fen")
+  status      String   // pending | paid | closed | refunded
+  paidAt      DateTime? @map("paid_at")
+  /// 原始回调报文，留档便于对账和纠纷排查
+  rawCallback Json?    @map("raw_callback")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("orders")
+}
+
+/// AI 调用明细。阶段 3 就要就位，否则定价只能拍脑袋——
+/// 需要真实的 token 分布才能定月配额，以及发现异常刷量账号。
+model AiUsage {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  action       String   // analyzeWord | generateFunArticle | ...
+  model        String
+  promptTokens Int      @default(0) @map("prompt_tokens")
+  outputTokens Int      @default(0) @map("output_tokens")
+  /// 上游耗时（毫秒），用于监控 DeepSeek 侧的劣化
+  latencyMs    Int      @default(0) @map("latency_ms")
+  success      Boolean  @default(true)
+  errorCode    String?  @map("error_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 按用户+时间查询是配额统计的主路径
+  @@index([userId, createdAt])
+  @@map("ai_usage")
+}
+
+// ==================== 用户学习数据（云同步）====================
+// id 由客户端生成（UUID），服务端不再自增——这是多设备离线写入的前提。
+// 所有表的 @@index([userId, updatedAt]) 服务于增量拉取：
+// "给我这个用户 updatedAt > lastSyncAt 的所有变更"。
+
+model Word {
+  id             String   @id
+  userId         String   @map("user_id")
+  word           String
+  pronunciationUk String? @map("pronunciation_uk")
+  pronunciationUs String? @map("pronunciation_us")
+  /// 释义等结构化内容整块存 JSON：形状由前端定义且会演进，
+  /// 拆表会让每次前端加字段都变成一次数据库迁移。
+  definitions    Json
+  etymology      String?
+  similarWords   Json?    @map("similar_words")
+  memoryTip      String?  @map("memory_tip")
+  difficulty     Int      @default(3)
+  frequency      Int      @default(3)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("words")
+}
+
+model StudyRecord {
+  id        String   @id
+  userId    String   @map("user_id")
+  /// 关联 Word.id。不建外键约束：同步时记录可能先于单词到达，
+  /// 外键会让整批写入失败。改由同步层按 userId 校验归属。
+  wordId    String   @map("word_id")
+  studyDate String   @map("study_date")
+  result    Int
+  studyMode String   @map("study_mode")
+  updatedAt DateTime @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@index([userId, studyDate])
+  @@map("study_records")
+}
+
+model StudyPlan {
+  id        String   @id
+  userId    String   @map("user_id")
+  /// 空串表示"新词占位，具体学哪个词待定"（前端的历史哨兵，原为 0）
+  wordId    String   @map("word_id")
+  planDate  String   @map("plan_date")
+  planType  String   @map("plan_type")
+  completed Boolean  @default(false)
+  updatedAt DateTime @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@index([userId, planDate])
+  @@map("study_plans")
+}
+
+model Article {
+  id          String   @id
+  userId      String   @map("user_id")
+  title       String
+  content     String
+  translation String
+  words       Json
+  wordIds     Json     @map("word_ids")
+  theme       String
+  readCount   Int      @default(0) @map("read_count")
+  lastReadAt  DateTime? @map("last_read_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("articles")
+}
+
+model ExamSession {
+  id           String   @id
+  userId       String   @map("user_id")
+  questions    Json
+  answers      Json
+  questionType String   @map("question_type")
+  accuracy     Float
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("exam_sessions")
+}
+
+model WrongQuestion {
+  id            String   @id
+  userId        String   @map("user_id")
+  question      Json
+  wrongAnswer   String   @map("wrong_answer")
+  correctCount  Int      @default(0) @map("correct_count")
+  wrongCount    Int      @default(0) @map("wrong_count")
+  lastAttemptAt DateTime @map("last_attempt_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("wrong_questions")
+}
+
+model RealExamSession {
+  id        String   @id
+  userId    String   @map("user_id")
+  year      Int
+  mode      String
+  paperId   String   @map("paper_id")
+  answers   Json
+  score     Int
+  total     Int
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("real_exam_sessions")
+}
+
+/// 真题错题以 questionId 为业务主键（真题内容 ID，非用户实体 ID）。
+/// 主键用 (userId, questionId) 复合：同一道真题在不同用户下各有一条。
+model RealExamWrongQuestion {
+  userId        String   @map("user_id")
+  questionId    String   @map("question_id")
+  year          Int
+  setId         String   @map("set_id")
+  mode          String
+  paperId       String   @map("paper_id")
+  paperTitle    String?  @map("paper_title")
+  blankIndex    Int?     @map("blank_index")
+  stem          String?
+  options       Json
+  correctAnswer String   @map("correct_answer")
+  userAnswer    String?  @map("user_answer")
+  explanation   String?
+  wrongCount    Int      @default(0) @map("wrong_count")
+  correctCount  Int      @default(0) @map("correct_count")
+  lastAttemptAt DateTime @map("last_attempt_at")
+  createdAt     DateTime @map("created_at")
+  updatedAt     DateTime @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, questionId])
+  @@index([userId, updatedAt])
+  @@map("real_exam_wrong_questions")
+}

@@ -9,6 +9,7 @@ import { makeStyles } from '../utils/useStyles';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import { AppSettings, Word, StudyRecord } from '../types';
+import { useAuth } from '../providers/AuthProvider';
 import { format } from 'date-fns';
 
 /**
@@ -20,6 +21,7 @@ export default function StatsScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
   const styles = useStyles();
+  const { user, isPro, entitlement, logout } = useAuth();
 
   const [stats, setStats] = useState({
     totalWords: 0,
@@ -161,7 +163,79 @@ export default function StatsScreen() {
         </Card.Content>
       </Card>
 
-      {/* ============ 卡片二：应用设置 ============ */}
+      {/* ============ 卡片三：账号 ============ */}
+      {user && (
+        <Card style={styles.card} elevation={2}>
+          <Card.Content style={styles.cardInner}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBadge, { backgroundColor: isPro ? colors.primaryContainer : colors.errorContainer }]}>
+                <MaterialIcons
+                  name={isPro ? 'verified-user' : 'person'}
+                  size={22}
+                  color={isPro ? colors.primary : colors.error}
+                />
+              </View>
+              <View style={styles.cardHeaderText}>
+                <Text style={styles.cardTitle}>账号</Text>
+                <Text style={styles.cardSubtitle}>
+                  {user.phone || user.email || '未绑定'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.accountRow}>
+              <View style={styles.planBadge}>
+                <Text style={[styles.planText, { color: isPro ? colors.primary : colors.onSurfaceVariant }]}>
+                  {isPro ? `Pro · ${entitlement?.plan ?? ''}` : '免费版'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 16 }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={styles.quotaNumber}>
+                    {entitlement?.quota.monthlyLimit ?? 0}
+                  </Text>
+                  <Text style={styles.quotaLabel}>月配额</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[styles.quotaNumber, {
+                    color: (entitlement?.quota.remaining ?? 0) > 0 ? colors.success : colors.onSurface,
+                  }]}>
+                    {entitlement?.quota.remaining ?? 0}
+                  </Text>
+                  <Text style={styles.quotaLabel}>剩余</Text>
+                </View>
+              </View>
+            </View>
+
+            <Divider style={styles.divider} />
+
+            {user && (user as any).role === 'admin' && (
+              <Button
+                mode="text"
+                icon="admin"
+                onPress={() => navigation.navigate('Admin')}
+                style={styles.adminLink}
+              >
+                进入后台控制台
+              </Button>
+            )}
+
+            <View style={styles.accountActions}>
+              <Button
+                mode="outlined"
+                icon="logout"
+                textColor={colors.error}
+                onPress={() => logout()}
+                style={{ flex: 1 }}
+              >
+                退出登录
+              </Button>
+            </View>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/*** 卡片二：应用设置 ***/}
       <Card style={styles.card} elevation={2}>
         <Card.Content style={styles.cardInner}>
           <View style={styles.cardHeader}>
@@ -374,6 +448,37 @@ const useStyles = makeStyles(colors => ({
   settingPreview: {
     marginBottom: 6,
   },
+  accountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  planBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 20,
+  },
+  planText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  quotaNumber: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.onSurface,
+  },
+  quotaLabel: {
+    fontSize: 11,
+    color: colors.tertiary,
+    marginTop: 2,
+  },
+  accountActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   cardCta: {
     marginTop: 16,
     borderRadius: 12,
@@ -394,5 +499,8 @@ const useStyles = makeStyles(colors => ({
   footerSub: {
     fontSize: 11,
     color: colors.tertiary,
+  },
+  adminLink: {
+    marginTop: 8,
   },
 }));

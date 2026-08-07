@@ -29,12 +29,12 @@ type TodayStats = {
   todayStudyCount: number;
   accuracy: number;
   wrongQuestionCount: number;
-  difficultWordIds: number[];
+  difficultWordIds: string[];
   difficultWordCount: number;
 };
 
 type SuggestionRoute =
-  | { tab: 'Home'; screen: 'Study'; params?: { wordIds?: number[] } }
+  | { tab: 'Home'; screen: 'Study'; params?: { wordIds?: string[] } }
   | { tab: 'Home'; screen: 'AddWord' }
   | { tab: 'Practice'; screen: 'WrongQuestionReview' }
   | { tab: 'Practice'; screen: 'ExamSetup' };
@@ -70,7 +70,7 @@ const DEFAULT_SUGGESTION: TodaySuggestion = {
 };
 
 const getDifficultWordIds = (words: Word[], records: StudyRecord[]) => {
-  const recordsByWord = new Map<number, StudyRecord[]>();
+  const recordsByWord = new Map<string, StudyRecord[]>();
 
   records.forEach(record => {
     const current = recordsByWord.get(record.word_id) || [];
@@ -80,7 +80,7 @@ const getDifficultWordIds = (words: Word[], records: StudyRecord[]) => {
 
   return words
     .map(word => {
-      if (typeof word.id !== 'number') return null;
+      if (!word.id) return null;
 
       const wordRecords = recordsByWord.get(word.id) || [];
       const totalCount = wordRecords.length;
@@ -89,7 +89,7 @@ const getDifficultWordIds = (words: Word[], records: StudyRecord[]) => {
 
       return { wordId: word.id, totalCount, correctRate };
     })
-    .filter((item): item is { wordId: number; totalCount: number; correctRate: number } => {
+    .filter((item): item is { wordId: string; totalCount: number; correctRate: number } => {
       return item !== null && item.totalCount > 0 && item.correctRate < 0.5;
     })
     .sort((a, b) => a.correctRate - b.correctRate)

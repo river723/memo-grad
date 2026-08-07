@@ -14,13 +14,13 @@ class StudyPlanService {
     totalDays: number,
     dailyNewWords: number,
     existingWords: Word[] = []
-  ): Promise<StudyPlan[]> {
-    const plans: StudyPlan[] = [];
+  ): Promise<Omit<StudyPlan, 'id'>[]> {
+    const plans: Omit<StudyPlan, 'id'>[] = [];
     const startDate = new Date();
 
     // 为现有单词生成复习计划
     for (const word of existingWords) {
-      const reviewPlans = await this.generateReviewPlans(word.id!);
+      const reviewPlans = await this.generateReviewPlans(word.id);
       plans.push(...reviewPlans);
     }
 
@@ -31,7 +31,7 @@ class StudyPlanService {
       // 每天的新词学习计划
       for (let i = 0; i < dailyNewWords; i++) {
         plans.push({
-          word_id: 0, // 新词，ID待定
+          word_id: '', // 新词占位，具体学哪个词在学习时才确定（原先用 0 表示）
           plan_date: planDate,
           plan_type: 'new',
           completed: false
@@ -46,8 +46,8 @@ class StudyPlanService {
     return plans;
   }
 
-  private async generateReviewPlans(wordId: number): Promise<StudyPlan[]> {
-    const plans: StudyPlan[] = [];
+  private async generateReviewPlans(wordId: string): Promise<Omit<StudyPlan, 'id'>[]> {
+    const plans: Omit<StudyPlan, 'id'>[] = [];
     const today = new Date();
 
     // 获取该单词的学习记录，确定下次复习时间
@@ -85,8 +85,8 @@ class StudyPlanService {
     return plans;
   }
 
-  private async generateDailyReviewPlans(planDate: string): Promise<StudyPlan[]> {
-    const plans: StudyPlan[] = [];
+  private async generateDailyReviewPlans(planDate: string): Promise<Omit<StudyPlan, 'id'>[]> {
+    const plans: Omit<StudyPlan, 'id'>[] = [];
     const targetDate = new Date(planDate);
 
     // 为今天需要复习的单词创建计划
@@ -99,7 +99,7 @@ class StudyPlanService {
 
       for (const word of wordsToReview) {
         plans.push({
-          word_id: word.id!,
+          word_id: word.id,
           plan_date: planDate,
           plan_type: 'review',
           completed: false
@@ -178,7 +178,7 @@ class StudyPlanService {
     };
   }
 
-  async adjustPlanForDifficulty(wordId: number, difficulty: number): Promise<void> {
+  async adjustPlanForDifficulty(wordId: string, difficulty: number): Promise<void> {
     // 根据单词难度调整复习频率
     const multiplier = difficulty >= 4 ? 0.5 : difficulty <= 2 ? 2 : 1;
 

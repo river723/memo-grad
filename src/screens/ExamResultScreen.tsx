@@ -22,7 +22,7 @@ export default function ExamResultScreen() {
   const questions: ExamQuestion[] = route.params?.questions || [];
   const answers: ExamAnswerType[] = route.params?.answers || [];
   const questionType: ExamQuestionType = route.params?.questionType || 'definition';
-  const sessionId: number | undefined = route.params?.sessionId;
+  const sessionId: string | undefined = route.params?.sessionId;
   const [saved, setSaved] = useState(false);
   const [hasWrongQuestions, setHasWrongQuestions] = useState(false);
 
@@ -66,7 +66,7 @@ export default function ExamResultScreen() {
         const wrongQs = await StorageService.getWrongQuestions();
         for (const wq of wrongQs) {
           if (wq.correct_count >= WRONG_QUESTION_MASTERY_THRESHOLD) {
-            await StorageService.removeWrongQuestion(wq.id!);
+            await StorageService.removeWrongQuestion(wq.id);
           }
         }
 

@@ -93,13 +93,7 @@ export default function WrongQuestionReviewScreen() {
     if (explLoading[wq.questionId]) return;
     setExplLoading(prev => ({ ...prev, [wq.questionId]: true }));
     try {
-      const settings = await StorageService.getSettings();
-      if (!settings.apiKey || !settings.aiModel) {
-        Alert.alert('未配置 API', '请在设置中配置 AI API 后再生成解析');
-        return;
-      }
-      const ai = AIService.fromSettings(settings);
-      const explanation = await ai.generateRealExamExplanation({
+      const explanation = await AIService.generateRealExamExplanation({
         mode: wq.mode,
         stem: wq.stem,
         blankIndex: wq.blankIndex,

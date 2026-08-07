@@ -27,9 +27,9 @@ export default function ExamSetupScreen() {
   const styles = useStyles();
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
-  const [coverage, setCoverage] = useState<Map<number, number>>(new Map());
-  const [wordAccuracy, setWordAccuracy] = useState<Map<number, number>>(new Map());
-  const [lastStudyDate, setLastStudyDate] = useState<Map<number, string>>(new Map());
+  const [coverage, setCoverage] = useState<Map<string, number>>(new Map());
+  const [wordAccuracy, setWordAccuracy] = useState<Map<string, number>>(new Map());
+  const [lastStudyDate, setLastStudyDate] = useState<Map<string, string>>(new Map());
   const [selectMode, setSelectMode] = useState<'smart' | 'manual'>('smart');
   const [searchQuery, setSearchQuery] = useState('');
   const [questionType, setQuestionType] = useState<ExamQuestionType>('definition');
@@ -54,20 +54,20 @@ export default function ExamSetupScreen() {
       setCoverage(cov);
 
       const records = await StorageService.getStudyRecords();
-      const accMap = new Map<number, number>();
+      const accMap = new Map<string, number>();
       for (const word of words) {
         const wordRecords = records.filter(r => r.word_id === word.id);
         if (wordRecords.length === 0) {
-          accMap.set(word.id!, 1);
+          accMap.set(word.id, 1);
         } else {
           const correctCount = wordRecords.filter(r => r.result === 1).length;
-          accMap.set(word.id!, correctCount / wordRecords.length);
+          accMap.set(word.id, correctCount / wordRecords.length);
         }
       }
       setWordAccuracy(accMap);
 
       // 聚合每个词的最近学习日期，供"今天到期复习"优先级判断
-      const lastStudyMap = new Map<number, string>();
+      const lastStudyMap = new Map<string, string>();
       for (const r of records) {
         const cur = lastStudyMap.get(r.word_id);
         if (!cur || r.study_date > cur) lastStudyMap.set(r.word_id, r.study_date);
@@ -83,14 +83,14 @@ export default function ExamSetupScreen() {
     }
   };
 
-  const getCoverageLabel = (wordId: number): string => {
+  const getCoverageLabel = (wordId: string): string => {
     const count = coverage.get(wordId) || 0;
     if (count === 0) return '首次';
     if (count === 1) return '第2次';
     return `第${count + 1}次`;
   };
 
-  const getCoverageColor = (wordId: number): string => {
+  const getCoverageColor = (wordId: string): string => {
     const count = coverage.get(wordId) || 0;
     if (count === 0) return '#4CAF50';
     if (count === 1) return '#FF9800';
@@ -128,15 +128,8 @@ export default function ExamSetupScreen() {
       Alert.alert('生词不足', `至少需要 ${EXAM_CONFIG.MIN_QUESTION_COUNT} 个生词才能出题`);
       return;
     }
-    const settings = await StorageService.getSettings();
-    if (!settings.apiKey || !settings.aiModel) {
-      Alert.alert('未配置 API', '请在设置中配置 AI API');
-      return;
-    }
-
     setIsGenerating(true);
     try {
-      const aiService = AIService.fromSettings(settings);
       const wordData = selectedWords.map(w => ({
         word: w.word,
         meaning: w.definitions.find(d => d.is_core)?.meaning || w.definitions[0]?.meaning || '',
@@ -151,12 +144,12 @@ export default function ExamSetupScreen() {
       let allQuestions: ExamQuestion[] = [];
 
       if (questionType === 'definition') {
-        const results = await aiService.generateDefinitionQuestions(wordData);
+        const results = await AIService.generateDefinitionQuestions(wordData);
         allQuestions = results.map((q, i) => {
           const word = resolveWord(q.target_word, i);
           return {
             type: 'definition' as const,
-            word_id: word.id!,
+            word_id: word.id,
             word: q.target_word,
             sentence: q.sentence,
             correct_definition: q.correct_definition,
@@ -164,12 +157,12 @@ export default function ExamSetupScreen() {
           } as DefinitionQuestion;
         });
       } else {
-        const results = await aiService.generateClozeQuestions(wordData);
+        const results = await AIService.generateClozeQuestions(wordData);
         allQuestions = results.map((q, i) => {
           const word = resolveWord(q.target_word, i);
           return {
             type: 'cloze' as const,
-            word_id: word.id!,
+            word_id: word.id,
             target_word: q.target_word,
             sentence: q.sentence,
             chinese_hint: q.chinese_hint,
@@ -319,9 +312,9 @@ export default function ExamSetupScreen() {
                       {word.word}
                     </Chip>
                     <Text
-                      style={[styles.coverageBadge, { color: getCoverageColor(word.id!) }]}
+                      style={[styles.coverageBadge, { color: getCoverageColor(word.id) }]}
                     >
-                      {getCoverageLabel(word.id!)}
+                      {getCoverageLabel(word.id)}
                     </Text>
                   </View>
                 ))}
@@ -373,9 +366,9 @@ export default function ExamSetupScreen() {
                           {word.word}
                         </Chip>
                         <Text
-                          style={[styles.coverageBadge, { color: getCoverageColor(word.id!) }]}
+                          style={[styles.coverageBadge, { color: getCoverageColor(word.id) }]}
                         >
-                          {getCoverageLabel(word.id!)}
+                          {getCoverageLabel(word.id)}
                         </Text>
                       </View>
                     </TouchableOpacity>

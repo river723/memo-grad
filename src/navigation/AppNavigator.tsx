@@ -5,6 +5,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme, lightNavTheme, darkNavTheme } from '../theme/theme';
+import { useAuth } from '../providers/AuthProvider';
+import LoginScreen from '../screens/LoginScreen';
 
 // --- 学习 Tab 组件 ---
 import HomeScreen from '../screens/HomeScreen';
@@ -42,6 +44,8 @@ import RealExamResultScreen from '../screens/RealExamResultScreen';
 import StatsScreen from '../screens/StatsScreen';
 import StatsDetailScreen from '../screens/StatsDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import AdminScreen from '../screens/AdminScreen';
+import SubscriptionScreen from '../screens/SubscriptionScreen';
 
 import type { RootStackParamList, MainTabParamList, LearnStackParamList, ReadStackParamList, PracticeStackParamList, StatsStackParamList } from './types';
 
@@ -185,6 +189,8 @@ function StatsStack() {
       <Stack.Screen name="Stats" component={StatsScreen} options={headerOptions('我的', 'person')} />
       <Stack.Screen name="StatsDetail" component={StatsDetailScreen} options={headerOptions('学习统计', 'bar-chart')} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={headerOptions('设置', 'settings')} />
+      <Stack.Screen name="Admin" component={AdminScreen} options={headerOptions('后台控制台', 'shield')} />
+      <Stack.Screen name="Subscription" component={SubscriptionScreen} options={headerOptions('订阅方案', 'card')} />
     </Stack.Navigator>
   );
 }
@@ -234,8 +240,9 @@ function MainTabs() {
 // ==================== 根导航器 ====================
 export default function AppNavigator() {
   const { dark } = useAppTheme();
+  const { user, loading } = useAuth();
 
-  // 固定浏览器标签标题：确保无论哪个屏幕被激活，标题始终保持不变
+  // 固定浏览器标签标题
   useEffect(() => {
     document.title = '考研英语生词本AI版';
     const interval = setInterval(() => {
@@ -246,10 +253,23 @@ export default function AppNavigator() {
     return () => clearInterval(interval);
   }, []);
 
+  // 初始化中：等 AuthProvider 从 AsyncStorage 恢复完 token
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: dark ? '#121212' : '#F5F5F5' }}>
+        <Text style={{ fontSize: 18, color: dark ? '#FFF' : '#333' }}>加载中...</Text>
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer theme={dark ? darkNavTheme : lightNavTheme}>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        <RootStack.Screen name="Main" component={MainTabs} />
+        {user ? (
+          <RootStack.Screen name="Main" component={MainTabs} />
+        ) : (
+          <RootStack.Screen name="Auth" component={LoginScreen} />
+        )}
       </RootStack.Navigator>
     </NavigationContainer>
   );

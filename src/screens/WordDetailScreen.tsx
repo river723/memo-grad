@@ -58,9 +58,7 @@ export default function WordDetailScreen() {
     setEnhancing(true);
     try {
       const localResult = getLocalWordDictResult(word.word);
-      const result = localResult || (settings
-        ? await AIService.fromSettings(settings).analyzeWord(word.word)
-        : null);
+      const result = localResult || await AIService.analyzeWord(word.word);
 
       if (!result) return;
 

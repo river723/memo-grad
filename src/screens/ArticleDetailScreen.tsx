@@ -40,7 +40,7 @@ export default function ArticleDetailScreen() {
   const { colors } = useAppTheme();
   const styles = useStyles();
   const route = useAppRoute<'ArticleDetail'>();
-  const { articleId } = route.params as { articleId: number };
+  const { articleId } = route.params as { articleId: string };
 
   const [article, setArticle] = useState<Article | null>(null);
   const [wordMap, setWordMap] = useState<Map<string, Word>>(new Map());
@@ -133,23 +133,16 @@ export default function ArticleDetailScreen() {
       return;
     }
 
-    const settings = await StorageService.getSettings();
-    if (!settings.apiKey || !settings.aiModel) {
-      Alert.alert('无法生成', '请先在设置中配置 AI API');
-      return;
-    }
-
     setIsRegenerating(true);
     try {
-      const aiService = AIService.fromSettings(settings);
-      const result = await aiService.generateFunArticle(
+      const result = await AIService.generateFunArticle(
         article.words,
         article.theme,
-        settings.articleLength || 200
+        200
       );
 
       // 更新当前文章内容
-      await StorageService.updateArticle(article.id!, {
+      await StorageService.updateArticle(article.id, {
         title: result.title,
         content: result.content,
         translation: result.translation,

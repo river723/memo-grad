@@ -3,6 +3,7 @@ import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Card, Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
+import { generateId } from '../utils/idUtils';
 import { palette } from '../theme/tokens';
 import { stripLetterPrefix } from '../components/ReviewOption';
 import realExamsRaw from '../data/realExams.json';
@@ -98,7 +99,7 @@ export default function RealExamReadingScreen() {
     const score = answers.filter(a => a.correct).length;
     const now = Date.now();
     const session: RealExamSession = {
-      id: now,
+      id: generateId(),
       year,
       mode: 'reading',
       paperId: passage.id,

@@ -22,13 +22,13 @@ const wordDict = wordDictData as WordDictJson;
 
 /**
  * 将 WordDictEntry 转换为 Word 类型，供释义 Modal 使用。
- * 故事场景下没有真实的 Word.id / 学习记录，用 0 占位。
+ * 故事场景下没有真实的 Word.id / 学习记录，用空串占位（原先用 0）。
  */
 function dictEntryToWord(wordKey: string): Word | undefined {
   const entry = wordDict.results[wordKey.toLowerCase()];
   if (!entry) return undefined;
   return {
-    id: 0,
+    id: '',
     word: wordKey,
     definitions: entry.definitions || [],
     etymology: entry.etymology,

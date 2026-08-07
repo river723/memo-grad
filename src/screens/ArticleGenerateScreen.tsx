@@ -70,8 +70,8 @@ export default function ArticleGenerateScreen() {
   const styles = useStyles();
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
-  const [coverage, setCoverage] = useState<Map<number, number>>(new Map());
-  const [wordAccuracy, setWordAccuracy] = useState<Map<number, number>>(new Map());
+  const [coverage, setCoverage] = useState<Map<string, number>>(new Map());
+  const [wordAccuracy, setWordAccuracy] = useState<Map<string, number>>(new Map());
   const [selectMode, setSelectMode] = useState<'smart' | 'manual'>('smart');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTheme, setSelectedTheme] = useState('random');
@@ -111,14 +111,14 @@ export default function ArticleGenerateScreen() {
 
       // 计算每个单词的正确率
       const records = await StorageService.getStudyRecords();
-      const accMap = new Map<number, number>();
+      const accMap = new Map<string, number>();
       for (const word of words) {
         const wordRecords = records.filter(r => r.word_id === word.id);
         if (wordRecords.length === 0) {
-          accMap.set(word.id!, 1); // 无记录，默认正确（新词）
+          accMap.set(word.id, 1); // 无记录，默认正确（新词）
         } else {
           const correctCount = wordRecords.filter(r => r.result === 1).length;
-          accMap.set(word.id!, correctCount / wordRecords.length);
+          accMap.set(word.id, correctCount / wordRecords.length);
         }
       }
       setWordAccuracy(accMap);
@@ -136,20 +136,20 @@ export default function ArticleGenerateScreen() {
   // 覆盖度优先级算法 —— 委托给共享工具函数
   const selectRecommendedWords = (
     words: Word[],
-    cov: Map<number, number>,
-    acc: Map<number, number>
+    cov: Map<string, number>,
+    acc: Map<string, number>
   ): Word[] => {
     return getRecommendedWords(words, cov, acc, articleWordCount);
   };
 
-  const getCoverageLabel = (wordId: number): string => {
+  const getCoverageLabel = (wordId: string): string => {
     const count = coverage.get(wordId) || 0;
     if (count === 0) return '首次';
     if (count === 1) return '第2次';
     return `第${count + 1}次`;
   };
 
-  const getCoverageColor = (wordId: number): string => {
+  const getCoverageColor = (wordId: string): string => {
     const count = coverage.get(wordId) || 0;
     if (count === 0) return '#4CAF50';
     if (count === 1) return '#FF9800';
@@ -194,22 +194,11 @@ export default function ArticleGenerateScreen() {
       Alert.alert('生词不足', msg);
       return;
     }
-    const latestSettings = await StorageService.getSettings();
-    setAiSettings(latestSettings);
-    if (!latestSettings.apiKey || !latestSettings.aiModel) {
-      const msg = '请先在设置中配置 AI API';
-      console.log('[ArticleGen]', msg);
-      setGenerateError(msg);
-      Alert.alert('未配置 API', msg);
-      return;
-    }
-
     setIsGenerating(true);
     setGeneratedArticle(null);
     try {
-      const aiService = AIService.fromSettings(latestSettings);
       const wordStrings = selectedWords.map(w => w.word);
-      const result = await aiService.generateFunArticle(
+      const result = await AIService.generateFunArticle(
         wordStrings,
         selectedTheme,
         articleLength
@@ -233,7 +222,7 @@ export default function ArticleGenerateScreen() {
         content: generatedArticle.content,
         translation: generatedArticle.translation,
         words: selectedWords.map(w => w.word),
-        word_ids: selectedWords.map(w => w.id!).filter(id => id != null),
+        word_ids: selectedWords.map(w => w.id),
         theme: selectedTheme,
         created_at: new Date().toISOString(),
         read_count: 0,
@@ -383,10 +372,10 @@ export default function ArticleGenerateScreen() {
                     <Text
                       style={[
                         styles.coverageBadge,
-                        { color: getCoverageColor(word.id!) },
+                        { color: getCoverageColor(word.id) },
                       ]}
                     >
-                      {getCoverageLabel(word.id!)}
+                      {getCoverageLabel(word.id)}
                     </Text>
                   </View>
                 ))}
@@ -442,10 +431,10 @@ export default function ArticleGenerateScreen() {
                         <Text
                           style={[
                             styles.coverageBadge,
-                            { color: getCoverageColor(word.id!) },
+                            { color: getCoverageColor(word.id) },
                           ]}
                         >
-                          {getCoverageLabel(word.id!)}
+                          {getCoverageLabel(word.id)}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -488,10 +477,6 @@ export default function ArticleGenerateScreen() {
           {selectedWords.length < 5 ? (
             <Text style={styles.statusWarn}>
               ⚠ 已选 {selectedWords.length}/5 个生词（不足，请切换手动模式选词或降低生词数）
-            </Text>
-          ) : !aiSettings?.apiKey || !aiSettings?.aiModel ? (
-            <Text style={styles.statusWarn}>
-              ⚠ 未配置 AI API，请前往设置页配置
             </Text>
           ) : null}
           {generateError && (

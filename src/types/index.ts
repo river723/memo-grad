@@ -1,5 +1,21 @@
-export interface Word {
-  id?: number;
+/**
+ * 云同步元数据。网络版（阶段 0）为所有用户生成的实体附加。
+ *
+ * - `updated_at`：last-write-wins 冲突解决的依据。由 StorageService 在每次写入时打上，
+ *   类型上留可选是为了兼容旧版本导出的备份文件（导入时由迁移逻辑回填）。
+ * - `deleted_at`：软删除标记。物理删除在同步场景是错的——本地删掉后无任何痕迹，
+ *   下次从远端拉取时这条记录会被当成新数据复活。
+ * - `dirty`：本地有未推送的改动。离线写入时置位，同步成功后清除。
+ */
+export interface SyncMeta {
+  updated_at?: string;
+  deleted_at?: string | null;
+  dirty?: boolean;
+}
+
+export interface Word extends SyncMeta {
+  /** UUID。网络版从自增数字改为客户端生成的 UUID，避免多设备 ID 冲突。 */
+  id: string;
   word: string;
   pronunciation_uk?: string;
   pronunciation_us?: string;
@@ -10,7 +26,6 @@ export interface Word {
   difficulty: number; // 1-5
   frequency: number; // 考研频次
   created_at?: string;
-  updated_at?: string;
 }
 
 export interface WordDefinition {
@@ -27,17 +42,18 @@ export interface SimilarWord {
   description: string;
 }
 
-export interface StudyRecord {
-  id?: number;
-  word_id: number;
+export interface StudyRecord extends SyncMeta {
+  id: string;
+  word_id: string;
   study_date: string;
   result: 0 | 1; // 0:错误, 1:正确
   study_mode: StudyMode;
 }
 
-export interface StudyPlan {
-  id?: number;
-  word_id: number;
+export interface StudyPlan extends SyncMeta {
+  id: string;
+  /** 关联的单词 UUID。空串表示"新词占位，ID 待定"（原先用 0 表示）。 */
+  word_id: string;
   plan_date: string;
   plan_type: 'new' | 'review';
   completed: boolean;
@@ -107,13 +123,13 @@ export interface WordDictJson {
   results: Record<string, WordDictEntry>;
 }
 
-export interface Article {
-  id?: number;
+export interface Article extends SyncMeta {
+  id: string;
   title: string;
   content: string;          // 文章正文（英文）
   translation: string;      // 文章中文翻译
   words: string[];          // 包含的生词
-  word_ids: number[];       // 对应单词 ID
+  word_ids: string[];       // 对应单词 UUID
   theme: string;            // 文章主题（technology, life, history, nature, science, random）
   created_at: string;
   read_count: number;
@@ -123,7 +139,7 @@ export interface Article {
 // 考题练习相关类型
 export interface DefinitionQuestion {
   type: 'definition';
-  word_id: number;
+  word_id: string;
   word: string;                 // 目标生词
   sentence: string;             // 含划线生词的句子（用 *word* 标记）
   correct_definition: string;   // 正确的英文释义
@@ -132,7 +148,7 @@ export interface DefinitionQuestion {
 
 export interface ClozeQuestion {
   type: 'cloze';
-  word_id: number;
+  word_id: string;
   target_word: string;        // 正确答案（单词）
   sentence: string;           // 含 [BLANK] 的句子
   chinese_hint?: string;      // 中文语境提示
@@ -152,8 +168,8 @@ export interface ExamAnswer {
 export type ExamQuestionType = 'definition' | 'cloze';
 
 // 一次练习的完整记录
-export interface ExamSession {
-  id?: number;
+export interface ExamSession extends SyncMeta {
+  id: string;
   questions: ExamQuestion[];
   answers: ExamAnswer[];
   question_type: ExamQuestionType;
@@ -162,8 +178,8 @@ export interface ExamSession {
 }
 
 // 错题本条目
-export interface WrongQuestion {
-  id?: number;
+export interface WrongQuestion extends SyncMeta {
+  id: string;
   question: ExamQuestion;       // 原始题目
   wrong_answer: string;         // 用户当时的错误答案
   correct_count: number;        // 累计做对次数（≥3 移除）
@@ -336,8 +352,8 @@ export interface RealExamAnswerItem {
 }
 
 /** 一次真题练习会话 */
-export interface RealExamSession {
-  id: number;                       // 时间戳作为 id，避免依赖数据库自增
+export interface RealExamSession extends SyncMeta {
+  id: string;                       // UUID（原先用时间戳，多设备下会撞）
   year: number;
   mode: RealExamMode;
   paperId: string;                  // reading: passage.id；cloze: paper.id
@@ -352,7 +368,7 @@ export interface RealExamSession {
  * 以 questionId 作为主键（阅读 = RealExamReadingQuestion.id；完形 = `${paperId}-b${index}`）。
  * 题面/选项/解析做快照，避免 realExams.json 后续版本变化后错题失去上下文。
  */
-export interface RealExamWrongQuestion {
+export interface RealExamWrongQuestion extends SyncMeta {
   questionId: string;
   year: number;
   setId: 'english1' | 'english2';

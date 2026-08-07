@@ -190,3 +190,6 @@ assets/east6500.pdf
 .agents
 .claude
 
+# 迁移测试脚本的临时编译产物
+.tmp-migration-test/
+

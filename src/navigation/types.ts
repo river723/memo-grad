@@ -22,17 +22,18 @@ export type MainTabParamList = {
 };
 
 /**
- * 根 Stack 路由参数表。目前只包含 Main（Tab Navigator）。
+ * 根 Stack 路由参数表。Auth 屏幕在登录/未登录分支间切换。
  */
 export type RootStackParamList = {
+  Auth: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
 };
 
 /** 各 Tab 内 Stack 的路由参数表 */
 export type LearnStackParamList = {
   Home: undefined;
-  Study: { wordIds?: number[] } | undefined;
-  WordDetail: { wordId: number };
+  Study: { wordIds?: string[] } | undefined;
+  WordDetail: { wordId: string };
   AddWord: undefined;
   WordbankPicker: undefined;
   WordList: undefined;
@@ -43,9 +44,10 @@ export type LearnStackParamList = {
 
 export type ReadStackParamList = {
   ReadHome: undefined;
+  /** chapterId 是内置故事内容的章节号，非用户实体 ID，仍为数字。 */
   StoryDetail: { chapterId: number };
   ArticleGenerate: undefined;
-  ArticleDetail: { articleId: number };
+  ArticleDetail: { articleId: string };
 };
 
 export type PracticeStackParamList = {
@@ -54,13 +56,13 @@ export type PracticeStackParamList = {
   ExamAnswer: {
     questions: ExamQuestion[];
     questionType: ExamQuestionType;
-    sessionId?: number;
+    sessionId?: string;
   };
   ExamResult: {
     questions: ExamQuestion[];
     answers: ExamAnswer[];
     questionType: ExamQuestionType;
-    sessionId?: number;
+    sessionId?: string;
   };
   WrongQuestionReview: undefined;
   ExamHistory: undefined;
@@ -82,6 +84,8 @@ export type StatsStackParamList = {
   Stats: undefined;
   StatsDetail: undefined;
   Settings: undefined;
+  Admin: undefined;
+  Subscription: undefined;
 };
 
 /** 根栈导航类型（用于跨 Tab 导航到 Main）。 */

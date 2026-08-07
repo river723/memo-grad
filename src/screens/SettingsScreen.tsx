@@ -13,10 +13,10 @@ import {
 } from 'react-native-paper';
 import StorageService from '../services/StorageService';
 import FileService from '../services/FileService';
-import AIService from '../services/AIService';
-import { AI_PROVIDERS, UI_CONFIG } from '../constants';
+import { UI_CONFIG } from '../constants';
 import { AppSettings } from '../types';
 import { useAppTheme } from '../theme/theme';
+import { useAppNavigation } from '../navigation/types';
 import { useThemeContext } from '../providers/ThemeProvider';
 import { makeStyles } from '../utils/useStyles';
 import { palette } from '../theme/tokens';
@@ -94,14 +94,9 @@ export default function SettingsScreen() {
     examQuestionCount: 10,
     examAutoAdvance: true,
     aiProvider: 'deepseek',
-    aiModel: AI_PROVIDERS.deepseek.defaultModel,
-    apiKey: '',
+    aiModel: 'deepseek-v4-flash',
+    apiKey: '', // 保留字段兼容旧数据，网络版不再使用
   });
-  const [apiKey, setApiKey] = useState('');
-  const [isEditingApiKey, setIsEditingApiKey] = useState(false);
-  const [isTestingApi, setIsTestingApi] = useState(false);
-  const [apiTestMessage, setApiTestMessage] = useState('');
-  const [apiTestOk, setApiTestOk] = useState<boolean | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -113,8 +108,6 @@ export default function SettingsScreen() {
     try {
       const savedSettings = await StorageService.getSettings();
       setSettings(prev => ({ ...prev, ...savedSettings }));
-      // 加载保存的 DeepSeek API 设置
-      setApiKey(savedSettings.apiKey || '');
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -131,53 +124,6 @@ export default function SettingsScreen() {
       setSettings(latestSettings);
     } catch (error) {
       console.error('Failed to save settings:', error);
-    }
-  };
-
-  const handleSaveAISettings = async () => {
-    if (!apiKey.trim()) {
-      Alert.alert('未填写 API Key', '请先填写 DeepSeek API Key');
-      return;
-    }
-    await saveSettings({
-      apiKey: apiKey.trim(),
-      aiProvider: 'deepseek',
-      aiModel: AI_PROVIDERS.deepseek.defaultModel,
-    });
-    Alert.alert('保存成功', 'DeepSeek API 设置已保存');
-  };
-
-  const handleTestAISettings = async () => {
-    if (!apiKey.trim()) {
-      const message = '请先填写 DeepSeek API Key';
-      setApiTestOk(false);
-      setApiTestMessage(message);
-      Alert.alert('配置不完整', message);
-      return;
-    }
-    setIsTestingApi(true);
-    setApiTestOk(null);
-    setApiTestMessage('正在测试连接，请稍候...');
-    try {
-      const aiService = new AIService({
-        provider: 'deepseek',
-        apiKey: apiKey.trim(),
-        model: AI_PROVIDERS.deepseek.defaultModel,
-      });
-      const ok = await aiService.testApiKey();
-      const message = ok
-        ? `${aiService.getProviderName()} API 可用`
-        : '连接失败，请检查 API Key、模型 ID 或网络连接';
-      setApiTestOk(ok);
-      setApiTestMessage(message);
-      Alert.alert(ok ? '连接成功' : '连接失败', message);
-    } catch (error: any) {
-      const message = error.message || '请检查 API 设置';
-      setApiTestOk(false);
-      setApiTestMessage(message);
-      Alert.alert('连接失败', message);
-    } finally {
-      setIsTestingApi(false);
     }
   };
 
@@ -275,10 +221,9 @@ export default function SettingsScreen() {
         examQuestionCount: 10,
         examAutoAdvance: true,
         aiProvider: 'deepseek',
-        aiModel: AI_PROVIDERS.deepseek.defaultModel,
+        aiModel: 'deepseek-v4-flash',
         apiKey: '',
       });
-      setApiKey('');
       setThemeMode('light');
       showMessage('已清除', '所有数据已清除');
     });
@@ -301,10 +246,9 @@ export default function SettingsScreen() {
         examQuestionCount: 10,
         examAutoAdvance: true,
         aiProvider: 'deepseek',
-        aiModel: AI_PROVIDERS.deepseek.defaultModel,
+        aiModel: 'deepseek-v4-flash',
         apiKey: '',
       });
-      setApiKey('');
       setThemeMode('light');
       showMessage('已恢复', '所有设置已恢复为默认值');
     });
@@ -335,8 +279,6 @@ export default function SettingsScreen() {
       style={styles.settingItem}
     />
   );
-
-  const currentProvider = AI_PROVIDERS.deepseek;
 
   return (
     <ScrollView style={styles.container}>
@@ -626,62 +568,16 @@ export default function SettingsScreen() {
         </Card.Content>
       </Card>
 
-      {/* API设置 */}
+      {/* 订阅方案 */}
       <Card style={styles.card}>
-        <Card.Title title="🤖 AI API设置" titleStyle={styles.cardTitle} />
+        <Card.Title title="⭐ AI 功能订阅" titleStyle={styles.cardTitle} />
         <Card.Content>
           <Text style={styles.apiInfo}>
-            配置 DeepSeek API Key，用于单词分析、文章生成和 AI 出题。
+            AI 功能（单词分析、文章生成、AI 出题）需要订阅解锁，由云端统一提供 DeepSeek 算力。
           </Text>
-          <Text style={styles.apiTip}>{currentProvider.helpText}</Text>
-          <View style={styles.apiKeyContainer}>
-            <TextInput
-              mode="outlined"
-              label={`${currentProvider.name} API Key`}
-              placeholder={currentProvider.keyPlaceholder}
-              value={apiKey}
-              onChangeText={setApiKey}
-              secureTextEntry={!isEditingApiKey}
-              style={styles.apiInput}
-              right={
-                <TextInput.Icon
-                  icon={isEditingApiKey ? "eye-off" : "eye"}
-                  onPress={() => setIsEditingApiKey(!isEditingApiKey)}
-                />
-              }
-            />
-          </View>
-          <View style={styles.apiActions}>
-            <Button
-              mode="outlined"
-              onPress={handleTestAISettings}
-              loading={isTestingApi}
-              disabled={isTestingApi}
-              style={styles.apiActionBtn}
-            >
-              {isTestingApi ? '测试中...' : '测试连接'}
-            </Button>
-            <Button
-              mode="contained"
-              onPress={handleSaveAISettings}
-              style={styles.apiActionBtn}
-            >
-              保存 AI 设置
-            </Button>
-          </View>
-          {apiTestMessage ? (
-            <Text style={[
-              styles.apiTestMessage,
-              apiTestOk === true && styles.apiTestSuccess,
-              apiTestOk === false && styles.apiTestError
-            ]}>
-              {apiTestMessage}
-            </Text>
-          ) : null}
-          <View style={styles.apiTips}>
-            <Text style={styles.apiTip}>🔗 前往 <Text style={styles.apiLink} onPress={() => Linking.openURL(currentProvider.getKeyUrl)}>{currentProvider.name}</Text> 获取 API Key</Text>
-            <Text style={styles.apiTip}>🔒 API Key 仅保存在本机，导出数据时不会包含真实密钥。</Text>
-          </View>
+          <Text style={styles.apiTip}>
+            请前往「我的」→ 账号卡片中查看当前套餐，或在网页版开通订阅。
+          </Text>
         </Card.Content>
       </Card>
 

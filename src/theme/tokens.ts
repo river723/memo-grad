@@ -38,6 +38,11 @@ export const palette = {
   textTertiary: '#999999',
   textDisabled: '#CCCCCC',
 
+  // Material Design 三级 surface 角色（新屏幕用这些，不再硬编码十六进制）
+  onSurface: '#1C1B1F',
+  onSurfaceVariant: '#49454F',
+  error: '#B3261E',
+
   // 难度 1→5 渐变（低→高 = 绿→黄→橙→红）
   difficulty: ['#4CAF50', '#8BC34A', '#FF9800', '#FF5722', '#F44336'],
 } as const;

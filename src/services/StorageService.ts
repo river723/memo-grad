@@ -1,5 +1,7 @@
 import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId, RealExamSession, RealExamWrongQuestion, RealExamReadingPassage, RealExamClozePaper, RealExamNewTypePaper, RealExamLetter, RealExamOptionLetter } from '../types';
 import { AI_PROVIDERS, WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
+import { generateId, nowIso, excludeDeleted } from '../utils/idUtils';
+import { migrateToUuidSchema, MigrationResult, CURRENT_SCHEMA_VERSION } from './migrations';
 
 // 跨平台存储接口
 interface StorageInterface {
@@ -78,20 +80,47 @@ class StorageService {
     IGNORED_WORDBANK_WORDS: 'kaoyan_ignored_wordbank_words',
     REAL_EXAM_SESSIONS: 'kaoyan_real_exam_sessions',
     REAL_EXAM_WRONG_QUESTIONS: 'kaoyan_real_exam_wrong_questions',
-    REAL_EXAM_DRAFTS: 'kaoyan_real_exam_drafts'
+    REAL_EXAM_DRAFTS: 'kaoyan_real_exam_drafts',
+    SCHEMA_VERSION: 'kaoyan_schema_version',
+    MIGRATION_BACKUP: 'kaoyan_migration_backup_v1'
   };
 
+  /** 迁移只跑一次，用一个共享 Promise 让并发调用方都等同一次执行。 */
+  private migrationPromise: Promise<MigrationResult> | null = null;
+
+  /**
+   * 确保数据已迁移到 UUID schema。
+   *
+   * 所有读写入口都先 await 这个方法。看起来啰嗦，但替代方案（只在 App 启动时调一次）
+   * 有竞态：screen 的 useEffect 可能在迁移完成前就读到旧格式数据，
+   * 于是 UI 拿着数字 ID 去和 UUID 比较，静默显示空列表。
+   */
+  async ensureMigrated(): Promise<MigrationResult> {
+    if (!this.migrationPromise) {
+      this.migrationPromise = migrateToUuidSchema(AsyncStorage).catch((error) => {
+        // 迁移失败不能让整个 app 卡死；原始数据仍在（版本号未推进），下次启动会重试
+        console.error('[StorageService] UUID 迁移失败:', error);
+        return { migrated: false, reason: 'error' } as MigrationResult;
+      });
+    }
+    return this.migrationPromise;
+  }
+
   // 生词操作
-  async addWord(word: Omit<Word, 'id'>): Promise<number> {
-    const words = await this.getWords();
-    const newId = words.length > 0 ? Math.max(...words.map(w => w.id!)) + 1 : 1;
+  async addWord(word: Omit<Word, 'id'>): Promise<string> {
+    await this.ensureMigrated();
+    const words = await this.getAllWordsRaw();
+    const newId = generateId();
+    const now = nowIso();
 
     const newWord: Word = {
       ...word,
       id: newId,
       similar_words: Array.isArray(word.similar_words) ? word.similar_words : [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+      dirty: true
     };
 
     words.push(newWord);
@@ -99,7 +128,12 @@ class StorageService {
     return newId;
   }
 
-  async getWords(): Promise<Word[]> {
+  /**
+   * 读取包含软删除记录的全量列表，仅供内部写操作使用。
+   * 写操作必须基于全量数据回写，否则过滤掉的软删除记录会被物理抹掉，
+   * 删除事实就无法同步到其他设备了。
+   */
+  private async getAllWordsRaw(): Promise<Word[]> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.WORDS);
       return data ? JSON.parse(data) : [];
@@ -109,7 +143,12 @@ class StorageService {
     }
   }
 
-  async getWordById(id: number): Promise<Word | null> {
+  async getWords(): Promise<Word[]> {
+    await this.ensureMigrated();
+    return excludeDeleted(await this.getAllWordsRaw());
+  }
+
+  async getWordById(id: string): Promise<Word | null> {
     const words = await this.getWords();
     return words.find(word => word.id === id) || null;
   }
@@ -121,24 +160,32 @@ class StorageService {
     );
   }
 
-  async updateWord(id: number, updates: Partial<Word>): Promise<void> {
-    const words = await this.getWords();
+  async updateWord(id: string, updates: Partial<Word>): Promise<void> {
+    await this.ensureMigrated();
+    const words = await this.getAllWordsRaw();
     const index = words.findIndex(word => word.id === id);
 
     if (index !== -1) {
       words[index] = {
         ...words[index],
         ...updates,
-        updated_at: new Date().toISOString()
+        updated_at: nowIso(),
+        dirty: true
       };
       await AsyncStorage.setItem(this.KEYS.WORDS, JSON.stringify(words));
     }
   }
 
-  async deleteWord(id: number): Promise<void> {
-    const words = await this.getWords();
-    const filtered = words.filter(word => word.id !== id);
-    await AsyncStorage.setItem(this.KEYS.WORDS, JSON.stringify(filtered));
+  /** 软删除：写 deleted_at 而非移除元素，让删除动作可以同步到其他设备。 */
+  async deleteWord(id: string): Promise<void> {
+    await this.ensureMigrated();
+    const words = await this.getAllWordsRaw();
+    const index = words.findIndex(word => word.id === id);
+    if (index !== -1) {
+      const now = nowIso();
+      words[index] = { ...words[index], deleted_at: now, updated_at: now, dirty: true };
+      await AsyncStorage.setItem(this.KEYS.WORDS, JSON.stringify(words));
+    }
   }
 
   // 词库忽略词操作
@@ -168,19 +215,22 @@ class StorageService {
 
   // 学习记录操作
   async addStudyRecord(record: Omit<StudyRecord, 'id'>): Promise<void> {
-    const records = await this.getStudyRecords();
-    const newId = records.length > 0 ? Math.max(...records.map(r => r.id!)) + 1 : 1;
+    await this.ensureMigrated();
+    const records = await this.getAllStudyRecordsRaw();
 
     const newRecord: StudyRecord = {
       ...record,
-      id: newId
+      id: generateId(),
+      updated_at: nowIso(),
+      deleted_at: null,
+      dirty: true
     };
 
     records.push(newRecord);
     await AsyncStorage.setItem(this.KEYS.STUDY_RECORDS, JSON.stringify(records));
   }
 
-  async getStudyRecords(): Promise<StudyRecord[]> {
+  private async getAllStudyRecordsRaw(): Promise<StudyRecord[]> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.STUDY_RECORDS);
       return data ? JSON.parse(data) : [];
@@ -190,6 +240,11 @@ class StorageService {
     }
   }
 
+  async getStudyRecords(): Promise<StudyRecord[]> {
+    await this.ensureMigrated();
+    return excludeDeleted(await this.getAllStudyRecordsRaw());
+  }
+
   async getStudyRecordsByDate(date: string): Promise<StudyRecord[]> {
     const records = await this.getStudyRecords();
     return records.filter(record => record.study_date === date);
@@ -197,19 +252,22 @@ class StorageService {
 
   // 学习计划操作
   async addStudyPlan(plan: Omit<StudyPlan, 'id'>): Promise<void> {
-    const plans = await this.getStudyPlans();
-    const newId = plans.length > 0 ? Math.max(...plans.map(p => p.id!)) + 1 : 1;
+    await this.ensureMigrated();
+    const plans = await this.getAllStudyPlansRaw();
 
     const newPlan: StudyPlan = {
       ...plan,
-      id: newId
+      id: generateId(),
+      updated_at: nowIso(),
+      deleted_at: null,
+      dirty: true
     };
 
     plans.push(newPlan);
     await AsyncStorage.setItem(this.KEYS.STUDY_PLANS, JSON.stringify(plans));
   }
 
-  async getStudyPlans(): Promise<StudyPlan[]> {
+  private async getAllStudyPlansRaw(): Promise<StudyPlan[]> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.STUDY_PLANS);
       return data ? JSON.parse(data) : [];
@@ -217,6 +275,11 @@ class StorageService {
       console.error('Get study plans error:', error);
       return [];
     }
+  }
+
+  async getStudyPlans(): Promise<StudyPlan[]> {
+    await this.ensureMigrated();
+    return excludeDeleted(await this.getAllStudyPlansRaw());
   }
 
   async getTodayStudyPlan(): Promise<StudyPlan[]> {
@@ -227,18 +290,19 @@ class StorageService {
     );
   }
 
-  async completeStudyPlan(planId: number): Promise<void> {
-    const plans = await this.getStudyPlans();
+  async completeStudyPlan(planId: string): Promise<void> {
+    await this.ensureMigrated();
+    const plans = await this.getAllStudyPlansRaw();
     const index = plans.findIndex(plan => plan.id === planId);
 
     if (index !== -1) {
-      plans[index].completed = true;
+      plans[index] = { ...plans[index], completed: true, updated_at: nowIso(), dirty: true };
       await AsyncStorage.setItem(this.KEYS.STUDY_PLANS, JSON.stringify(plans));
     }
   }
 
   // 文章操作
-  async getArticles(): Promise<Article[]> {
+  private async getAllArticlesRaw(): Promise<Article[]> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.ARTICLES);
       return data ? JSON.parse(data) : [];
@@ -248,20 +312,30 @@ class StorageService {
     }
   }
 
-  async getArticleById(id: number): Promise<Article | null> {
+  async getArticles(): Promise<Article[]> {
+    await this.ensureMigrated();
+    return excludeDeleted(await this.getAllArticlesRaw());
+  }
+
+  async getArticleById(id: string): Promise<Article | null> {
     const articles = await this.getArticles();
     return articles.find(article => article.id === id) || null;
   }
 
-  async saveArticle(article: Omit<Article, 'id'>): Promise<number> {
-    const articles = await this.getArticles();
-    const newId = articles.length > 0 ? Math.max(...articles.map(a => a.id!)) + 1 : 1;
+  async saveArticle(article: Omit<Article, 'id'>): Promise<string> {
+    await this.ensureMigrated();
+    const articles = await this.getAllArticlesRaw();
+    const newId = generateId();
+    const now = nowIso();
 
     const newArticle: Article = {
       ...article,
       id: newId,
-      created_at: new Date().toISOString(),
-      read_count: 0
+      created_at: now,
+      read_count: 0,
+      updated_at: now,
+      deleted_at: null,
+      dirty: true
     };
 
     articles.push(newArticle);
@@ -269,33 +343,46 @@ class StorageService {
     return newId;
   }
 
-  async updateArticle(id: number, updates: Partial<Article>): Promise<void> {
-    const articles = await this.getArticles();
+  async updateArticle(id: string, updates: Partial<Article>): Promise<void> {
+    await this.ensureMigrated();
+    const articles = await this.getAllArticlesRaw();
     const index = articles.findIndex(article => article.id === id);
 
     if (index !== -1) {
-      articles[index] = { ...articles[index], ...updates };
+      articles[index] = { ...articles[index], ...updates, updated_at: nowIso(), dirty: true };
       await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(articles));
     }
   }
 
-  async deleteArticle(id: number): Promise<void> {
-    const articles = await this.getArticles();
-    const filtered = articles.filter(article => article.id !== id);
-    await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(filtered));
+  async deleteArticle(id: string): Promise<void> {
+    await this.ensureMigrated();
+    const articles = await this.getAllArticlesRaw();
+    const index = articles.findIndex(article => article.id === id);
+    if (index !== -1) {
+      const now = nowIso();
+      articles[index] = { ...articles[index], deleted_at: now, updated_at: now, dirty: true };
+      await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(articles));
+    }
   }
 
   // 考题练习记录操作
-  async saveExamSession(session: Omit<ExamSession, 'id'>): Promise<number> {
-    const sessions = await this.getExamSessions();
-    const newId = sessions.length > 0 ? Math.max(...sessions.map(s => s.id!)) + 1 : 1;
-    const newSession: ExamSession = { ...session, id: newId };
+  async saveExamSession(session: Omit<ExamSession, 'id'>): Promise<string> {
+    await this.ensureMigrated();
+    const sessions = await this.getAllExamSessionsRaw();
+    const newId = generateId();
+    const newSession: ExamSession = {
+      ...session,
+      id: newId,
+      updated_at: nowIso(),
+      deleted_at: null,
+      dirty: true
+    };
     sessions.push(newSession);
     await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(sessions));
     return newId;
   }
 
-  async getExamSessions(): Promise<ExamSession[]> {
+  private async getAllExamSessionsRaw(): Promise<ExamSession[]> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.EXAM_SESSIONS);
       return data ? JSON.parse(data) : [];
@@ -305,23 +392,34 @@ class StorageService {
     }
   }
 
-  async deleteExamSession(id: number): Promise<void> {
-    const sessions = await this.getExamSessions();
-    const filtered = sessions.filter(s => s.id !== id);
-    await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(filtered));
+  async getExamSessions(): Promise<ExamSession[]> {
+    await this.ensureMigrated();
+    return excludeDeleted(await this.getAllExamSessionsRaw());
   }
 
-  async updateExamSession(id: number, session: Omit<ExamSession, 'id'>): Promise<void> {
-    const sessions = await this.getExamSessions();
+  async deleteExamSession(id: string): Promise<void> {
+    await this.ensureMigrated();
+    const sessions = await this.getAllExamSessionsRaw();
     const index = sessions.findIndex(s => s.id === id);
     if (index !== -1) {
-      sessions[index] = { ...session, id };
+      const now = nowIso();
+      sessions[index] = { ...sessions[index], deleted_at: now, updated_at: now, dirty: true };
+      await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(sessions));
+    }
+  }
+
+  async updateExamSession(id: string, session: Omit<ExamSession, 'id'>): Promise<void> {
+    await this.ensureMigrated();
+    const sessions = await this.getAllExamSessionsRaw();
+    const index = sessions.findIndex(s => s.id === id);
+    if (index !== -1) {
+      sessions[index] = { ...session, id, updated_at: nowIso(), deleted_at: null, dirty: true };
       await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(sessions));
     }
   }
 
   // 错题本操作
-  async getWrongQuestions(): Promise<WrongQuestion[]> {
+  private async getAllWrongQuestionsRaw(): Promise<WrongQuestion[]> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.WRONG_QUESTIONS);
       return data ? JSON.parse(data) : [];
@@ -331,18 +429,26 @@ class StorageService {
     }
   }
 
+  async getWrongQuestions(): Promise<WrongQuestion[]> {
+    await this.ensureMigrated();
+    return excludeDeleted(await this.getAllWrongQuestionsRaw());
+  }
+
   async addOrUpdateWrongQuestion(
     question: ExamSession['questions'][0],
     wrongAnswer: string,
     isCorrectNow: boolean
   ): Promise<void> {
-    const wrongQuestions = await this.getWrongQuestions();
+    await this.ensureMigrated();
+    const wrongQuestions = await this.getAllWrongQuestionsRaw();
     const wordId = question.word_id;
     const qType = question.type;
+    const now = nowIso();
 
-    // 去重：同一 word_id + type 视为同一道题
+    // 去重：同一 word_id + type 视为同一道题。只在未软删除的条目里找，
+    // 否则会复活一条已删除的记录。
     const existing = wrongQuestions.find(
-      q => q.question.word_id === wordId && q.question.type === qType
+      q => q.question.word_id === wordId && q.question.type === qType && !q.deleted_at
     );
 
     if (existing) {
@@ -352,18 +458,21 @@ class StorageService {
         existing.wrong_count += 1;
         existing.wrong_answer = wrongAnswer;
       }
-      existing.last_attempt_at = new Date().toISOString();
+      existing.last_attempt_at = now;
+      existing.updated_at = now;
+      existing.dirty = true;
     } else {
       const newQ: WrongQuestion = {
-        id: wrongQuestions.length > 0
-          ? Math.max(...wrongQuestions.map(q => q.id!)) + 1
-          : 1,
+        id: generateId(),
         question,
         wrong_answer: wrongAnswer,
         correct_count: isCorrectNow ? 1 : 0,
         wrong_count: isCorrectNow ? 0 : 1,
-        last_attempt_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
+        last_attempt_at: now,
+        created_at: now,
+        updated_at: now,
+        deleted_at: null,
+        dirty: true,
       };
       wrongQuestions.push(newQ);
     }
@@ -371,29 +480,36 @@ class StorageService {
     await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(wrongQuestions));
   }
 
-  async updateWrongQuestion(id: number, updates: Partial<WrongQuestion>): Promise<void> {
-    const questions = await this.getWrongQuestions();
+  async updateWrongQuestion(id: string, updates: Partial<WrongQuestion>): Promise<void> {
+    await this.ensureMigrated();
+    const questions = await this.getAllWrongQuestionsRaw();
     const index = questions.findIndex(q => q.id === id);
     if (index !== -1) {
-      questions[index] = { ...questions[index], ...updates };
+      questions[index] = { ...questions[index], ...updates, updated_at: nowIso(), dirty: true };
       await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(questions));
     }
   }
 
-  async removeWrongQuestion(id: number): Promise<void> {
-    const questions = await this.getWrongQuestions();
-    const filtered = questions.filter(q => q.id !== id);
-    await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(filtered));
+  async removeWrongQuestion(id: string): Promise<void> {
+    await this.ensureMigrated();
+    const questions = await this.getAllWrongQuestionsRaw();
+    const index = questions.findIndex(q => q.id === id);
+    if (index !== -1) {
+      const now = nowIso();
+      questions[index] = { ...questions[index], deleted_at: now, updated_at: now, dirty: true };
+      await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(questions));
+    }
   }
 
   // 真题练习记录操作
   async saveRealExamSession(session: RealExamSession): Promise<void> {
-    const sessions = await this.getRealExamSessions();
-    sessions.push(session);
+    await this.ensureMigrated();
+    const sessions = await this.getAllRealExamSessionsRaw();
+    sessions.push({ ...session, updated_at: nowIso(), deleted_at: null, dirty: true });
     await AsyncStorage.setItem(this.KEYS.REAL_EXAM_SESSIONS, JSON.stringify(sessions));
   }
 
-  async getRealExamSessions(): Promise<RealExamSession[]> {
+  private async getAllRealExamSessionsRaw(): Promise<RealExamSession[]> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_SESSIONS);
       return data ? JSON.parse(data) : [];
@@ -403,9 +519,14 @@ class StorageService {
     }
   }
 
+  async getRealExamSessions(): Promise<RealExamSession[]> {
+    await this.ensureMigrated();
+    return excludeDeleted(await this.getAllRealExamSessionsRaw());
+  }
+
   // ==================== 真题错题本操作 ====================
   // 与单词错题本 (WrongQuestion) 独立存储：真题以 questionId 为主键，模型形状不同。
-  async getRealExamWrongQuestions(): Promise<RealExamWrongQuestion[]> {
+  private async getAllRealExamWrongQuestionsRaw(): Promise<RealExamWrongQuestion[]> {
     try {
       const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS);
       return data ? JSON.parse(data) : [];
@@ -413,6 +534,11 @@ class StorageService {
       console.error('Get real exam wrong questions error:', error);
       return [];
     }
+  }
+
+  async getRealExamWrongQuestions(): Promise<RealExamWrongQuestion[]> {
+    await this.ensureMigrated();
+    return excludeDeleted(await this.getAllRealExamWrongQuestionsRaw());
   }
 
   /**
@@ -427,8 +553,10 @@ class StorageService {
     setId: 'english1' | 'english2',
   ): Promise<void> {
     if (!paper) return;
-    const list = await this.getRealExamWrongQuestions();
-    const now = new Date().toISOString();
+    await this.ensureMigrated();
+    // 用 raw 列表：写回时必须保留软删除条目，否则删除事实无法同步
+    const list = await this.getAllRealExamWrongQuestionsRaw();
+    const now = nowIso();
 
     // 构建 questionId -> 快照元数据的映射，便于新增时填题面/选项
     const snapshots = new Map<string, Omit<RealExamWrongQuestion,
@@ -487,13 +615,17 @@ class StorageService {
     }
 
     for (const ans of session.answers) {
-      const existingIdx = list.findIndex(w => w.questionId === ans.questionId);
+      // 只在未软删除的条目里查找，避免复活已删除的错题
+      const existingIdx = list.findIndex(w => w.questionId === ans.questionId && !w.deleted_at);
       if (ans.correct) {
         if (existingIdx === -1) continue;                       // 从没错过，不入本
         list[existingIdx].correct_count += 1;
         list[existingIdx].last_attempt_at = now;
+        list[existingIdx].updated_at = now;
+        list[existingIdx].dirty = true;
         if (list[existingIdx].correct_count >= WRONG_QUESTION_MASTERY_THRESHOLD) {
-          list.splice(existingIdx, 1);                          // 掌握后移除
+          // 掌握后软删除（原先是 splice 物理移除，同步场景下会导致该条在其他设备复活）
+          list[existingIdx].deleted_at = now;
         }
       } else {
         const snap = snapshots.get(ans.questionId);
@@ -502,6 +634,8 @@ class StorageService {
           list[existingIdx].wrong_count += 1;
           list[existingIdx].userAnswer = ans.selected;
           list[existingIdx].last_attempt_at = now;
+          list[existingIdx].updated_at = now;
+          list[existingIdx].dirty = true;
         } else {
           list.push({
             ...snap,
@@ -510,6 +644,9 @@ class StorageService {
             correct_count: 0,
             last_attempt_at: now,
             created_at: now,
+            updated_at: now,
+            deleted_at: null,
+            dirty: true,
           });
         }
       }
@@ -519,17 +656,25 @@ class StorageService {
   }
 
   async removeRealExamWrongQuestion(questionId: string): Promise<void> {
-    const list = await this.getRealExamWrongQuestions();
-    const filtered = list.filter(w => w.questionId !== questionId);
-    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(filtered));
+    await this.ensureMigrated();
+    const list = await this.getAllRealExamWrongQuestionsRaw();
+    const idx = list.findIndex(w => w.questionId === questionId);
+    if (idx !== -1) {
+      const now = nowIso();
+      list[idx] = { ...list[idx], deleted_at: now, updated_at: now, dirty: true };
+      await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(list));
+    }
   }
 
   /** 更新真题错题的解析（AI 生成后回写，下次无需重新生成）。 */
   async updateRealExamWrongExplanation(questionId: string, explanation: string): Promise<void> {
-    const list = await this.getRealExamWrongQuestions();
+    await this.ensureMigrated();
+    const list = await this.getAllRealExamWrongQuestionsRaw();
     const idx = list.findIndex(w => w.questionId === questionId);
     if (idx !== -1) {
       list[idx].explanation = explanation;
+      list[idx].updated_at = nowIso();
+      list[idx].dirty = true;
       await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(list));
     }
   }
@@ -573,9 +718,9 @@ class StorageService {
     }
   }
 
-  async getWordArticleCoverage(): Promise<Map<number, number>> {
+  async getWordArticleCoverage(): Promise<Map<string, number>> {
     const articles = await this.getArticles();
-    const coverage = new Map<number, number>();
+    const coverage = new Map<string, number>();
 
     for (const article of articles) {
       for (const wordId of article.word_ids) {
@@ -624,7 +769,7 @@ class StorageService {
     const settings = await this.getSettings();
     const data = {
       appName: 'memo-grad',
-      schemaVersion: 1,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
       words: await this.getWords(),
       studyRecords: await this.getStudyRecords(),
       studyPlans: await this.getStudyPlans(),
@@ -698,6 +843,16 @@ class StorageService {
           JSON.stringify(data.realExamDrafts)
         );
       }
+
+      // 导入的可能是网络版之前导出的旧备份（数字 ID）。此时把 schema 版本回退到
+      // 备份自身的版本，并重跑迁移，否则这批数字 ID 会绕过迁移直接落地，
+      // 与后续 UUID 数据混在一起导致外键失配。
+      const importedVersion = Number(data.schemaVersion) || 1;
+      if (importedVersion < CURRENT_SCHEMA_VERSION) {
+        await AsyncStorage.setItem(this.KEYS.SCHEMA_VERSION, String(importedVersion));
+        this.migrationPromise = null;   // 清掉缓存，强制重新迁移
+        await this.ensureMigrated();
+      }
     } catch (error) {
       console.error('Import data error:', error);
       throw new Error('数据导入失败');
@@ -717,8 +872,27 @@ class StorageService {
       this.KEYS.REAL_EXAM_SESSIONS,
       this.KEYS.REAL_EXAM_WRONG_QUESTIONS,
       this.KEYS.REAL_EXAM_DRAFTS,
-      this.KEYS.SETTINGS
+      this.KEYS.SETTINGS,
+      this.KEYS.MIGRATION_BACKUP
     ]);
+    // 保留 SCHEMA_VERSION：数据虽清空，本地 schema 仍是最新版，无需再迁移
+  }
+
+  // ==================== 原始 AsyncStorage 透传 ====================
+  // 仅供 AuthProvider 读写 JWT token。JWT 不参与 sync schema、不经过
+  // 迁移、不需要 updated_at —— 它只是客户端与服务器的会话凭据。
+  // 不用 StorageService 的 ensureMigrated + excludeDeleted 包装链。
+
+  async _rawGetItem(key: string): Promise<string | null> {
+    return AsyncStorage.getItem(key);
+  }
+
+  async _rawSetItem(key: string, value: string): Promise<void> {
+    return AsyncStorage.setItem(key, value);
+  }
+
+  async _rawRemove(key: string): Promise<void> {
+    return AsyncStorage.removeItem(key);
   }
 }
 

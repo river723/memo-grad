@@ -86,7 +86,7 @@ export default function StudyScreen() {
   const { colors } = useAppTheme();
   const styles = useStyles();
   const customWordIds = Array.isArray(route.params?.wordIds)
-    ? route.params.wordIds.filter((id: unknown): id is number => typeof id === 'number')
+    ? route.params.wordIds.filter((id: unknown): id is string => typeof id === 'string' && id !== '')
     : [];
   const customWordIdKey = customWordIds.join(',');
   const [currentMode, setCurrentMode] = useState<StudyScreenMode>('flashcard');
@@ -118,7 +118,7 @@ export default function StudyScreen() {
     autoPlaySound: false,
   });
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [enhancingWordId, setEnhancingWordId] = useState<number | null>(null);
+  const [enhancingWordId, setEnhancingWordId] = useState<string | null>(null);
   const [isGeneratingArticle, setIsGeneratingArticle] = useState(false);
   const [generatedArticle, setGeneratedArticle] = useState<{
     title: string;
@@ -130,12 +130,12 @@ export default function StudyScreen() {
   const [generatedArticleWords, setGeneratedArticleWords] = useState<Word[]>([]);
   const [selectedArticleWord, setSelectedArticleWord] = useState<Word | null>(null);
   const [showArticleWordModal, setShowArticleWordModal] = useState(false);
-  const [loadedArticleId, setLoadedArticleId] = useState<number | null>(null);
+  const [loadedArticleId, setLoadedArticleId] = useState<string | null>(null);
   // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
-  const retryMapRef = useRef<Map<number, number>>(new Map());
+  const retryMapRef = useRef<Map<string, number>>(new Map());
   const pendingIndexRef = useRef<number>(0);
   // 本轮新词 id 集合，用于在 finishWord 时按新词/复习词分别累计真实完成数
-  const newWordIdSetRef = useRef<Set<number>>(new Set());
+  const newWordIdSetRef = useRef<Set<string>>(new Set());
   const [completedByType, setCompletedByType] = useState({ newDone: 0, reviewDone: 0 });
 
   useEffect(() => {
@@ -216,8 +216,9 @@ export default function StudyScreen() {
       setIsCustomReview(false);
 
       if (todayPlans.length > 0) {
-        const wordIds = todayPlans.map(p => p.word_id).filter(id => id > 0);
-        studyWords = allWords.filter(w => wordIds.includes(w.id!));
+        // 空 word_id 是"新词占位"计划，不对应具体单词，需排除
+        const wordIds = todayPlans.map(p => p.word_id).filter(id => id !== '');
+        studyWords = allWords.filter(w => wordIds.includes(w.id));
         newWordList = studyWords.filter(w =>
           todayPlans.some(p => p.word_id === w.id && p.plan_type === 'new')
         );
@@ -265,7 +266,7 @@ export default function StudyScreen() {
         for (const word of studyWords) {
           const isNew = !allRecords.some(r => r.word_id === word.id);
           await StorageService.addStudyPlan({
-            word_id: word.id!,
+            word_id: word.id,
             plan_date: today,
             plan_type: isNew ? 'new' : 'review',
             completed: false
@@ -278,7 +279,7 @@ export default function StudyScreen() {
         newCount: newWordList.length,
         reviewCount: reviewWordList.length,
       });
-      newWordIdSetRef.current = new Set(newWordList.map(w => w.id!).filter(Boolean));
+      newWordIdSetRef.current = new Set(newWordList.map(w => w.id).filter(Boolean));
       setCompletedByType({ newDone: 0, reviewDone: 0 });
       setStudyStats({
         total: studyWords.length,
@@ -305,11 +306,10 @@ export default function StudyScreen() {
   // 手动触发 AI 补全：词条「骨架」缺词根/例句/近义词时由用户点击按钮调
   const enhanceCurrentWord = async () => {
     const w = getCurrentWord();
-    if (!w || !appSettings || w.id == null) return;
+    if (!w || !w.id) return;
     setEnhancingWordId(w.id);
     try {
-      const ai = AIService.fromSettings(appSettings);
-      const result = await ai.analyzeWord(w.word);
+      const result = await AIService.analyzeWord(w.word);
       const merged = mergeAIResultIntoWord(w, result);
 
       await StorageService.updateWord(w.id, merged);
@@ -327,7 +327,7 @@ export default function StudyScreen() {
   const finishWord = async (word: Word) => {
     try {
       // 按新词/复习词累计真实完成数（每个词过关时只调用一次）
-      const isNewWord = word.id != null && newWordIdSetRef.current.has(word.id);
+      const isNewWord = Boolean(word.id) && newWordIdSetRef.current.has(word.id);
       setCompletedByType(prev => ({
         newDone: prev.newDone + (isNewWord ? 1 : 0),
         reviewDone: prev.reviewDone + (isNewWord ? 0 : 1),
@@ -349,7 +349,7 @@ export default function StudyScreen() {
         );
         if (!alreadyPlanned) {
           await StorageService.addStudyPlan({
-            word_id: word.id!,
+            word_id: word.id,
             plan_date: reviewDate,
             plan_type: 'review',
             completed: false
@@ -368,7 +368,7 @@ export default function StudyScreen() {
     try {
       // 1. 记录学习记录
       const record: Omit<StudyRecord, 'id'> = {
-        word_id: currentWord.id!,
+        word_id: currentWord.id,
         study_date: format(new Date(), 'yyyy-MM-dd'),
         result: isCorrect ? 1 : 0,
         study_mode: currentMode
@@ -388,7 +388,7 @@ export default function StudyScreen() {
       });
 
       const retryMap = retryMapRef.current;
-      const inRetry = retryMap.has(currentWord.id!);
+      const inRetry = retryMap.has(currentWord.id);
       let wordFinished = false;
 
       if (isCorrect && !inRetry) {
@@ -397,17 +397,17 @@ export default function StudyScreen() {
         wordFinished = true;
       } else if (isCorrect && inRetry) {
         // ★ 重试中答对 → 计数器 +1
-        const count = retryMap.get(currentWord.id!)! + 1;
+        const count = retryMap.get(currentWord.id)! + 1;
         if (count >= 2) {
           await finishWord(currentWord);
-          retryMap.delete(currentWord.id!);
+          retryMap.delete(currentWord.id);
           wordFinished = true;
         } else {
-          retryMap.set(currentWord.id!, count);
+          retryMap.set(currentWord.id, count);
         }
       } else {
         // ★ 答错 → 进入重试模式（或计数器归零）
-        retryMap.set(currentWord.id!, 0);
+        retryMap.set(currentWord.id, 0);
       }
 
       // 3. 更新队列 + 计算 nextIndex
@@ -534,7 +534,7 @@ export default function StudyScreen() {
 
   const getArticleWordIds = (articleWords: Word[]) => articleWords
     .map(w => w.id)
-    .filter((id): id is number => typeof id === 'number');
+    .filter((id): id is string => typeof id === 'string' && id !== '');
 
   const handleArticleWordTap = (wordObj?: Word) => {
     if (!wordObj) return;
@@ -551,7 +551,7 @@ export default function StudyScreen() {
       const articles = await StorageService.getArticles();
       const matchedArticle = articles
         .filter(article => {
-          const articleIdSet = new Set(article.word_ids.filter(id => typeof id === 'number'));
+          const articleIdSet = new Set(article.word_ids.filter(id => typeof id === 'string' && id !== ''));
           return currentWordIds.every(id => articleIdSet.has(id));
         })
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
@@ -582,23 +582,12 @@ export default function StudyScreen() {
       return;
     }
 
-    const latestSettings = await StorageService.getSettings();
-    setAppSettings(latestSettings);
-
-    if (!latestSettings.apiKey || !latestSettings.aiModel) {
-      const msg = '请先在设置中配置 AI API';
-      setArticleError(msg);
-      Alert.alert('未配置 API', msg);
-      return;
-    }
-
     setIsGeneratingArticle(true);
     setShowArticleTranslation(false);
     setGeneratedArticleWords([]);
     setLoadedArticleId(null);
     try {
-      const aiService = AIService.fromSettings(latestSettings);
-      const result = await aiService.generateFunArticle(
+      const result = await AIService.generateFunArticle(
         articleWords.map(w => w.word),
         'random',
         targetLength
@@ -612,7 +601,7 @@ export default function StudyScreen() {
           content: result.content,
           translation: result.translation,
           words: articleWords.map(w => w.word),
-          word_ids: articleWords.map(w => w.id).filter((id): id is number => typeof id === 'number'),
+          word_ids: articleWords.map(w => w.id).filter((id): id is string => typeof id === 'string' && id !== ''),
           theme: 'random',
           created_at: new Date().toISOString(),
           read_count: 0,

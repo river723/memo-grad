@@ -1,0 +1,40 @@
+# MemoGrad 后端本地开发依赖。
+# 生产环境请用云厂商的托管 Postgres/Redis（备份、主从、监控都是现成的），
+# 这份 compose 只服务于本地开发和 CI。
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: memograd-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: memograd
+      POSTGRES_PASSWORD: memograd_dev_pw
+      POSTGRES_DB: memograd
+    ports:
+      # 映射到 55432 而非 5432，避免和本机已装的 Postgres 抢端口
+      - '55432:5432'
+    volumes:
+      - memograd_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U memograd -d memograd']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: memograd-redis
+    restart: unless-stopped
+    ports:
+      - '56379:6379'
+    volumes:
+      - memograd_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  memograd_pgdata:
+  memograd_redisdata:

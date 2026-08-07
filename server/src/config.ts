@@ -1,0 +1,121 @@
+/**
+ * 环境变量读取与校验。
+ *
+ * 启动时一次性校验并 fail-fast：配置缺失就直接崩，而不是等到某个请求
+ * 打到缺失的配置才 500——那种失败模式在生产上很难定位。
+ */
+
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+/** 极简 .env 解析。不引 dotenv：只需要 KEY=VALUE 和 # 注释两种语法。 */
+function loadEnvFile(): void {
+  const envPath = path.resolve(process.cwd(), '.env');
+  let raw: string;
+  try {
+    raw = readFileSync(envPath, 'utf8');
+  } catch {
+    return; // 生产环境通常由编排平台注入环境变量，没有 .env 文件是正常的
+  }
+
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    // 去掉包裹的引号
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    // 已存在的真实环境变量优先，便于容器覆盖 .env
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadEnvFile();
+
+function required(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`缺少必需的环境变量 ${key}，请参照 server/.env.example 配置`);
+  }
+  return value;
+}
+
+function optional(key: string, fallback: string): string {
+  return process.env[key] || fallback;
+}
+
+function int(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    throw new Error(`环境变量 ${key} 必须是数字，实际为 "${raw}"`);
+  }
+  return n;
+}
+
+function bool(key: string, fallback: boolean): boolean {
+  const raw = process.env[key];
+  if (raw === undefined) return fallback;
+  return raw === 'true' || raw === '1';
+}
+
+const nodeEnv = optional('NODE_ENV', 'development');
+const isProduction = nodeEnv === 'production';
+
+const jwtSecret = required('JWT_SECRET');
+
+// 生产环境用示例密钥会让任何人都能伪造 token，直接拒绝启动
+if (isProduction && jwtSecret.includes('dev-only-secret')) {
+  throw new Error('生产环境必须替换 JWT_SECRET（当前仍是示例值）');
+}
+
+export const config = {
+  nodeEnv,
+  isProduction,
+  port: int('PORT', 3000),
+  host: optional('HOST', '0.0.0.0'),
+
+  databaseUrl: required('DATABASE_URL'),
+  redisUrl: optional('REDIS_URL', ''),
+
+  corsOrigins: optional('CORS_ORIGINS', '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+
+  jwt: {
+    secret: jwtSecret,
+    accessTtl: optional('ACCESS_TOKEN_TTL', '15m'),
+    refreshTtlDays: int('REFRESH_TOKEN_TTL_DAYS', 30),
+  },
+
+  sms: {
+    provider: optional('SMS_PROVIDER', 'console'),
+    /** 开发模式把验证码回显在接口响应里，省掉真实短信通道。生产强制关闭。 */
+    devEcho: bool('SMS_DEV_ECHO', false) && !isProduction,
+    codeTtlSeconds: int('VERIFICATION_CODE_TTL_SECONDS', 300),
+    resendCooldownSeconds: int('SMS_RESEND_COOLDOWN_SECONDS', 60),
+    dailyLimitPerTarget: int('SMS_DAILY_LIMIT_PER_TARGET', 10),
+  },
+
+  ai: {
+    apiKey: optional('DEEPSEEK_API_KEY', ''),
+    baseUrl: optional('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
+    model: optional('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
+  },
+
+  quota: {
+    freeMonthly: int('FREE_MONTHLY_AI_QUOTA', 0),
+    proMonthly: int('PRO_MONTHLY_AI_QUOTA', 300),
+  },
+} as const;
+
+export type AppConfig = typeof config;

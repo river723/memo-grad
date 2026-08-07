@@ -16,10 +16,10 @@ import { REVIEW_INTERVALS } from '../constants';
  */
 export function getRecommendedWords(
   words: Word[],
-  coverage: Map<number, number>,
-  accuracy: Map<number, number>,
+  coverage: Map<string, number>,
+  accuracy: Map<string, number>,
   count: number,
-  lastStudyDate?: Map<number, string>,
+  lastStudyDate?: Map<string, string>,
   today: Date = new Date(),
 ): Word[] {
   if (words.length === 0) return [];
@@ -32,7 +32,7 @@ export function getRecommendedWords(
   const rest: Word[] = []; // 覆盖 ≥ 2 但 < 3
 
   for (const word of words) {
-    if (word.id == null) continue;
+    if (!word.id) continue;
     const cov = coverage.get(word.id) || 0;
     const acc = accuracy.get(word.id) ?? 1;
 

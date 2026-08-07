@@ -32,7 +32,7 @@ export default function ExamHistoryScreen() {
     setSessions(all);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     Alert.alert('删除记录', '确定要删除这套考题吗？', [
       { text: '取消', style: 'cancel' },
       {
@@ -119,7 +119,7 @@ export default function ExamHistoryScreen() {
                   iconColor={colors.tertiary}
                   size={18}
                   style={styles.deleteIcon}
-                  onPress={() => handleDelete(session.id!)}
+                  onPress={() => handleDelete(session.id)}
                 />
               </Card>
             </TouchableOpacity>

@@ -101,7 +101,7 @@ export default function StatsDetailScreen() {
   const handleReinforceReview = () => {
     const wordIds = stats.difficultWords
       .map(word => word.id)
-      .filter((id): id is number => typeof id === 'number');
+      .filter((id): id is string => typeof id === 'string');
     if (wordIds.length === 0) return;
     navigation.navigate('Main', {
       screen: 'Home' as any,

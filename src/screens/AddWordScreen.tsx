@@ -120,31 +120,13 @@ export default function AddWordScreen() {
       });
 
       if (missingWords.length > 0) {
-        const latestSettings = await StorageService.getSettings();
-        setAiSettings(latestSettings);
-        if (!latestSettings.apiKey || !latestSettings.aiModel) {
-          if (resultMap.size > 0) {
-            setAnalysisSources({ local: localResults, ai: new Map() });
-            setAnalysisResult(words.length === 1 ? resultMap.get(words[0])! : resultMap);
-            Alert.alert(
-              '部分单词已从本地词库找到',
-              `${resultMap.size} 个单词可直接保存，${missingWords.length} 个未在本地词库中找到；配置 AI API 后可继续分析未命中的单词，当前保存会跳过它们。`
-            );
-          } else {
-            setAnalysisSources(null);
-            setAnalysisResult(null);
-            Alert.alert('提示', '未在本地词库找到这些单词，请先在设置中配置 AI API，或为单个单词手动填写释义。');
-          }
-          return;
-        }
-
-        const aiService = AIService.fromSettings(latestSettings);
+        // AI 补齐本地词库没覆盖到的单词（网络版：不需要 apiKey 检查，后端统一管理）
         if (missingWords.length === 1) {
-          const result = await aiService.analyzeWord(missingWords[0]);
+          const result = await AIService.analyzeWord(missingWords[0]);
           aiResults.set(missingWords[0], result);
           resultMap.set(missingWords[0], result);
         } else {
-          const aiResultMap = await aiService.analyzeWords(missingWords);
+          const aiResultMap = await AIService.analyzeWords(missingWords);
           aiResultMap.forEach((result, word) => {
             aiResults.set(word, result);
             resultMap.set(word, result);
@@ -295,7 +277,7 @@ export default function AddWordScreen() {
           ? { pronunciation_uk: pronunciation, pronunciation_us: pronunciation }
           : {}),
       };
-      await StorageService.updateWord(existing.id!, updates);
+      await StorageService.updateWord(existing.id, updates);
 
       const wordText = existing.word;
       resetForm();
