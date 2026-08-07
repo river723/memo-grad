@@ -13,6 +13,7 @@ import authRoutes from './routes/auth';
 import adminRoutes from './routes/adminRoutes';
 import aiRoutes from './routes/aiRoutes';
 import paymentRoutes from './routes/paymentRoutes';
+import syncRoutes from './routes/syncRoutes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -94,6 +95,7 @@ export async function buildApp() {
   await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.register(aiRoutes, { prefix: '/api/ai' });
   await app.register(paymentRoutes, { prefix: '/api/pay' });
+  await app.register(syncRoutes, { prefix: '/api/sync' });
 
   return app;
 }
