@@ -15,14 +15,12 @@ import { ApiError } from '../errors';
 import { prisma } from '../db';
 
 export default async function adminRoutes(app: FastifyInstance) {
-  // 进入 /api/admin/* 之前必须完成 JWT 认证（authPlugin 负责把 userId 挂上）
-  // + role 校验
+  // Step 1: JWT 认证 → request.userId
+  // Step 2: role 校验 → 仅 admin 可通过
+  app.addHook('preHandler', app.authGuard);
   app.addHook('preHandler', async (request: FastifyRequest) => {
-    if (!request.userId) {
-      throw ApiError.unauthorized('NOT_AUTHENTICATED', '请先登录');
-    }
     const user = await prisma.user.findUnique({
-      where: { id: request.userId },
+      where: { id: request.userId! },
       select: { role: true, disabled: true },
     });
     if (!user || user.disabled || user.role !== 'admin') {

@@ -6,10 +6,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
-import { Card, Text, Button, Divider, List, Badge } from 'react-native-paper';
+import { Card, Text, Button, Divider, List } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
+import { api } from '../services/ApiClient';
+import { useAuth } from '../providers/AuthProvider';
 
 type AdminStats = {
   totalUsers: number;
@@ -28,6 +30,7 @@ type User = {
 
 export default function AdminScreen() {
   const { colors } = useAppTheme();
+  const { logout } = useAuth();
   const useStyles = makeStyles((colors) => ({
     container: {
       flex: 1,
@@ -118,15 +121,12 @@ export default function AdminScreen() {
     setError(null);
     try {
       const [statsRes, usersRes] = await Promise.all([
-        fetch('/api/admin/stats'),
-        fetch('/api/admin/users?limit=200'),
+        api.get<any>('/api/admin/stats'),
+        api.get<any>('/api/admin/users?limit=200'),
       ]);
 
-      if (!statsRes.ok) throw new Error(`Stats failed: ${statsRes.status}`);
-      if (!usersRes.ok) throw new Error(`Users failed: ${usersRes.status}`);
-
-      setStats(await statsRes.json());
-      setUsers(await usersRes.json());
+      setStats(statsRes);
+      setUsers(usersRes.users ?? usersRes);
     } catch (e: any) {
       setError(e?.message || '加载失败');
     } finally {
@@ -142,13 +142,10 @@ export default function AdminScreen() {
 
   const handleDisableUser = async (id: string, disabled: boolean) => {
     try {
-      const res = await fetch(`/api/admin/users/${id}/disable`, {
-        method: 'POST',
-      });
-      if (!res.ok) throw new Error('操作失败');
+      await api.patch(`/api/admin/users/${id}`, { disabled: !disabled });
       fetchData();
     } catch (e: any) {
-      console.error('Disable user failed:', e);
+      console.error('操作失败:', e?.message);
     }
   };
 
@@ -240,12 +237,7 @@ export default function AdminScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button mode="contained" icon="logout" onPress={() => {
-          // 清除 token，强制回登录页
-          localStorage.removeItem('kaoyan_access_token');
-          localStorage.removeItem('kaoyan_refresh_token');
-          window.location.reload();
-        }}>
+        <Button mode="contained" icon="logout" onPress={() => logout()}>
           退出登录
         </Button>
       </View>

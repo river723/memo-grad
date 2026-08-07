@@ -41,18 +41,26 @@ let getTokensFn: TokenGetter = () => tokenStore;
 let setCredentialsFn: CredentialsSetter = () => {};
 
 /**
- * 注册 token 读写能力。AuthProvider 初始化时调用，使得登录/刷新
- * 后的新 token 可以持久化到 AsyncStorage 并同步到内存。
+ * 注册 token 持久化能力。AuthProvider 初始化时调用。
+ * getter 始终返回内存中的 tokenStore，不另设闭包——setCredentials
+ * 已保证 tokenStore 与 AsyncStorage 同步，再设闭包会导致登录后的
+ * 新 token 无法被 getter 感知。
  */
 export function registerTokenStore(
-  getTokens: TokenGetter,
+  getTokens: TokenGetter | null,
   setTokens: CredentialsSetter
 ) {
-  getTokensFn = getTokens;
+  // getter 永远用默认的 tokenStore（setCredentials 会实时更新它），
+  // 不覆盖——否则 AuthProvider 的闭包快照会让登录后的请求带不上新 token。
+  if (getTokens) { /* 保留参数兼容性，实际不用 */ }
   setCredentialsFn = setTokens;
 }
 
-let setCredentials: CredentialsSetter = (at, rt) => { setCredentialsFn(at, rt); };
+export let setCredentials: CredentialsSetter = (at, rt) => {
+  tokenStore.accessToken = at;
+  tokenStore.refreshToken = rt;
+  setCredentialsFn(at, rt);
+};
 
 const BASE_URL = __DEV__ ? 'http://127.0.0.1:3000' : 'https://api.memograd.cn';
 

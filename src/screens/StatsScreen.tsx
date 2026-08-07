@@ -209,7 +209,7 @@ export default function StatsScreen() {
 
             <Divider style={styles.divider} />
 
-            {user && (user as any).role === 'admin' && (
+            {user && user.role === 'admin' && (
               <Button
                 mode="text"
                 icon="admin"

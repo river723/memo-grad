@@ -12,7 +12,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import StorageService from '../services/StorageService';
-import { registerTokenStore, api, ApiClientError } from '../services/ApiClient';
+import { registerTokenStore, api, ApiClientError, setCredentials } from '../services/ApiClient';
 
 /**
  * 权益信息（对应服务端 /me 返回的 entitlement 字段）。
@@ -101,17 +101,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         return;
       }
 
-      // 叫 registerTokenStore 时直接用同步的闭包变量（启动时已经读到内存了）
-    const initialTokens = { accessToken, refreshToken };
-    registerTokenStore(
-      () => initialTokens,
-        async (at: string | null, rt: string | null) => {
-          await persistTokens(at, rt);
-        }
-      );
-
-      // 先手动设置凭据
-      await persistTokens(accessToken, refreshToken);
+      // 注册 setter 并把 token 同步到内存（registerTokenStore 不再覆盖 getter）
+      registerTokenStore(null, async (at: string | null, rt: string | null) => {
+        await persistTokens(at, rt);
+      });
+      setCredentials(accessToken, refreshToken);
 
       // 调 /me 校验 token 有效性，同时拿到最新 user + entitlement
       const result = await api.get<{ user: AuthUser; entitlement: Entitlement }>('/me');
@@ -120,30 +114,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     } catch {
       // token 无效 / 网络不通：清除，下次启动重试
       await persistTokens(null, null);
+      setCredentials(null, null);
     } finally {
       setLoading(false);
     }
   }, [persistTokens]);
 
   useEffect(() => { restoreSession(); }, []);
-
-  /**
-   * 注册 token getter 给 ApiClient：每次发起请求，ApiClient 从
-   * AsyncStorage 实时取最新的 token 值（而非闭包里的旧快照）。
-   */
-  useEffect(() => { (async () => {
-    const [at, rt] = await Promise.all([
-      StorageService._rawGetItem(AUTH_KEYS.ACCESS_TOKEN),
-      StorageService._rawGetItem(AUTH_KEYS.REFRESH_TOKEN),
-    ]);
-    const tokens = { accessToken: at, refreshToken: rt };
-    registerTokenStore(
-      () => tokens,
-      async (at: string | null, rt: string | null) => {
-        await persistTokens(at, rt);
-      }
-    );
-  })(); }, [persistTokens]);
 
   const sendCode = useCallback(async (phone: string): Promise<string | null> => {
     const res = await api.post<{ sent: boolean; expiresAt: string; devCode?: string }>(
@@ -164,6 +141,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }>('/auth/login', { phone, code, deviceId: 'web', platform: 'web' }, { noAuth: true });
 
     await persistTokens(res.accessToken, res.refreshToken);
+    setCredentials(res.accessToken, res.refreshToken);
     setUser(res.user);
     setEntitlement(res.entitlement);
   }, [persistTokens]);
@@ -178,6 +156,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // 网络不通也要清除本地：用户要的就是退出
     }
     await persistTokens(null, null);
+    setCredentials(null, null);
     setUser(null);
     setEntitlement(null);
   }, [persistTokens]);

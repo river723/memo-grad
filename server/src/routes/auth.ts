@@ -161,7 +161,14 @@ export default async function authRoutes(app: FastifyInstance) {
     return {
       ...session,
       isNewUser,
-      user: { id: user.id, phone: user.phone, email: user.email, nickname: user.nickname },
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
+        nickname: user.nickname,
+        role: user.role,
+        createdAt: user.createdAt.toISOString(),
+      },
       entitlement,
     };
   });
@@ -186,7 +193,14 @@ export default async function authRoutes(app: FastifyInstance) {
     return {
       ...session,
       isNewUser: false,
-      user: { id: user.id, phone: user.phone, email: user.email, nickname: user.nickname },
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
+        nickname: user.nickname,
+        role: user.role,
+        createdAt: user.createdAt.toISOString(),
+      },
       entitlement,
     };
   });
@@ -211,7 +225,14 @@ export default async function authRoutes(app: FastifyInstance) {
     return {
       ...session,
       isNewUser: true,
-      user: { id: user.id, phone: user.phone, email: user.email, nickname: user.nickname },
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
+        nickname: user.nickname,
+        role: user.role,
+        createdAt: user.createdAt.toISOString(),
+      },
       entitlement,
     };
   });
