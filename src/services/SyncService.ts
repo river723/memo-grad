@@ -26,9 +26,12 @@ interface SyncResult {
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let isSyncing = false;
 
-/** 取某 Storage key 的全部实体（含软删除的，同步需要它们来传播删除事实） */
-async function getRawEntities(key: string): Promise<any[]> {
-  const data = await (StorageService as any)._rawGetItem(key);
+/**
+ * 取某 Storage key 的全部实体（含软删除的，同步需要它们来传播删除事实）。
+ * 通过 StorageService 获取带用户前缀的 key，确保不同用户数据隔离。
+ */
+async function getRawEntities(storageKey: string): Promise<any[]> {
+  const data = await (StorageService as any)._rawGetItem(storageKey);
   if (!data) return [];
   try {
     return JSON.parse(data);
@@ -37,28 +40,15 @@ async function getRawEntities(key: string): Promise<any[]> {
   }
 }
 
-const KEYS = {
-  WORDS: 'kaoyan_words',
-  STUDY_RECORDS: 'kaoyan_study_records',
-  STUDY_PLANS: 'kaoyan_study_plans',
-  ARTICLES: 'kaoyan_articles',
-  EXAM_SESSIONS: 'kaoyan_exam_sessions',
-  WRONG_QUESTIONS: 'kaoyan_wrong_questions',
-  REAL_EXAM_SESSIONS: 'kaoyan_real_exam_sessions',
-  REAL_EXAM_WRONG_QUESTIONS: 'kaoyan_real_exam_wrong_questions',
-  LAST_SYNC_AT: 'kaoyan_last_sync_at',
-};
+/** 获取所有需要同步的实体 key（带用户前缀） */
+function getSyncEntityKeys(): Record<string, string> {
+  return (StorageService as any).syncEntityKeys();
+}
 
-const ENTITY_KEYS: Record<string, string> = {
-  words: KEYS.WORDS,
-  studyRecords: KEYS.STUDY_RECORDS,
-  studyPlans: KEYS.STUDY_PLANS,
-  articles: KEYS.ARTICLES,
-  examSessions: KEYS.EXAM_SESSIONS,
-  wrongQuestions: KEYS.WRONG_QUESTIONS,
-  realExamSessions: KEYS.REAL_EXAM_SESSIONS,
-  realExamWrongQuestions: KEYS.REAL_EXAM_WRONG_QUESTIONS,
-};
+/** 获取 lastSyncAt 的存储 key（带用户前缀） */
+function getLastSyncKey(): string {
+  return (StorageService as any).lastSyncKey();
+}
 
 /**
  * 执行一次全量同步。
@@ -68,11 +58,14 @@ export async function syncAll(): Promise<SyncResult | null> {
   isSyncing = true;
 
   try {
+    const entityKeys = getSyncEntityKeys();
+    const lastSyncKey = getLastSyncKey();
+
     // 1. 收集所有 dirty 实体
     const entities: Record<string, any[]> = {};
     let hasDirty = false;
 
-    for (const [entityName, storageKey] of Object.entries(ENTITY_KEYS)) {
+    for (const [entityName, storageKey] of Object.entries(entityKeys)) {
       const all = await getRawEntities(storageKey);
       const dirty = all.filter((e: any) => e.dirty);
       if (dirty.length > 0) {
@@ -82,7 +75,7 @@ export async function syncAll(): Promise<SyncResult | null> {
     }
 
     // 2. 读 lastSyncAt 游标
-    const lastSyncAt = await (StorageService as any)._rawGetItem(KEYS.LAST_SYNC_AT);
+    const lastSyncAt = await (StorageService as any)._rawGetItem(lastSyncKey);
 
     // 即使没有 dirty 实体，也要拉取远端变更
     if (!hasDirty && !lastSyncAt) {
@@ -100,7 +93,7 @@ export async function syncAll(): Promise<SyncResult | null> {
 
     // 4. 合并远端实体到本地
     for (const [entityName, remoteList] of Object.entries(serverEntities)) {
-      const storageKey = ENTITY_KEYS[entityName];
+      const storageKey = entityKeys[entityName];
       if (!storageKey) continue;
 
       if (remoteList.length === 0) continue;
@@ -126,7 +119,7 @@ export async function syncAll(): Promise<SyncResult | null> {
     }
 
     // 5. 清除本地 dirty 标记（推过的记录已 clean）
-    for (const [entityName, storageKey] of Object.entries(ENTITY_KEYS)) {
+    for (const [entityName, storageKey] of Object.entries(entityKeys)) {
       const all = await getRawEntities(storageKey);
       let changed = false;
       const cleaned = all.map((e: any) => {
@@ -142,7 +135,7 @@ export async function syncAll(): Promise<SyncResult | null> {
     }
 
     // 6. 更新 lastSyncAt
-    await (StorageService as any)._rawSetItem(KEYS.LAST_SYNC_AT, result.serverTime);
+    await (StorageService as any)._rawSetItem(lastSyncKey, result.serverTime);
 
     console.log('[Sync] 完成', result.results);
     return result;

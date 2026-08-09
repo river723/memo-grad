@@ -68,7 +68,58 @@ class StorageService {
     return StorageService.instance;
   }
 
-  // 存储键名
+  // 当前登录用户的 ID。未登录时为 null，此时不加分隔符（与离线未登录场景兼容）。
+  private currentUserId: string | null = null;
+
+  /** 登录成功后调用，切换当前用户上下文。切换后所有 key 自动带上新用户前缀。 */
+  setCurrentUserId(userId: string | null): void {
+    this.currentUserId = userId;
+  }
+
+  /** 取当前用户的数据 key（自动带前缀）。 */
+  key(name: string): string {
+    const prefix = this.currentUserId ? `${this.currentUserId}:` : '';
+    return `${prefix}${name}`;
+  }
+
+  /** 获取所有同步实体的当前用户存储 key。供 SyncService 使用。 */
+  syncEntityKeys(): Record<string, string> {
+    return {
+      words: this.key(this.KEYS.WORDS),
+      studyRecords: this.key(this.KEYS.STUDY_RECORDS),
+      studyPlans: this.key(this.KEYS.STUDY_PLANS),
+      articles: this.key(this.KEYS.ARTICLES),
+      examSessions: this.key(this.KEYS.EXAM_SESSIONS),
+      wrongQuestions: this.key(this.KEYS.WRONG_QUESTIONS),
+      realExamSessions: this.key(this.KEYS.REAL_EXAM_SESSIONS),
+      realExamWrongQuestions: this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS),
+    };
+  }
+
+  /** 获取 lastSyncAt 的当前用户存储 key。 */
+  lastSyncKey(): string {
+    return this.key(this.KEYS.LAST_SYNC_AT);
+  }
+
+  /**
+   * 清除当前用户所有同步相关数据（不含 token/settings）。
+   * 用于登录切换或重置缓存场景，确保下个用户拿到干净的本地环境。
+   */
+  async clearCurrentUserSyncData(): Promise<void> {
+    await AsyncStorage.multiRemove([
+      this.key(this.KEYS.WORDS),
+      this.key(this.KEYS.STUDY_RECORDS),
+      this.key(this.KEYS.STUDY_PLANS),
+      this.key(this.KEYS.ARTICLES),
+      this.key(this.KEYS.EXAM_SESSIONS),
+      this.key(this.KEYS.WRONG_QUESTIONS),
+      this.key(this.KEYS.REAL_EXAM_SESSIONS),
+      this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS),
+      this.key(this.KEYS.LAST_SYNC_AT),
+    ]);
+  }
+
+  // 存储键名（原始名称，不带前缀；实际使用时通过 key() 动态拼接）
   private readonly KEYS = {
     WORDS: 'kaoyan_words',
     STUDY_RECORDS: 'kaoyan_study_records',
@@ -82,7 +133,8 @@ class StorageService {
     REAL_EXAM_WRONG_QUESTIONS: 'kaoyan_real_exam_wrong_questions',
     REAL_EXAM_DRAFTS: 'kaoyan_real_exam_drafts',
     SCHEMA_VERSION: 'kaoyan_schema_version',
-    MIGRATION_BACKUP: 'kaoyan_migration_backup_v1'
+    MIGRATION_BACKUP: 'kaoyan_migration_backup_v1',
+    LAST_SYNC_AT: 'kaoyan_last_sync_at',
   };
 
   /** 迁移只跑一次，用一个共享 Promise 让并发调用方都等同一次执行。 */
@@ -97,7 +149,7 @@ class StorageService {
    */
   async ensureMigrated(): Promise<MigrationResult> {
     if (!this.migrationPromise) {
-      this.migrationPromise = migrateToUuidSchema(AsyncStorage).catch((error) => {
+      this.migrationPromise = migrateToUuidSchema(AsyncStorage, (rawKey) => this.key(rawKey)).catch((error) => {
         // 迁移失败不能让整个 app 卡死；原始数据仍在（版本号未推进），下次启动会重试
         console.error('[StorageService] UUID 迁移失败:', error);
         return { migrated: false, reason: 'error' } as MigrationResult;
@@ -124,7 +176,7 @@ class StorageService {
     };
 
     words.push(newWord);
-    await AsyncStorage.setItem(this.KEYS.WORDS, JSON.stringify(words));
+    await AsyncStorage.setItem(this.key(this.KEYS.WORDS), JSON.stringify(words));
     return newId;
   }
 
@@ -135,7 +187,7 @@ class StorageService {
    */
   private async getAllWordsRaw(): Promise<Word[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.WORDS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.WORDS));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get words error:', error);
@@ -172,7 +224,7 @@ class StorageService {
         updated_at: nowIso(),
         dirty: true
       };
-      await AsyncStorage.setItem(this.KEYS.WORDS, JSON.stringify(words));
+      await AsyncStorage.setItem(this.key(this.KEYS.WORDS), JSON.stringify(words));
     }
   }
 
@@ -184,14 +236,14 @@ class StorageService {
     if (index !== -1) {
       const now = nowIso();
       words[index] = { ...words[index], deleted_at: now, updated_at: now, dirty: true };
-      await AsyncStorage.setItem(this.KEYS.WORDS, JSON.stringify(words));
+      await AsyncStorage.setItem(this.key(this.KEYS.WORDS), JSON.stringify(words));
     }
   }
 
   // 词库忽略词操作
   async getIgnoredWordbankWords(): Promise<string[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.IGNORED_WORDBANK_WORDS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.IGNORED_WORDBANK_WORDS));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get ignored wordbank words error:', error);
@@ -204,13 +256,13 @@ class StorageService {
     const next = new Set(current.map(word => word.toLowerCase()));
     words.forEach(word => next.add(word.toLowerCase()));
     await AsyncStorage.setItem(
-      this.KEYS.IGNORED_WORDBANK_WORDS,
+      this.key(this.KEYS.IGNORED_WORDBANK_WORDS),
       JSON.stringify(Array.from(next))
     );
   }
 
   async clearIgnoredWordbankWords(): Promise<void> {
-    await AsyncStorage.removeItem(this.KEYS.IGNORED_WORDBANK_WORDS);
+    await AsyncStorage.removeItem(this.key(this.KEYS.IGNORED_WORDBANK_WORDS));
   }
 
   // 学习记录操作
@@ -227,12 +279,12 @@ class StorageService {
     };
 
     records.push(newRecord);
-    await AsyncStorage.setItem(this.KEYS.STUDY_RECORDS, JSON.stringify(records));
+    await AsyncStorage.setItem(this.key(this.KEYS.STUDY_RECORDS), JSON.stringify(records));
   }
 
   private async getAllStudyRecordsRaw(): Promise<StudyRecord[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.STUDY_RECORDS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.STUDY_RECORDS));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get study records error:', error);
@@ -264,12 +316,12 @@ class StorageService {
     };
 
     plans.push(newPlan);
-    await AsyncStorage.setItem(this.KEYS.STUDY_PLANS, JSON.stringify(plans));
+    await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
   }
 
   private async getAllStudyPlansRaw(): Promise<StudyPlan[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.STUDY_PLANS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.STUDY_PLANS));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get study plans error:', error);
@@ -297,14 +349,14 @@ class StorageService {
 
     if (index !== -1) {
       plans[index] = { ...plans[index], completed: true, updated_at: nowIso(), dirty: true };
-      await AsyncStorage.setItem(this.KEYS.STUDY_PLANS, JSON.stringify(plans));
+      await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
     }
   }
 
   // 文章操作
   private async getAllArticlesRaw(): Promise<Article[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.ARTICLES);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.ARTICLES));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get articles error:', error);
@@ -339,7 +391,7 @@ class StorageService {
     };
 
     articles.push(newArticle);
-    await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(articles));
+    await AsyncStorage.setItem(this.key(this.KEYS.ARTICLES), JSON.stringify(articles));
     return newId;
   }
 
@@ -350,7 +402,7 @@ class StorageService {
 
     if (index !== -1) {
       articles[index] = { ...articles[index], ...updates, updated_at: nowIso(), dirty: true };
-      await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(articles));
+      await AsyncStorage.setItem(this.key(this.KEYS.ARTICLES), JSON.stringify(articles));
     }
   }
 
@@ -361,7 +413,7 @@ class StorageService {
     if (index !== -1) {
       const now = nowIso();
       articles[index] = { ...articles[index], deleted_at: now, updated_at: now, dirty: true };
-      await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(articles));
+      await AsyncStorage.setItem(this.key(this.KEYS.ARTICLES), JSON.stringify(articles));
     }
   }
 
@@ -378,13 +430,13 @@ class StorageService {
       dirty: true
     };
     sessions.push(newSession);
-    await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(sessions));
+    await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(sessions));
     return newId;
   }
 
   private async getAllExamSessionsRaw(): Promise<ExamSession[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.EXAM_SESSIONS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.EXAM_SESSIONS));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get exam sessions error:', error);
@@ -404,7 +456,7 @@ class StorageService {
     if (index !== -1) {
       const now = nowIso();
       sessions[index] = { ...sessions[index], deleted_at: now, updated_at: now, dirty: true };
-      await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(sessions));
+      await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(sessions));
     }
   }
 
@@ -414,14 +466,14 @@ class StorageService {
     const index = sessions.findIndex(s => s.id === id);
     if (index !== -1) {
       sessions[index] = { ...session, id, updated_at: nowIso(), deleted_at: null, dirty: true };
-      await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(sessions));
+      await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(sessions));
     }
   }
 
   // 错题本操作
   private async getAllWrongQuestionsRaw(): Promise<WrongQuestion[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.WRONG_QUESTIONS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.WRONG_QUESTIONS));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get wrong questions error:', error);
@@ -477,7 +529,7 @@ class StorageService {
       wrongQuestions.push(newQ);
     }
 
-    await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(wrongQuestions));
+    await AsyncStorage.setItem(this.key(this.KEYS.WRONG_QUESTIONS), JSON.stringify(wrongQuestions));
   }
 
   async updateWrongQuestion(id: string, updates: Partial<WrongQuestion>): Promise<void> {
@@ -486,7 +538,7 @@ class StorageService {
     const index = questions.findIndex(q => q.id === id);
     if (index !== -1) {
       questions[index] = { ...questions[index], ...updates, updated_at: nowIso(), dirty: true };
-      await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(questions));
+      await AsyncStorage.setItem(this.key(this.KEYS.WRONG_QUESTIONS), JSON.stringify(questions));
     }
   }
 
@@ -497,7 +549,7 @@ class StorageService {
     if (index !== -1) {
       const now = nowIso();
       questions[index] = { ...questions[index], deleted_at: now, updated_at: now, dirty: true };
-      await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(questions));
+      await AsyncStorage.setItem(this.key(this.KEYS.WRONG_QUESTIONS), JSON.stringify(questions));
     }
   }
 
@@ -506,12 +558,12 @@ class StorageService {
     await this.ensureMigrated();
     const sessions = await this.getAllRealExamSessionsRaw();
     sessions.push({ ...session, updated_at: nowIso(), deleted_at: null, dirty: true });
-    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_SESSIONS, JSON.stringify(sessions));
+    await AsyncStorage.setItem(this.key(this.KEYS.REAL_EXAM_SESSIONS), JSON.stringify(sessions));
   }
 
   private async getAllRealExamSessionsRaw(): Promise<RealExamSession[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_SESSIONS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.REAL_EXAM_SESSIONS));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get real exam sessions error:', error);
@@ -528,7 +580,7 @@ class StorageService {
   // 与单词错题本 (WrongQuestion) 独立存储：真题以 questionId 为主键，模型形状不同。
   private async getAllRealExamWrongQuestionsRaw(): Promise<RealExamWrongQuestion[]> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS));
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Get real exam wrong questions error:', error);
@@ -652,7 +704,7 @@ class StorageService {
       }
     }
 
-    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(list));
+    await AsyncStorage.setItem(this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS), JSON.stringify(list));
   }
 
   async removeRealExamWrongQuestion(questionId: string): Promise<void> {
@@ -662,7 +714,7 @@ class StorageService {
     if (idx !== -1) {
       const now = nowIso();
       list[idx] = { ...list[idx], deleted_at: now, updated_at: now, dirty: true };
-      await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(list));
+      await AsyncStorage.setItem(this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS), JSON.stringify(list));
     }
   }
 
@@ -675,7 +727,7 @@ class StorageService {
       list[idx].explanation = explanation;
       list[idx].updated_at = nowIso();
       list[idx].dirty = true;
-      await AsyncStorage.setItem(this.KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(list));
+      await AsyncStorage.setItem(this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS), JSON.stringify(list));
     }
   }
 
@@ -684,7 +736,7 @@ class StorageService {
   // 完形用 blank index、新题型用位号的字符串形式作内部 key；提交后清除。
   async getRealExamDraft(paperId: string): Promise<Record<string, RealExamOptionLetter>> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.REAL_EXAM_DRAFTS));
       const all: Record<string, Record<string, RealExamOptionLetter>> = data ? JSON.parse(data) : {};
       return all[paperId] ?? {};
     } catch (error) {
@@ -694,23 +746,23 @@ class StorageService {
   }
 
   async saveRealExamDraft(paperId: string, selections: Record<string, RealExamOptionLetter>): Promise<void> {
-    const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
+    const data = await AsyncStorage.getItem(this.key(this.KEYS.REAL_EXAM_DRAFTS));
     const all: Record<string, Record<string, RealExamOptionLetter>> = data ? JSON.parse(data) : {};
     all[paperId] = selections;
-    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_DRAFTS, JSON.stringify(all));
+    await AsyncStorage.setItem(this.key(this.KEYS.REAL_EXAM_DRAFTS), JSON.stringify(all));
   }
 
   async clearRealExamDraft(paperId: string): Promise<void> {
-    const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
+    const data = await AsyncStorage.getItem(this.key(this.KEYS.REAL_EXAM_DRAFTS));
     const all: Record<string, Record<string, RealExamOptionLetter>> = data ? JSON.parse(data) : {};
     delete all[paperId];
-    await AsyncStorage.setItem(this.KEYS.REAL_EXAM_DRAFTS, JSON.stringify(all));
+    await AsyncStorage.setItem(this.key(this.KEYS.REAL_EXAM_DRAFTS), JSON.stringify(all));
   }
 
   /** 导出备份用：返回全部草稿数据（raw Record<string, Record<string, RealExamOptionLetter>>）。 */
   async getAllRealExamDrafts(): Promise<Record<string, Record<string, RealExamOptionLetter>>> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.REAL_EXAM_DRAFTS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.REAL_EXAM_DRAFTS));
       return data ? JSON.parse(data) : {};
     } catch (error) {
       console.error('Get all real exam drafts error:', error);
@@ -749,7 +801,7 @@ class StorageService {
   // 设置操作
   async getSettings(): Promise<AppSettings> {
     try {
-      const data = await AsyncStorage.getItem(this.KEYS.SETTINGS);
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.SETTINGS));
       const parsed = data ? JSON.parse(data) : {};
       return this.normalizeSettings(parsed);
     } catch (error) {
@@ -761,7 +813,7 @@ class StorageService {
   async saveSettings(settings: Partial<AppSettings>): Promise<void> {
     const current = await this.getSettings();
     const next = this.normalizeSettings({ ...current, ...settings });
-    await AsyncStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(next));
+    await AsyncStorage.setItem(this.key(this.KEYS.SETTINGS), JSON.stringify(next));
   }
 
   // 数据导入导出
@@ -795,16 +847,16 @@ class StorageService {
       const data = JSON.parse(jsonData);
 
       if (data.words) {
-        await AsyncStorage.setItem(this.KEYS.WORDS, JSON.stringify(data.words));
+        await AsyncStorage.setItem(this.key(this.KEYS.WORDS), JSON.stringify(data.words));
       }
       if (data.studyRecords) {
-        await AsyncStorage.setItem(this.KEYS.STUDY_RECORDS, JSON.stringify(data.studyRecords));
+        await AsyncStorage.setItem(this.key(this.KEYS.STUDY_RECORDS), JSON.stringify(data.studyRecords));
       }
       if (data.studyPlans) {
-        await AsyncStorage.setItem(this.KEYS.STUDY_PLANS, JSON.stringify(data.studyPlans));
+        await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(data.studyPlans));
       }
       if (data.articles) {
-        await AsyncStorage.setItem(this.KEYS.ARTICLES, JSON.stringify(data.articles));
+        await AsyncStorage.setItem(this.key(this.KEYS.ARTICLES), JSON.stringify(data.articles));
       }
       if (data.settings) {
         const currentSettings = await this.getSettings();
@@ -814,32 +866,32 @@ class StorageService {
         });
       }
       if (data.examSessions) {
-        await AsyncStorage.setItem(this.KEYS.EXAM_SESSIONS, JSON.stringify(data.examSessions));
+        await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(data.examSessions));
       }
       if (data.wrongQuestions) {
-        await AsyncStorage.setItem(this.KEYS.WRONG_QUESTIONS, JSON.stringify(data.wrongQuestions));
+        await AsyncStorage.setItem(this.key(this.KEYS.WRONG_QUESTIONS), JSON.stringify(data.wrongQuestions));
       }
       if (data.ignoredWordbankWords) {
         await AsyncStorage.setItem(
-          this.KEYS.IGNORED_WORDBANK_WORDS,
+          this.key(this.KEYS.IGNORED_WORDBANK_WORDS),
           JSON.stringify(data.ignoredWordbankWords)
         );
       }
       if (data.realExamSessions) {
         await AsyncStorage.setItem(
-          this.KEYS.REAL_EXAM_SESSIONS,
+          this.key(this.KEYS.REAL_EXAM_SESSIONS),
           JSON.stringify(data.realExamSessions)
         );
       }
       if (data.realExamWrongQuestions) {
         await AsyncStorage.setItem(
-          this.KEYS.REAL_EXAM_WRONG_QUESTIONS,
+          this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS),
           JSON.stringify(data.realExamWrongQuestions)
         );
       }
       if (data.realExamDrafts) {
         await AsyncStorage.setItem(
-          this.KEYS.REAL_EXAM_DRAFTS,
+          this.key(this.KEYS.REAL_EXAM_DRAFTS),
           JSON.stringify(data.realExamDrafts)
         );
       }
@@ -849,7 +901,7 @@ class StorageService {
       // 与后续 UUID 数据混在一起导致外键失配。
       const importedVersion = Number(data.schemaVersion) || 1;
       if (importedVersion < CURRENT_SCHEMA_VERSION) {
-        await AsyncStorage.setItem(this.KEYS.SCHEMA_VERSION, String(importedVersion));
+        await AsyncStorage.setItem(this.key(this.KEYS.SCHEMA_VERSION), String(importedVersion));
         this.migrationPromise = null;   // 清掉缓存，强制重新迁移
         await this.ensureMigrated();
       }
@@ -862,18 +914,18 @@ class StorageService {
   // 清空所有数据
   async clearAllData(): Promise<void> {
     await AsyncStorage.multiRemove([
-      this.KEYS.WORDS,
-      this.KEYS.STUDY_RECORDS,
-      this.KEYS.STUDY_PLANS,
-      this.KEYS.ARTICLES,
-      this.KEYS.EXAM_SESSIONS,
-      this.KEYS.WRONG_QUESTIONS,
-      this.KEYS.IGNORED_WORDBANK_WORDS,
-      this.KEYS.REAL_EXAM_SESSIONS,
-      this.KEYS.REAL_EXAM_WRONG_QUESTIONS,
-      this.KEYS.REAL_EXAM_DRAFTS,
-      this.KEYS.SETTINGS,
-      this.KEYS.MIGRATION_BACKUP
+      this.key(this.KEYS.WORDS),
+      this.key(this.KEYS.STUDY_RECORDS),
+      this.key(this.KEYS.STUDY_PLANS),
+      this.key(this.KEYS.ARTICLES),
+      this.key(this.KEYS.EXAM_SESSIONS),
+      this.key(this.KEYS.WRONG_QUESTIONS),
+      this.key(this.KEYS.IGNORED_WORDBANK_WORDS),
+      this.key(this.KEYS.REAL_EXAM_SESSIONS),
+      this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS),
+      this.key(this.KEYS.REAL_EXAM_DRAFTS),
+      this.key(this.KEYS.SETTINGS),
+      this.key(this.KEYS.MIGRATION_BACKUP)
     ]);
     // 保留 SCHEMA_VERSION：数据虽清空，本地 schema 仍是最新版，无需再迁移
   }

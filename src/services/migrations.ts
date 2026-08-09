@@ -20,18 +20,8 @@ import { generateId, nowIso } from '../utils/idUtils';
 
 export const CURRENT_SCHEMA_VERSION = 2;
 
-const KEYS = {
-  WORDS: 'kaoyan_words',
-  STUDY_RECORDS: 'kaoyan_study_records',
-  STUDY_PLANS: 'kaoyan_study_plans',
-  ARTICLES: 'kaoyan_articles',
-  EXAM_SESSIONS: 'kaoyan_exam_sessions',
-  WRONG_QUESTIONS: 'kaoyan_wrong_questions',
-  REAL_EXAM_SESSIONS: 'kaoyan_real_exam_sessions',
-  REAL_EXAM_WRONG_QUESTIONS: 'kaoyan_real_exam_wrong_questions',
-  SCHEMA_VERSION: 'kaoyan_schema_version',
-  MIGRATION_BACKUP: 'kaoyan_migration_backup_v1',
-} as const;
+/** 数据迁移专用的 key 前缀（无用户前缀，供首次安装/离线场景使用）。 */
+const NO_PREFIX = '';
 
 interface MinimalStorage {
   getItem(key: string): Promise<string | null>;
@@ -44,42 +34,20 @@ export interface MigrationResult {
   counts?: Record<string, number>;
 }
 
-/** 安全解析 JSON 数组，任何异常都退化为空数组，避免迁移因单个坏键中断。 */
-async function readArray(storage: MinimalStorage, key: string): Promise<any[]> {
-  try {
-    const raw = await storage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    console.warn(`[migration] 解析 ${key} 失败，按空数组处理`);
-    return [];
-  }
-}
-
-/**
- * 把旧的数字 ID 规整为映射表的查找键。
- * 历史数据里同一个 ID 可能以 number 或 string 出现（JSON 往返、导入导出），
- * 统一转成 string 作 key，避免 1 与 "1" 被当成两个不同的词。
- */
-function keyOf(id: unknown): string | null {
-  if (id === null || id === undefined) return null;
-  if (typeof id === 'number') return Number.isFinite(id) ? String(id) : null;
-  if (typeof id === 'string') return id.length > 0 ? id : null;
-  return null;
-}
-
-/** 判断一批记录是否已经是 UUID 形态（迁移过或全新安装）。 */
-function looksMigrated(list: any[]): boolean {
-  return list.length > 0 && list.every((item) => typeof item?.id === 'string' && item.id.includes('-'));
-}
-
 /**
  * 执行迁移。幂等：已是最新 schema 版本时直接返回 `migrated: false`。
+ *
+ * @param storage  底层存储（AsyncStorage 实例）
+ * @param prefixFn 将原始 key 名称转成实际存储 key 的函数（可带用户 ID 前缀）
  */
-export async function migrateToUuidSchema(storage: MinimalStorage): Promise<MigrationResult> {
+export async function migrateToUuidSchema(
+  storage: MinimalStorage,
+  prefixFn: (rawKey: string) => string
+): Promise<MigrationResult> {
+  const k = (rawKey: string) => prefixFn(rawKey);
+
   // ---- 幂等哨兵 ----
-  const versionRaw = await storage.getItem(KEYS.SCHEMA_VERSION);
+  const versionRaw = await storage.getItem(k('kaoyan_schema_version'));
   const version = versionRaw ? Number(versionRaw) : 1;
   if (version >= CURRENT_SCHEMA_VERSION) {
     return { migrated: false, reason: 'already-current' };
@@ -87,14 +55,14 @@ export async function migrateToUuidSchema(storage: MinimalStorage): Promise<Migr
 
   const [words, records, plans, articles, examSessions, wrongQuestions, realExamSessions, realExamWrongs] =
     await Promise.all([
-      readArray(storage, KEYS.WORDS),
-      readArray(storage, KEYS.STUDY_RECORDS),
-      readArray(storage, KEYS.STUDY_PLANS),
-      readArray(storage, KEYS.ARTICLES),
-      readArray(storage, KEYS.EXAM_SESSIONS),
-      readArray(storage, KEYS.WRONG_QUESTIONS),
-      readArray(storage, KEYS.REAL_EXAM_SESSIONS),
-      readArray(storage, KEYS.REAL_EXAM_WRONG_QUESTIONS),
+      readArray(storage, k('kaoyan_words')),
+      readArray(storage, k('kaoyan_study_records')),
+      readArray(storage, k('kaoyan_study_plans')),
+      readArray(storage, k('kaoyan_articles')),
+      readArray(storage, k('kaoyan_exam_sessions')),
+      readArray(storage, k('kaoyan_wrong_questions')),
+      readArray(storage, k('kaoyan_real_exam_sessions')),
+      readArray(storage, k('kaoyan_real_exam_wrong_questions')),
     ]);
 
   // 全新安装：无任何数据，只需打版本号，不做备份（备份空数据没意义）
@@ -103,19 +71,19 @@ export async function migrateToUuidSchema(storage: MinimalStorage): Promise<Migr
     examSessions.length === 0 && wrongQuestions.length === 0 && realExamSessions.length === 0 &&
     realExamWrongs.length === 0;
   if (isEmpty) {
-    await storage.setItem(KEYS.SCHEMA_VERSION, String(CURRENT_SCHEMA_VERSION));
+    await storage.setItem(k('kaoyan_schema_version'), String(CURRENT_SCHEMA_VERSION));
     return { migrated: false, reason: 'empty-install' };
   }
 
   // 已是 UUID 形态但版本号没打上（比如中途崩溃后重进）：补版本号即可
   if (looksMigrated(words) && looksMigrated(records)) {
-    await storage.setItem(KEYS.SCHEMA_VERSION, String(CURRENT_SCHEMA_VERSION));
+    await storage.setItem(k('kaoyan_schema_version'), String(CURRENT_SCHEMA_VERSION));
     return { migrated: false, reason: 'already-uuid-shaped' };
   }
 
   // ---- 备份原始数据，迁移不可逆 ----
   await storage.setItem(
-    KEYS.MIGRATION_BACKUP,
+    k('kaoyan_migration_backup_v1'),
     JSON.stringify({
       backedUpAt: nowIso(),
       fromVersion: version,
@@ -254,18 +222,18 @@ export async function migrateToUuidSchema(storage: MinimalStorage): Promise<Migr
   // ---- 第三步：整体回写 ----
   // 逐键 setItem 没有事务保证；万一中途失败，备份键 + 版本号未推进能保证下次重跑。
   await Promise.all([
-    storage.setItem(KEYS.WORDS, JSON.stringify(migratedWords)),
-    storage.setItem(KEYS.STUDY_RECORDS, JSON.stringify(migratedRecords)),
-    storage.setItem(KEYS.STUDY_PLANS, JSON.stringify(migratedPlans)),
-    storage.setItem(KEYS.ARTICLES, JSON.stringify(migratedArticles)),
-    storage.setItem(KEYS.EXAM_SESSIONS, JSON.stringify(migratedExamSessions)),
-    storage.setItem(KEYS.WRONG_QUESTIONS, JSON.stringify(migratedWrongQuestions)),
-    storage.setItem(KEYS.REAL_EXAM_SESSIONS, JSON.stringify(migratedRealExamSessions)),
-    storage.setItem(KEYS.REAL_EXAM_WRONG_QUESTIONS, JSON.stringify(migratedRealExamWrongs)),
+    storage.setItem(k('kaoyan_words'), JSON.stringify(migratedWords)),
+    storage.setItem(k('kaoyan_study_records'), JSON.stringify(migratedRecords)),
+    storage.setItem(k('kaoyan_study_plans'), JSON.stringify(migratedPlans)),
+    storage.setItem(k('kaoyan_articles'), JSON.stringify(migratedArticles)),
+    storage.setItem(k('kaoyan_exam_sessions'), JSON.stringify(migratedExamSessions)),
+    storage.setItem(k('kaoyan_wrong_questions'), JSON.stringify(migratedWrongQuestions)),
+    storage.setItem(k('kaoyan_real_exam_sessions'), JSON.stringify(migratedRealExamSessions)),
+    storage.setItem(k('kaoyan_real_exam_wrong_questions'), JSON.stringify(migratedRealExamWrongs)),
   ]);
 
   // 版本号最后写：前面任何一步抛异常都不会留下"已迁移"的假象
-  await storage.setItem(KEYS.SCHEMA_VERSION, String(CURRENT_SCHEMA_VERSION));
+  await storage.setItem(k('kaoyan_schema_version'), String(CURRENT_SCHEMA_VERSION));
 
   const counts = {
     words: migratedWords.length,
@@ -282,4 +250,34 @@ export async function migrateToUuidSchema(storage: MinimalStorage): Promise<Migr
   console.log('[migration] UUID 迁移完成', counts);
 
   return { migrated: true, counts };
+}
+
+/** 安全解析 JSON 数组，任何异常都退化为空数组，避免迁移因单个坏键中断。 */
+async function readArray(storage: MinimalStorage, key: string): Promise<any[]> {
+  try {
+    const raw = await storage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    console.warn(`[migration] 解析 ${key} 失败，按空数组处理`);
+    return [];
+  }
+}
+
+/**
+ * 把旧的数字 ID 规整为映射表的查找键。
+ * 历史数据里同一个 ID 可能以 number 或 string 出现（JSON 往返、导入导出），
+ * 统一转成 string 作 key，避免 1 与 "1" 被当成两个不同的词。
+ */
+function keyOf(id: unknown): string | null {
+  if (id === null || id === undefined) return null;
+  if (typeof id === 'number') return Number.isFinite(id) ? String(id) : null;
+  if (typeof id === 'string') return id.length > 0 ? id : null;
+  return null;
+}
+
+/** 判断一批记录是否已经是 UUID 形态（迁移过或全新安装）。 */
+function looksMigrated(list: any[]): boolean {
+  return list.length > 0 && list.every((item) => typeof item?.id === 'string' && item.id.includes('-'));
 }

@@ -13,6 +13,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import StorageService from '../services/StorageService';
 import { registerTokenStore, api, ApiClientError, setCredentials } from '../services/ApiClient';
+import { startBackgroundSync, stopBackgroundSync } from '../services/SyncService';
 
 /**
  * 权益信息（对应服务端 /me 返回的 entitlement 字段）。
@@ -88,6 +89,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  /** 切换当前用户上下文：写入 userId 到 StorageService，同步清理本地缓存。 */
+  const switchUser = useCallback(async (user: AuthUser | null) => {
+    StorageService.setCurrentUserId(user?.id ?? null);
+  }, []);
+
   /** 恢复登录态：启动时从 AsyncStorage 拿 token，调 /me 校验有效性。 */
   const restoreSession = useCallback(async () => {
     try {
@@ -111,6 +117,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const result = await api.get<{ user: AuthUser; entitlement: Entitlement }>('/me');
       setUser(result.user);
       setEntitlement(result.entitlement);
+      // 恢复当前用户上下文，确保后续所有 Storage 操作使用正确的 key 前缀
+      await switchUser(result.user);
+      startBackgroundSync();
     } catch {
       // token 无效 / 网络不通：清除，下次启动重试
       await persistTokens(null, null);
@@ -118,7 +127,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, [persistTokens]);
+  }, [persistTokens, switchUser]);
 
   useEffect(() => { restoreSession(); }, []);
 
@@ -144,7 +153,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     setCredentials(res.accessToken, res.refreshToken);
     setUser(res.user);
     setEntitlement(res.entitlement);
-  }, [persistTokens]);
+    await switchUser(res.user);
+    // 启动后台同步（local dirty 数据会自动推送到服务端）
+    startBackgroundSync();
+  }, [persistTokens, switchUser]);
 
   const logout = useCallback(async () => {
     try {
@@ -159,7 +171,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     setCredentials(null, null);
     setUser(null);
     setEntitlement(null);
-  }, [persistTokens]);
+    await switchUser(null);
+    stopBackgroundSync();
+  }, [persistTokens, switchUser]);
 
   const refreshEntitlement = useCallback(async () => {
     if (!user) return;
