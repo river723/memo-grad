@@ -35,5 +35,12 @@ module.exports = async function (env, argv) {
     config.output.publicPath = './';
   }
 
+  // Tauri 插件仅在桌面端运行时可用，web 构建无需解析。
+  config.externals = {
+    ...config.externals,
+    '@tauri-apps/plugin-dialog': 'commonjs @tauri-apps/plugin-dialog',
+    '@tauri-apps/plugin-fs': 'commonjs @tauri-apps/plugin-fs',
+  };
+
   return config;
 };
