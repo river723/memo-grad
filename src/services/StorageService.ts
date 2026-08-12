@@ -85,14 +85,14 @@ class StorageService {
   /** 获取所有同步实体的当前用户存储 key。供 SyncService 使用。 */
   syncEntityKeys(): Record<string, string> {
     return {
-      words: this.key(this.KEYS.WORDS),
-      studyRecords: this.key(this.KEYS.STUDY_RECORDS),
-      studyPlans: this.key(this.KEYS.STUDY_PLANS),
-      articles: this.key(this.KEYS.ARTICLES),
-      examSessions: this.key(this.KEYS.EXAM_SESSIONS),
-      wrongQuestions: this.key(this.KEYS.WRONG_QUESTIONS),
-      realExamSessions: this.key(this.KEYS.REAL_EXAM_SESSIONS),
-      realExamWrongQuestions: this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS),
+      word: this.key(this.KEYS.WORDS),
+      studyRecord: this.key(this.KEYS.STUDY_RECORDS),
+      studyPlan: this.key(this.KEYS.STUDY_PLANS),
+      article: this.key(this.KEYS.ARTICLES),
+      examSession: this.key(this.KEYS.EXAM_SESSIONS),
+      wrongQuestion: this.key(this.KEYS.WRONG_QUESTIONS),
+      realExamSession: this.key(this.KEYS.REAL_EXAM_SESSIONS),
+      realExamWrongQuestion: this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS),
     };
   }
 
@@ -822,16 +822,16 @@ class StorageService {
     const data = {
       appName: 'memo-grad',
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      words: await this.getWords(),
-      studyRecords: await this.getStudyRecords(),
-      studyPlans: await this.getStudyPlans(),
-      articles: await this.getArticles(),
-      examSessions: await this.getExamSessions(),
-      wrongQuestions: await this.getWrongQuestions(),
-      ignoredWordbankWords: await this.getIgnoredWordbankWords(),
-      realExamSessions: await this.getRealExamSessions(),
-      realExamWrongQuestions: await this.getRealExamWrongQuestions(),
-      realExamDrafts: await this.getAllRealExamDrafts(),
+      word: await this.getWords(),
+      studyRecord: await this.getStudyRecords(),
+      studyPlan: await this.getStudyPlans(),
+      article: await this.getArticles(),
+      examSession: await this.getExamSessions(),
+      wrongQuestion: await this.getWrongQuestions(),
+      ignoredWordbankWord: await this.getIgnoredWordbankWords(),
+      realExamSession: await this.getRealExamSessions(),
+      realExamWrongQuestion: await this.getRealExamWrongQuestions(),
+      realExamDraft: await this.getAllRealExamDrafts(),
       settings: {
         ...settings,
         apiKey: '',
@@ -846,17 +846,17 @@ class StorageService {
     try {
       const data = JSON.parse(jsonData);
 
-      if (data.words) {
-        await AsyncStorage.setItem(this.key(this.KEYS.WORDS), JSON.stringify(data.words));
+      if (data.word) {
+        await AsyncStorage.setItem(this.key(this.KEYS.WORDS), JSON.stringify(data.word));
       }
-      if (data.studyRecords) {
-        await AsyncStorage.setItem(this.key(this.KEYS.STUDY_RECORDS), JSON.stringify(data.studyRecords));
+      if (data.studyRecord) {
+        await AsyncStorage.setItem(this.key(this.KEYS.STUDY_RECORDS), JSON.stringify(data.studyRecord));
       }
-      if (data.studyPlans) {
-        await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(data.studyPlans));
+      if (data.studyPlan) {
+        await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(data.studyPlan));
       }
-      if (data.articles) {
-        await AsyncStorage.setItem(this.key(this.KEYS.ARTICLES), JSON.stringify(data.articles));
+      if (data.article) {
+        await AsyncStorage.setItem(this.key(this.KEYS.ARTICLES), JSON.stringify(data.article));
       }
       if (data.settings) {
         const currentSettings = await this.getSettings();
@@ -865,34 +865,34 @@ class StorageService {
           apiKey: data.settings.apiKey || currentSettings.apiKey
         });
       }
-      if (data.examSessions) {
-        await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(data.examSessions));
+      if (data.examSession) {
+        await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(data.examSession));
       }
-      if (data.wrongQuestions) {
-        await AsyncStorage.setItem(this.key(this.KEYS.WRONG_QUESTIONS), JSON.stringify(data.wrongQuestions));
+      if (data.wrongQuestion) {
+        await AsyncStorage.setItem(this.key(this.KEYS.WRONG_QUESTIONS), JSON.stringify(data.wrongQuestion));
       }
-      if (data.ignoredWordbankWords) {
+      if (data.ignoredWordbankWord) {
         await AsyncStorage.setItem(
           this.key(this.KEYS.IGNORED_WORDBANK_WORDS),
-          JSON.stringify(data.ignoredWordbankWords)
+          JSON.stringify(data.ignoredWordbankWord)
         );
       }
-      if (data.realExamSessions) {
+      if (data.realExamSession) {
         await AsyncStorage.setItem(
           this.key(this.KEYS.REAL_EXAM_SESSIONS),
-          JSON.stringify(data.realExamSessions)
+          JSON.stringify(data.realExamSession)
         );
       }
-      if (data.realExamWrongQuestions) {
+      if (data.realExamWrongQuestion) {
         await AsyncStorage.setItem(
           this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS),
-          JSON.stringify(data.realExamWrongQuestions)
+          JSON.stringify(data.realExamWrongQuestion)
         );
       }
-      if (data.realExamDrafts) {
+      if (data.realExamDraft) {
         await AsyncStorage.setItem(
           this.key(this.KEYS.REAL_EXAM_DRAFTS),
-          JSON.stringify(data.realExamDrafts)
+          JSON.stringify(data.realExamDraft)
         );
       }
 

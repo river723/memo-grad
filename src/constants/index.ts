@@ -45,3 +45,12 @@ export const EXAM_CONFIG = {
 };
 
 export const WRONG_QUESTION_MASTERY_THRESHOLD = 3; // 错题做对 3 次后自动移出
+
+/**
+ * 网页版订阅入口 URL。移动端用户从 App 跳到浏览器完成订阅时使用。
+ * - 开发态用 localhost:8081（Expo web dev server 默认端口）
+ * - 生产态用 app.memograd.cn（前端 web 部署域名）
+ */
+export const WEB_APP_URL = __DEV__
+  ? 'http://localhost:8081'
+  : 'https://app.memograd.cn';

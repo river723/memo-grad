@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView, Alert, Linking, Platform } from 'react-native';
 import {
   Card,
@@ -11,27 +11,30 @@ import {
   Surface,
   Button
 } from 'react-native-paper';
+import { useFocusEffect } from '@react-navigation/native';
+import { format } from 'date-fns';
 import StorageService from '../services/StorageService';
 import FileService from '../services/FileService';
 import { UI_CONFIG } from '../constants';
 import { AppSettings } from '../types';
 import { useAppTheme } from '../theme/theme';
 import { useAppNavigation } from '../navigation/types';
+import { useAuth } from '../providers/AuthProvider';
 import { useThemeContext } from '../providers/ThemeProvider';
 import { makeStyles } from '../utils/useStyles';
 import { palette } from '../theme/tokens';
 
 const BACKUP_FIELDS = [
-  'words',
-  'studyRecords',
-  'studyPlans',
-  'articles',
-  'examSessions',
-  'wrongQuestions',
-  'ignoredWordbankWords',
-  'realExamSessions',
-  'realExamWrongQuestions',
-  'realExamDrafts',
+  'word',
+  'studyRecord',
+  'studyPlan',
+  'article',
+  'examSession',
+  'wrongQuestion',
+  'ignoredWordbankWord',
+  'realExamSession',
+  'realExamWrongQuestion',
+  'realExamDraft',
   'settings',
 ];
 
@@ -79,6 +82,8 @@ const getBackupValidationError = (jsonData: string): string | null => {
 export default function SettingsScreen() {
   const { colors } = useAppTheme();
   const { setThemeMode } = useThemeContext();
+  const { isPro, entitlement, refreshEntitlement } = useAuth();
+  const navigation = useAppNavigation();
   const styles = useStyles();
   const [settings, setSettings] = useState<AppSettings>({
     dailyNewWords: 10,
@@ -103,6 +108,11 @@ export default function SettingsScreen() {
   useEffect(() => {
     loadSettings();
   }, []);
+
+  // 从订阅页 / 网页支付返回时刷新 Pro 状态
+  useFocusEffect(
+    useCallback(() => { refreshEntitlement(); }, [refreshEntitlement])
+  );
 
   const loadSettings = async () => {
     try {
@@ -568,16 +578,66 @@ export default function SettingsScreen() {
         </Card.Content>
       </Card>
 
-      {/* 订阅方案 */}
+      {/* AI 功能订阅 */}
       <Card style={styles.card}>
         <Card.Title title="⭐ AI 功能订阅" titleStyle={styles.cardTitle} />
         <Card.Content>
+          {/* 状态行：免费 / Pro + 套餐名 + 到期日 */}
+          <View style={styles.subscriptionStatusRow}>
+            <View
+              style={[
+                styles.planBadge,
+                { backgroundColor: isPro ? colors.primaryContainer : colors.surfaceVariant },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.planBadgeText,
+                  { color: isPro ? colors.primary : colors.onSurfaceVariant },
+                ]}
+              >
+                {isPro
+                  ? `Pro · ${
+                      entitlement?.plan === 'monthly'
+                        ? '月度会员'
+                        : entitlement?.plan === 'quarterly'
+                        ? '季度会员'
+                        : entitlement?.plan === 'yearly'
+                        ? '年度会员'
+                        : '会员'
+                    }`
+                  : '免费版'}
+              </Text>
+            </View>
+            {isPro && entitlement?.expiresAt && (
+              <Text style={styles.subscriptionExpiry}>
+                到期 {format(new Date(entitlement.expiresAt), 'yyyy-MM-dd')}
+              </Text>
+            )}
+          </View>
+
+          {/* 配额行：仅 Pro 显示月度限额 */}
+          {isPro && entitlement && (
+            <Text style={styles.subscriptionQuota}>
+              本月已用 {entitlement.quota.used} / {entitlement.quota.monthlyLimit} 次
+              （剩余 {entitlement.quota.remaining}）
+            </Text>
+          )}
+
           <Text style={styles.apiInfo}>
-            AI 功能（单词分析、文章生成、AI 出题）需要订阅解锁，由云端统一提供 DeepSeek 算力。
+            {isPro
+              ? '感谢支持！订阅期内可无限制使用 AI 单词分析、文章生成、AI 出题、真题解析。'
+              : 'AI 功能（单词分析、文章生成、AI 出题、真题解析）需要订阅解锁。订阅后由云端统一提供 DeepSeek 算力。'}
           </Text>
-          <Text style={styles.apiTip}>
-            请前往「我的」→ 账号卡片中查看当前套餐，或在网页版开通订阅。
-          </Text>
+
+          <Button
+            mode={isPro ? 'outlined' : 'contained'}
+            icon={isPro ? 'card' : 'star'}
+            onPress={() => navigation.navigate('Subscription')}
+            style={styles.subscriptionCta}
+          >
+            {isPro ? '管理订阅' : '立即升级到 Pro'}
+          </Button>
         </Card.Content>
       </Card>
 
@@ -744,6 +804,33 @@ const useStyles = makeStyles(colors => ({
     fontSize: 14,
     color: colors.onSurfaceVariant,
     marginBottom: 12,
+  },
+  subscriptionStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  planBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  planBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  subscriptionExpiry: {
+    fontSize: 12,
+    color: colors.tertiary,
+  },
+  subscriptionQuota: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    marginBottom: 12,
+  },
+  subscriptionCta: {
+    marginTop: 12,
   },
   apiKeyContainer: {
     marginBottom: 12,

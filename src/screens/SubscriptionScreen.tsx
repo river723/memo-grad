@@ -1,18 +1,23 @@
 /**
- * 订阅页面：套餐选择 → 扫码支付（开发模式一键确认）→ 轮询订单状态。
+ * 订阅页面：根据 isPro 区分内容。
+ * - 免费用户：套餐卡片 → 下单 → dev confirm 轮询
+ * - Pro 用户：当前订阅状态卡（套餐/到期/配额） + 续费入口
  *
- * 移动端暂不放支付入口（iOS App Store 数字内容必须走 IAP，绕过会被拒审），
+ * 移动端不放支付入口（iOS App Store 数字内容必须走 IAP，绕过会被拒审），
  * 仅 Web 端可用。移动端显示「请在网页版开通」。
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, Alert, Platform } from 'react-native';
+import { View, ScrollView, Alert, Platform, Linking } from 'react-native';
 import { Card, Text, Button, Divider } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { format } from 'date-fns';
 import { useAppTheme } from '../theme/theme';
 import { useAuth } from '../providers/AuthProvider';
 import { makeStyles } from '../utils/useStyles';
 import { api } from '../services/ApiClient';
+import { WEB_APP_URL } from '../constants';
 
 type Plan = {
   id: string;
@@ -33,9 +38,21 @@ type Order = {
   status: string;
 };
 
+/** 后端 plan key → 中文标签。跟 server/src/routes/paymentRoutes.ts 的 PLAN_PRICES 对齐 */
+const PLAN_LABELS: Record<string, string> = {
+  monthly: '月度会员',
+  quarterly: '季度会员',
+  yearly: '年度会员',
+};
+
+function planLabel(key: string | null | undefined): string {
+  if (!key) return '会员';
+  return PLAN_LABELS[key] ?? '会员';
+}
+
 export default function SubscriptionScreen() {
   const { colors } = useAppTheme();
-  const { refreshEntitlement } = useAuth();
+  const { isPro, entitlement, refreshEntitlement } = useAuth();
   const useStyles = makeStyles(() => ({}));
   const styles = useStyles();
 
@@ -57,6 +74,11 @@ export default function SubscriptionScreen() {
   }, []);
 
   useEffect(() => { fetchPlans(); }, [fetchPlans]);
+
+  // 每次进入页面都重新拉一次 entitlement（处理从 /me 回来或 dev confirm 之后的状态滞后）
+  useFocusEffect(
+    useCallback(() => { refreshEntitlement(); }, [refreshEntitlement])
+  );
 
   // 下单
   const handleOrder = async (planId: string) => {
@@ -102,58 +124,171 @@ export default function SubscriptionScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background, padding: 16 }}>
       <Text style={{ fontSize: 24, fontWeight: '700', color: colors.onSurface, marginBottom: 8, marginTop: 24 }}>
-        解锁 AI 功能
+        {isPro ? '管理订阅' : '解锁 AI 功能'}
       </Text>
       <Text style={{ fontSize: 14, color: colors.onSurfaceVariant, marginBottom: 24 }}>
-        订阅后可无限制使用 AI 单词分析、文章生成、AI 出题、真题解析等全部 AI 功能。
+        {isPro
+          ? '查看当前订阅状态、配额使用情况，或续费 / 升级到更长期套餐。'
+          : '订阅后可无限制使用 AI 单词分析、文章生成、AI 出题、真题解析等全部 AI 功能。'}
       </Text>
 
-      {isMobile ? (
-        <Card style={{ marginBottom: 16 }}>
-          <Card.Content style={{ alignItems: 'center', padding: 24 }}>
-            <MaterialIcons name="laptop" size={48} color={colors.primary} />
-            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.onSurface, marginTop: 12 }}>
-              请在网页版开通订阅
-            </Text>
-            <Text style={{ fontSize: 13, color: colors.onSurfaceVariant, marginTop: 8, textAlign: 'center' }}>
-              App Store 政策限制，iOS 端暂不提供直接购买入口。请在电脑浏览器中打开 MemoGrad 网页版完成订阅，回到 App 即可使用。
-            </Text>
+      {/* 当前订阅状态卡 — 仅 Pro 用户展示 */}
+      {isPro && entitlement && (
+        <Card style={{ marginBottom: 24, backgroundColor: colors.primaryContainer }}>
+          <Card.Content>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <MaterialIcons name="verified-user" size={28} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.onPrimaryContainer }}>
+                  Pro 已开通
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.onPrimaryContainer, marginTop: 2 }}>
+                  {planLabel(entitlement.plan)}
+                  {entitlement.expiresAt && ` · 到期 ${format(new Date(entitlement.expiresAt), 'yyyy-MM-dd')}`}
+                </Text>
+              </View>
+            </View>
+            <Divider style={{ backgroundColor: colors.onPrimaryContainer, opacity: 0.2, marginBottom: 12 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: colors.onPrimaryContainer }}>
+                  {entitlement.quota.used}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.onPrimaryContainer, opacity: 0.8, marginTop: 2 }}>
+                  本月已用
+                </Text>
+              </View>
+              <View style={{ width: 1, backgroundColor: colors.onPrimaryContainer, opacity: 0.2 }} />
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: colors.onPrimaryContainer }}>
+                  {entitlement.quota.remaining}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.onPrimaryContainer, opacity: 0.8, marginTop: 2 }}>
+                  剩余次数
+                </Text>
+              </View>
+              <View style={{ width: 1, backgroundColor: colors.onPrimaryContainer, opacity: 0.2 }} />
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: colors.onPrimaryContainer }}>
+                  {entitlement.quota.monthlyLimit}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.onPrimaryContainer, opacity: 0.8, marginTop: 2 }}>
+                  月配额
+                </Text>
+              </View>
+            </View>
           </Card.Content>
         </Card>
+      )}
+
+      {/* 套餐区：移动端 vs 桌面端分支 */}
+      {isMobile ? (
+        isPro ? (
+          // 移动端 Pro 用户：当前订阅卡已在上方显示，套餐区给"去网页版续费"按钮
+          <Card style={{ marginBottom: 16 }}>
+            <Card.Content style={{ alignItems: 'center', padding: 20 }}>
+              <MaterialIcons name="shopping-cart" size={40} color={colors.primary} />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.onSurface, marginTop: 12 }}>
+                续费或升级套餐
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.onSurfaceVariant, marginTop: 8, textAlign: 'center' }}>
+                App Store 政策限制，请在网页版完成购买。当前订阅到期前任意时刻续费，到期时间会自动顺延。
+              </Text>
+              <Button
+                mode="contained"
+                icon="open-in-new"
+                onPress={() => Linking.openURL(WEB_APP_URL)}
+                style={{ marginTop: 16 }}
+              >
+                在浏览器中续费
+              </Button>
+            </Card.Content>
+          </Card>
+        ) : (
+          // 移动端免费用户：原占位卡
+          <Card style={{ marginBottom: 16 }}>
+            <Card.Content style={{ alignItems: 'center', padding: 24 }}>
+              <MaterialIcons name="laptop" size={48} color={colors.primary} />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.onSurface, marginTop: 12 }}>
+                请在网页版开通订阅
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.onSurfaceVariant, marginTop: 8, textAlign: 'center' }}>
+                App Store 政策限制，iOS 端暂不提供直接购买入口。请在浏览器中打开网页版完成订阅，回到 App 即可使用。
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.tertiary, marginTop: 12, textAlign: 'center' }}>
+                {WEB_APP_URL}
+              </Text>
+              <Button
+                mode="contained"
+                icon="open-in-new"
+                onPress={() => Linking.openURL(WEB_APP_URL)}
+                style={{ marginTop: 16 }}
+              >
+                在浏览器中打开
+              </Button>
+              <Button
+                mode="text"
+                onPress={async () => {
+                  try {
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      await navigator.clipboard.writeText(WEB_APP_URL);
+                      Alert.alert('已复制', '订阅链接已复制到剪贴板');
+                    } else {
+                      Alert.alert('订阅链接', WEB_APP_URL);
+                    }
+                  } catch {
+                    Alert.alert('订阅链接', WEB_APP_URL);
+                  }
+                }}
+                style={{ marginTop: 4 }}
+              >
+                复制链接
+              </Button>
+            </Card.Content>
+          </Card>
+        )
       ) : (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          {plans.map((plan) => (
-            <Card
-              key={plan.id}
-              style={{
-                flex: 1,
-                minWidth: 140,
-                backgroundColor: plan.id === 'monthly' ? colors.primaryContainer : colors.surface,
-                borderWidth: plan.id === 'monthly' ? 2 : 0,
-                borderColor: colors.primary,
-              }}
-            >
-              <Card.Content style={{ alignItems: 'center', padding: 20 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.onSurface }}>
-                  {plan.name}
-                </Text>
-                <Text style={{ fontSize: 28, fontWeight: '700', color: colors.primary, marginTop: 8 }}>
-                  ¥{plan.priceYuan}
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, marginTop: 4 }}>
-                  {plan.days}天
-                </Text>
-                <Button
-                  mode={plan.id === 'monthly' ? 'contained' : 'outlined'}
-                  onPress={() => handleOrder(plan.id)}
-                  disabled={!!order}
-                  style={{ marginTop: 12 }}
-                >
-                  {plan.id === 'monthly' ? '立即订阅' : '选择'}
-                </Button>
-              </Card.Content>
-            </Card>
-          ))}
+        <View>
+          {/* 桌面端 Pro 用户：套餐区上方加"续费"小标题 */}
+          {isPro && (
+            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.onSurface, marginBottom: 8 }}>
+              续费或升级
+            </Text>
+          )}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {plans.map((plan) => (
+              <Card
+                key={plan.id}
+                style={{
+                  flex: 1,
+                  minWidth: 140,
+                  backgroundColor: plan.id === 'monthly' ? colors.primaryContainer : colors.surface,
+                  borderWidth: plan.id === 'monthly' ? 2 : 0,
+                  borderColor: colors.primary,
+                }}
+              >
+                <Card.Content style={{ alignItems: 'center', padding: 20 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.onSurface }}>
+                    {plan.name}
+                  </Text>
+                  <Text style={{ fontSize: 28, fontWeight: '700', color: colors.primary, marginTop: 8 }}>
+                    ¥{plan.priceYuan}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, marginTop: 4 }}>
+                    {plan.days}天
+                  </Text>
+                  <Button
+                    mode={plan.id === 'monthly' ? 'contained' : 'outlined'}
+                    onPress={() => handleOrder(plan.id)}
+                    disabled={!!order}
+                    style={{ marginTop: 12 }}
+                  >
+                    {isPro ? '续费' : plan.id === 'monthly' ? '立即订阅' : '选择'}
+                  </Button>
+                </Card.Content>
+              </Card>
+            ))}
+          </View>
         </View>
       )}
 
@@ -203,7 +338,9 @@ export default function SubscriptionScreen() {
       <Divider style={{ marginVertical: 24 }} />
 
       <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, textAlign: 'center' }}>
-        订阅为买断一个月，到期自动失效，不会自动续费。可随时在网页版续费。
+        {isPro
+          ? '订阅为买断制，到期自动失效，不会自动续费。可随时续费或升级到更长期套餐。'
+          : '订阅为买断一个月，到期自动失效，不会自动续费。可随时在网页版续费。'}
       </Text>
     </ScrollView>
   );

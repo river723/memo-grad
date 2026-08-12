@@ -18,7 +18,8 @@ import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import AIService from '../services/AIService';
+import AIService, { SubscriptionRequiredError } from '../services/AIService';
+import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { Word, AIResponse, AppSettings } from '../types';
 import { getLocalWordDictResult, mergeAIResultIntoWord } from '../utils/wordUtils';
 import DifficultyDots from '../components/DifficultyDots';
@@ -141,6 +142,10 @@ export default function AddWordScreen() {
         setAnalysisResult(resultMap);
       }
     } catch (error: any) {
+      if (error instanceof SubscriptionRequiredError) {
+        subscriptionPrompt(navigation, 'AI 单词分析需要会员订阅，是否前往订阅页？');
+        return;
+      }
       console.error('分析失败:', error);
       console.error('错误详情:', error.message, error.response?.data);
 

@@ -6,9 +6,28 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { config } from '../config';
 import { ApiError } from '../errors';
+import { getEntitlement } from '../services/subscriptionService';
+import { prisma } from '../db';
 
-/** 调用 DeepSeek API */
-async function deepseek(messages: any[], maxTokens: number, temperature: number): Promise<string> {
+/**
+ * 配额守卫：调用前校验用户当月是否还有剩余次数。
+ * 免费用户（FREE_MONTHLY_AI_QUOTA=0）直接拒，Pro 用户超配额也拒。
+ * 返回实际消耗的次数（用于调用后写 ai_usage）。
+ */
+async function checkQuota(userId: string): Promise<number> {
+  const entitlement = await getEntitlement(userId);
+  if (!entitlement.isPro && entitlement.quota.remaining <= 0) {
+    throw ApiError.paymentRequired(
+      'QUOTA_EXCEEDED',
+      `本月 AI 调用次数已用完（剩余 ${entitlement.quota.remaining} 次），请订阅解锁更多次数。`,
+      { remaining: entitlement.quota.remaining },
+    );
+  }
+  return entitlement.quota.remaining > 0 ? 1 : 0;
+}
+
+/** 调用 OpenAI 兼容 AI 上游（默认 DeepSeek，可指向任何兼容服务：智谱/Kimi/Qwen/OpenAI/Ollama/自部署等）。 */
+async function chat(messages: any[], maxTokens: number, temperature: number): Promise<string> {
   const key = config.ai.apiKey;
   if (!key) throw ApiError.internal('AI_NOT_CONFIGURED', 'AI 服务未配置 API Key');
 
@@ -35,10 +54,9 @@ function extractJson(text: string): any {
 }
 
 export default async function aiRoutes(app: FastifyInstance) {
-  // 所有端点需登录
-  app.addHook('preHandler', async (request: FastifyRequest) => {
-    if (!request.userId) throw ApiError.unauthorized('NOT_AUTHENTICATED', '请先登录');
-  });
+  // 所有端点需登录：复用全局 authGuard，它会显式调 request.jwtVerify()
+  // 并校验 token type / 账号状态，单纯读 request.userId 是不会自动验签的。
+  app.addHook('preHandler', app.authGuard);
 
   // 通用 AI 代理端点
   app.post('/:action', async (request: FastifyRequest) => {
@@ -53,6 +71,11 @@ export default async function aiRoutes(app: FastifyInstance) {
       throw ApiError.badRequest('INVALID_ACTION', `不支持的动作: ${action}`);
     }
 
+    const userId = request.userId!;
+
+    // 配额守卫：免费用户配额耗尽或未订阅时拒绝
+    const canUse = await checkQuota(userId);
+
     let result: any;
 
     switch (action) {
@@ -65,7 +88,7 @@ export default async function aiRoutes(app: FastifyInstance) {
   "similar_words": [{"word":"词","relation":"spelling/meaning/root","description":"区别"}],
   "suggestedDifficulty":3, "examFrequency":3, "memoryTip":"记忆口诀"
 }`;
-        const content = await deepseek([
+        const content = await chat([
           { role: 'system', content: '你是一个专业的考研英语老师。请严格用 JSON 格式回答。' },
           { role: 'user', content: prompt },
         ], 1000, 0.3);
@@ -78,7 +101,7 @@ export default async function aiRoutes(app: FastifyInstance) {
           throw ApiError.badRequest('INVALID_PARAMS', 'words 必须是非空数组');
         }
         const prompt = `请批量分析以下单词的考研用法：${body.words.join(', ')}。\n返回JSON：{"results":{"单词":{"definitions":[...],"etymology":"","suggestedDifficulty":3,"examFrequency":3,"memoryTip":""}}}`;
-        const content = await deepseek([
+        const content = await chat([
           { role: 'system', content: '你是考研英语老师，请用严格 JSON 格式批量分析单词' },
           { role: 'user', content: prompt },
         ], 8000, 0.3);
@@ -90,7 +113,7 @@ export default async function aiRoutes(app: FastifyInstance) {
       case 'generateFunArticle': {
         if (!Array.isArray(body.words)) throw ApiError.badRequest('INVALID_PARAMS', '缺少 words');
         const prompt = `用以下单词写一篇英文短文并翻译：${body.words.join(', ')}。\n主题：${body.theme || '随机'}。\n长度约${body.targetLength || 200}词。\n请返回JSON：{"title":"标题","content":"英文正文","translation":"中文翻译"}`;
-        const content = await deepseek([
+        const content = await chat([
           { role: 'system', content: '你是英语创意写手，请严格用 JSON 格式回答' },
           { role: 'user', content: prompt },
         ], 4000, 0.7);
@@ -103,7 +126,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         if (!Array.isArray(body.words)) throw ApiError.badRequest('INVALID_PARAMS', '缺少 words');
         const wlist = body.words.map((w: any) => `- ${w.word}: ${w.meaning}`).join('\n');
         const prompt = `为以下单词各生成一个完形填空：\n${wlist}\n\n返回JSON：{"questions":[{"target_word":"","sentence":"含[BLANK]的句子","options":["A","B","C","D"],"correct_answer":"正确选项","chinese_hint":"中文提示"}]}`;
-        const content = await deepseek([
+        const content = await chat([
           { role: 'system', content: '你是考研英语出题老师，请严格用 JSON 格式回答' },
           { role: 'user', content: prompt },
         ], 4000, 0.5);
@@ -116,7 +139,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         if (!Array.isArray(body.words)) throw ApiError.badRequest('INVALID_PARAMS', '缺少 words');
         const wlist = body.words.map((w: any) => `- ${w.word}: ${w.meaning}`).join('\n');
         const prompt = `为以下单词各生成一个释义单选题：\n${wlist}\n\n返回JSON：{"questions":[{"target_word":"","sentence":"含*word*的句子","options":["释义A","释义B","释义C","释义D"],"correct_definition":"正确释义"}]}`;
-        const content = await deepseek([
+        const content = await chat([
           { role: 'system', content: '你是考研英语出题老师，请严格用 JSON 格式回答' },
           { role: 'user', content: prompt },
         ], 4000, 0.5);
@@ -129,7 +152,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         if (!Array.isArray(body.words)) throw ApiError.badRequest('INVALID_PARAMS', '缺少 words');
         const type = body.type || 'passage';
         const prompt = `用以下单词生成考研英语${type === 'passage' ? '阅读短文' : type === 'quiz' ? '选择题' : '作文句型'}：${body.words.join(', ')}`;
-        result = await deepseek([
+        result = await chat([
           { role: 'system', content: '你是考研英语老师' },
           { role: 'user', content: prompt },
         ], 1500, 0.5);
@@ -142,7 +165,7 @@ export default async function aiRoutes(app: FastifyInstance) {
           body.mode === 'newtype' ? `新题型第${body.blankIndex || '?'}题` :
           `完形填空第${body.blankIndex || '?'}空`;
         const prompt = `请为以下考研英语真题编写简短中文解析：\n${subject}\n选项：${body.options.join('\n')}\n正确答案：${body.correctAnswer}\n${body.userAnswer && body.userAnswer !== body.correctAnswer ? `考生误选：${body.userAnswer}` : ''}`;
-        result = await deepseek([
+        result = await chat([
           { role: 'system', content: '你是考研英语辅导老师，用中文撰写真题解析' },
           { role: 'user', content: prompt },
         ], 600, 0.4);
@@ -151,7 +174,7 @@ export default async function aiRoutes(app: FastifyInstance) {
 
       case 'extractWordsFromText': {
         if (!body.text) throw ApiError.badRequest('INVALID_PARAMS', '缺少 text');
-        result = await deepseek([
+        result = await chat([
           { role: 'system', content: '你是考研英语老师，从文本中提取生词。每行一个词，不要其他内容。' },
           { role: 'user', content: `请从以下文本提取考研重点词汇：\n${body.text}` },
         ], 500, 0.3);
@@ -161,6 +184,13 @@ export default async function aiRoutes(app: FastifyInstance) {
 
       default:
         throw ApiError.badRequest('INVALID_ACTION', `未知动作: ${action}`);
+    }
+
+    // 记录 AI 调用量（仅成功调用才扣减配额）
+    if (canUse > 0) {
+      await prisma.aiUsage.create({
+        data: { userId, action, model: config.ai.model, promptTokens: 0, outputTokens: 0, latencyMs: 0, success: true },
+      });
     }
 
     return { success: true, data: result };

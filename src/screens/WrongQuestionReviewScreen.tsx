@@ -12,7 +12,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
-import AIService from '../services/AIService';
+import AIService, { SubscriptionRequiredError } from '../services/AIService';
+import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import ReviewOption from '../components/ReviewOption';
 import { WrongQuestion, ExamQuestion, ExamQuestionType, RealExamWrongQuestion, RealExamOptionLetter } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
@@ -104,6 +105,10 @@ export default function WrongQuestionReviewScreen() {
       await StorageService.updateRealExamWrongExplanation(wq.questionId, explanation);
       setExplOverride(prev => ({ ...prev, [wq.questionId]: explanation }));
     } catch (error: any) {
+      if (error instanceof SubscriptionRequiredError) {
+        subscriptionPrompt(navigation, 'AI 解析功能需要会员订阅，是否前往订阅页？');
+        return;
+      }
       Alert.alert('生成失败', error.message || '解析生成失败');
     } finally {
       setExplLoading(prev => ({ ...prev, [wq.questionId]: false }));

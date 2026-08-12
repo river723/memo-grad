@@ -21,7 +21,7 @@ export default function StatsScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
   const styles = useStyles();
-  const { user, isPro, entitlement, logout } = useAuth();
+  const { user, isPro, entitlement, logout, refreshEntitlement } = useAuth();
 
   const [stats, setStats] = useState({
     totalWords: 0,
@@ -80,7 +80,12 @@ export default function StatsScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      refreshEntitlement();
+    }, [load, refreshEntitlement])
+  );
 
   const masteryPercent = stats.totalWords > 0
     ? (stats.masteredWords / stats.totalWords) * 100
@@ -209,6 +214,16 @@ export default function StatsScreen() {
 
             <Divider style={styles.divider} />
 
+            <Button
+              mode={isPro ? 'outlined' : 'contained'}
+              icon={isPro ? 'card' : 'star'}
+              onPress={() => navigation.navigate('Subscription')}
+              style={styles.upgradeCta}
+              contentStyle={styles.upgradeCtaContent}
+            >
+              {isPro ? '管理订阅' : '立即升级到 Pro'}
+            </Button>
+
             {user && user.role === 'admin' && (
               <Button
                 mode="text"
@@ -252,13 +267,6 @@ export default function StatsScreen() {
             <SettingRow icon="brightness-6" label="主题" value={themeLabel} colors={colors} />
             <SettingRow icon="school" label="每日新词" value={`${settings.dailyNewWords} 个`} colors={colors} />
             <SettingRow icon="format-list-numbered" label="考题题数" value={`${settings.examQuestionCount} 题`} colors={colors} />
-            <SettingRow
-              icon={settings.apiKey ? 'lock-open' : 'lock'}
-              label="API Key"
-              value={settings.apiKey ? '已配置' : '未配置'}
-              valueColor={settings.apiKey ? colors.success : colors.tertiary}
-              colors={colors}
-            />
           </View>
 
           <Button
@@ -502,5 +510,11 @@ const useStyles = makeStyles(colors => ({
   },
   adminLink: {
     marginTop: 8,
+  },
+  upgradeCta: {
+    marginTop: 4,
+  },
+  upgradeCtaContent: {
+    paddingVertical: 4,
   },
 }));

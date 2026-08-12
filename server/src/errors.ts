@@ -44,6 +44,16 @@ export class ApiError extends Error {
   static paymentRequired(code: string, message: string, details?: Record<string, unknown>) {
     return new ApiError(402, code, message, details);
   }
+
+  /**
+   * 500 错误。用来标记"服务端自己的配置/上游故障"——区别于未预期异常，
+   * 后者会被 setErrorHandler 兜底成 INTERNAL_ERROR 而不暴露细节。
+   * 这里的状态码与 code 都由调用方显式给出，便于客户端按业务分支处理
+   * （例如 AI_NOT_CONFIGURED 提示"功能暂未开放"而非"服务器内部错误"）。
+   */
+  static internal(code: string, message: string, details?: Record<string, unknown>) {
+    return new ApiError(500, code, message, details);
+  }
 }
 
 export interface ErrorBody {

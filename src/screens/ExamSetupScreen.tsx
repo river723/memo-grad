@@ -16,7 +16,8 @@ import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import AIService from '../services/AIService';
+import AIService, { SubscriptionRequiredError } from '../services/AIService';
+import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { Word, ExamQuestion, ExamQuestionType, DefinitionQuestion, ClozeQuestion } from '../types';
 import { getRecommendedWords } from '../utils/examHelpers';
 import { EXAM_CONFIG } from '../constants';
@@ -183,6 +184,10 @@ export default function ExamSetupScreen() {
         questionType,
       });
     } catch (error: any) {
+      if (error instanceof SubscriptionRequiredError) {
+        subscriptionPrompt(navigation, 'AI 出题功能需要会员订阅，是否前往订阅页？');
+        return;
+      }
       Alert.alert('出题失败', error.message || '题目生成失败，请重试');
     } finally {
       setIsGenerating(false);

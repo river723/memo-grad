@@ -18,7 +18,8 @@ import StorageService from '../services/StorageService';
 import { Word, StudyRecord, AppSettings, Article } from '../types';
 import { REVIEW_INTERVALS } from '../constants';
 import { format, addDays } from 'date-fns';
-import AIService from '../services/AIService';
+import AIService, { SubscriptionRequiredError } from '../services/AIService';
+import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
@@ -316,7 +317,11 @@ export default function StudyScreen() {
       setWords(prev =>
         prev.map(x => (x.id === w.id ? { ...x, ...merged } : x))
       );
-    } catch (err) {
+    } catch (err: any) {
+      if (err instanceof SubscriptionRequiredError) {
+        subscriptionPrompt(navigation, 'AI 单词增强需要会员订阅，是否前往订阅页？');
+        return;
+      }
       console.warn('AI 增强失败:', err);
     } finally {
       setEnhancingWordId(null);
@@ -614,6 +619,10 @@ export default function StudyScreen() {
         setArticleError('短文已生成，但自动保存失败，请稍后重试。');
       }
     } catch (error: any) {
+      if (error instanceof SubscriptionRequiredError) {
+        subscriptionPrompt(navigation, 'AI 文章生成需要会员订阅，是否前往订阅页？');
+        return;
+      }
       const msg = error.message || '短文生成失败，请重试';
       setArticleError(msg);
       Alert.alert('生成失败', msg);

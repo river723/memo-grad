@@ -3,8 +3,8 @@
  *
  * 协议：
  *   POST /api/sync
- *   Body: { lastSyncAt: string | null, entities: { words: [...], studyRecords: [...], ... } }
- *   Response: { serverTime: string, entities: { words: [...], studyRecords: [...], ... } }
+ *   Body: { lastSyncAt: string | null, entities: { word: [...], studyRecord: [...], ... } }
+ *   Response: { serverTime: string, entities: { word: [...], studyRecord: [...], ... } }
  *
  * 冲突策略：last-write-wins（比较每条记录的 updated_at）。学习类数据无协同编辑，LWW 足够。
  * 软删除：deleted_at 非空的记录会传播到服务端，服务端在拉取时也会返回软删除的记录
@@ -15,16 +15,18 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { prisma } from '../db';
 import { ApiError } from '../errors';
 
-// 同步实体类型名（与前端 AsyncStorage key 对应）
+// 同步实体类型名（与 Prisma client delegate 名一致：prisma.word / prisma.studyRecord / ...
+// 必须是单数，因为 syncEntity 通过 (prisma as any)[tableName] 反射拿模型 delegate。
+// 复数名（如 'words'）会让 prisma 反射到 undefined，运行时抛 TypeError。）
 const ENTITIES = [
-  'words',
-  'studyRecords',
-  'studyPlans',
-  'articles',
-  'examSessions',
-  'wrongQuestions',
-  'realExamSessions',
-  'realExamWrongQuestions',
+  'word',
+  'studyRecord',
+  'studyPlan',
+  'article',
+  'examSession',
+  'wrongQuestion',
+  'realExamSession',
+  'realExamWrongQuestion',
 ] as const;
 
 type EntityName = typeof ENTITIES[number];
@@ -62,12 +64,21 @@ async function syncEntity(
   clientEntities: SyncEntity[],
   lastSyncAt: Date | null
 ): Promise<{ saved: number; pulled: number; entities: Record<string, any>[] }> {
-  const model = (prisma as any)[tableName] as {
-    findUnique: Function;
-    upsert: Function;
-    create: Function;
-    findMany: Function;
-    updateMany: Function;
+  const model = (prisma as any)[tableName];
+
+  // 前端 SyncEntity 用 snake_case wire format（与 AsyncStorage 字面量对齐），
+  // prisma client 用 camelCase 字段名。直接 `...ent` 会让 prisma 在严格模式下
+  // 抛 "Unknown argument"，所以这里做一次 snake→camel 转换 + 字段白名单过滤。
+  // pickForPrisma 用 model.fields 反射出 prisma 实际声明的字段名集合，
+  // 避免每个 entity 硬编码一份白名单（8 张表会漏）。
+  const prismaFieldNames = Object.keys(model.fields as Record<string, unknown>);
+  const pickForPrisma = (raw: Record<string, unknown>): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      const camel = k.includes('_') ? k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()) : k;
+      if (prismaFieldNames.includes(camel)) out[camel] = v;
+    }
+    return out;
   };
 
   // 1. 处理客户端推送的每条实体
@@ -76,6 +87,17 @@ async function syncEntity(
     const serverEnt = await model.findUnique({
       where: { id: ent.id, userId },
     });
+
+    // 兜底 prisma 必填 Json 字段。前端 SyncEntity 不带这些字段
+    // （definitions 是 AI 分析后才有，初次同步的新词条一定是空），不补全会 500。
+    const dataRaw: Record<string, unknown> = { ...ent, userId };
+    if (tableName === 'word' && dataRaw.definitions == null) {
+      dataRaw.definitions = [];
+    }
+    // 时间字段显式转换：snake_case ISO 字符串 → camelCase Date
+    if (ent.updated_at) dataRaw.updatedAt = new Date(ent.updated_at);
+    if (ent.deleted_at) dataRaw.deletedAt = new Date(ent.deleted_at);
+    const data = pickForPrisma(dataRaw);
 
     if (serverEnt) {
       // 服务端有记录：LWW
@@ -87,25 +109,17 @@ async function syncEntity(
             data: { deletedAt: new Date(ent.deleted_at), updatedAt: new Date(ent.updated_at) },
           });
         } else {
-          // 按字段写入（安全：只传客户端有的字段，避免覆盖服务端独有的字段）
           await model.upsert({
             where: { id: ent.id },
-            create: { ...ent, userId, updatedAt: new Date(ent.updated_at) },
-            update: { ...ent, updatedAt: new Date(ent.updated_at) },
+            create: data,
+            update: data,
           });
         }
         saved++;
       }
     } else {
       // 服务端无记录：直接创建
-      await model.create({
-        data: {
-          ...ent,
-          userId,
-          updatedAt: new Date(ent.updated_at),
-          deletedAt: ent.deleted_at ? new Date(ent.deleted_at) : null,
-        },
-      });
+      await model.create({ data });
       saved++;
     }
   }
@@ -130,11 +144,9 @@ async function syncEntity(
 }
 
 export default async function syncRoutes(app: FastifyInstance) {
-  app.addHook('preHandler', async (request: FastifyRequest) => {
-    if (!request.userId) {
-      throw ApiError.unauthorized('NOT_AUTHENTICATED', '请先登录');
-    }
-  });
+  // 所有端点需登录：复用全局 authGuard，它会显式调 request.jwtVerify()
+  // 并校验 token type / 账号状态，单纯读 request.userId 是不会自动验签的。
+  app.addHook('preHandler', app.authGuard);
 
   app.post('/', async (request: FastifyRequest) => {
     const userId = request.userId!;

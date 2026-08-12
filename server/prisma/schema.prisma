@@ -32,6 +32,14 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
   /// 封禁标记，风控用
   disabled  Boolean  @default(false)
+  /// 封禁时间。null 表示未被封禁。
+  disabledAt DateTime? @map("disabled_at")
+  /// 封禁原因（管理员填的备注），仅供审计与运营参考。
+  disabledReason String? @map("disabled_reason")
+  /// 封禁操作者 userId。null 表示系统封禁（目前没有该路径，保留字段以便未来扩展）。
+  disabledById String? @map("disabled_by_id")
+  /// 封禁操作者（关联回 User 自己）。不建数据库外键约束，只保留 Prisma 关联便于 JOIN。
+  bannedBy     User?   @relation("UserBans", fields: [disabledById], references: [id], onDelete: SetNull)
 
   devices                 Device[]
   refreshTokens           RefreshToken[]
@@ -46,6 +54,14 @@ model User {
   wrongQuestions          WrongQuestion[]
   realExamSessions        RealExamSession[]
   realExamWrongQuestions  RealExamWrongQuestion[]
+  /// 该用户作为封禁操作者产生的封禁记录
+  bannedUsers             User[]            @relation("UserBans")
+  /// 该用户作为管理员产生的审计日志
+  adminActionLogs         AdminActionLog[]  @relation("AdminActionLogActor")
+  /// 该用户发布的公告
+  announcementsCreated    Announcement[]    @relation("AnnouncementCreator")
+  /// 该用户作为被操作对象在审计日志里的记录（targetType='user' 时填写）
+  auditedAsTarget         AdminActionLog[]  @relation("AdminActionLogTargetUser")
 
   @@map("users")
 }
@@ -342,4 +358,71 @@ model RealExamWrongQuestion {
   @@id([userId, questionId])
   @@index([userId, updatedAt])
   @@map("real_exam_wrong_questions")
+}
+
+// ==================== 后台管理 ====================
+
+/// 管理员操作审计日志。每一笔 admin 写操作（封禁、改密、授权、退款等）必写一条。
+///
+/// 设计要点：
+/// - adminUserId 是操作者；targetType/targetId 指向被操作对象（user / order / subscription / announcement）。
+/// - before/after 用 Json 存变更前后快照，便于事后复盘"为什么这个用户突然没订阅了"。
+/// - ipAddress / userAgent 用于异常操作定位（如果某天突然出现海外 IP 大量封禁，要能查得到）。
+/// - 审计写入失败不影响业务事务（best-effort），由 auditLog.writeAuditLog 内部捕获。
+model AdminActionLog {
+  id           String   @id @default(uuid())
+  /// 操作者 userId。User 表删除时该字段置空（审计日志不可被级联删）。
+  adminUserId  String?  @map("admin_user_id")
+  /// 业务动作标识，如 user.ban / user.reset_password / order.refund / sub.grant。
+  /// 客户端按 action 做筛选，因此必须稳定、命名规范统一。
+  action       String
+  /// 被操作对象类型：user | order | subscription | announcement。
+  targetType   String   @map("target_type")
+  /// 被操作对象 ID（与 targetType 联合定位）。
+  targetId     String   @map("target_id")
+  /// 操作前的快照（仅记录发生变更的字段）
+  before       Json?
+  /// 操作后的快照
+  after        Json?
+  /// 操作者 IP（Fastify request.ip）
+  ipAddress    String?  @map("ip_address")
+  /// 操作者 UA，便于排查"是不是被 token 偷了"
+  userAgent    String?  @map("user_agent")
+  /// 备注：管理员在 confirm 弹窗里输入的原因（封禁/退款/撤销订阅时必填）
+  note         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  admin        User?    @relation("AdminActionLogActor", fields: [adminUserId], references: [id], onDelete: SetNull)
+  /// targetType='user' 时的反向关联：targetType 字段只用于类型分发，不参与 FK 匹配，
+  /// 真实关联按 targetId 单独查询。
+  targetUserId String?  @map("target_user_id")
+  targetUser   User?    @relation("AdminActionLogTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([adminUserId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([action, createdAt])
+  @@map("admin_action_logs")
+}
+
+/// 全站公告。客户端按 audience 过滤 + 时间窗过滤后展示。
+///
+/// 不做多语言、不做富文本——是 Phase F 的 MVP，能用就够。
+model Announcement {
+  id          String   @id @default(uuid())
+  title       String
+  body        String
+  /// 受众：all=全员，pro=Pro 订阅用户。
+  audience    String   @default("all") // all | pro
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+  /// 创建者 userId。User 删除时置空，公告保留。
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy   User?    @relation("AnnouncementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([startsAt, endsAt])
+  @@index([audience, startsAt])
+  @@map("announcements")
 }

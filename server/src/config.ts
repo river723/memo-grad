@@ -107,9 +107,16 @@ export const config = {
   },
 
   ai: {
-    apiKey: optional('DEEPSEEK_API_KEY', ''),
-    baseUrl: optional('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
-    model: optional('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
+    // 通用 OpenAI 兼容配置。新名字 AI_* 优先；旧的 DEEPSEEK_* 作为回退，
+    // 便于老部署平滑过渡。默认仍指向 DeepSeek，但用户可改成任何兼容服务
+    // （智谱 GLM / 月之暗面 Kimi / 通义千问 / OpenAI / Ollama / 自部署 vLLM 等）。
+    apiKey: optional('AI_API_KEY', '') || optional('DEEPSEEK_API_KEY', ''),
+    baseUrl:
+      optional('AI_BASE_URL', 'https://api.deepseek.com/v1') ||
+      optional('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
+    model:
+      optional('AI_MODEL', 'deepseek-v4-flash') ||
+      optional('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
   },
 
   quota: {

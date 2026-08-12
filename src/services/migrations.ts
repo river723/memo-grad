@@ -236,14 +236,14 @@ export async function migrateToUuidSchema(
   await storage.setItem(k('kaoyan_schema_version'), String(CURRENT_SCHEMA_VERSION));
 
   const counts = {
-    words: migratedWords.length,
-    studyRecords: migratedRecords.length,
-    studyPlans: migratedPlans.length,
-    articles: migratedArticles.length,
-    examSessions: migratedExamSessions.length,
-    wrongQuestions: migratedWrongQuestions.length,
-    realExamSessions: migratedRealExamSessions.length,
-    realExamWrongQuestions: migratedRealExamWrongs.length,
+    word: migratedWords.length,
+    studyRecord: migratedRecords.length,
+    studyPlan: migratedPlans.length,
+    article: migratedArticles.length,
+    examSession: migratedExamSessions.length,
+    wrongQuestion: migratedWrongQuestions.length,
+    realExamSession: migratedRealExamSessions.length,
+    realExamWrongQuestion: migratedRealExamWrongs.length,
     droppedOrphanRecords: droppedRecords,
     droppedOrphanPlans: droppedPlans,
   };

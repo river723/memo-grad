@@ -19,7 +19,8 @@ import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import AIService from '../services/AIService';
+import AIService, { SubscriptionRequiredError } from '../services/AIService';
+import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { Article, Word } from '../types';
 import { parseArticleContent, TextSegment } from '../utils/storyUtils';
 import { getLocalWordDictResult } from '../utils/wordUtils';
@@ -151,6 +152,10 @@ export default function ArticleDetailScreen() {
       // 重新加载
       await loadArticle();
     } catch (error: any) {
+      if (error instanceof SubscriptionRequiredError) {
+        subscriptionPrompt(navigation, 'AI 文章生成需要会员订阅，是否前往订阅页？');
+        return;
+      }
       Alert.alert('重新生成失败', error.message || '请重试');
     } finally {
       setIsRegenerating(false);

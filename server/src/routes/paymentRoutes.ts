@@ -34,15 +34,14 @@ function generateOutTradeNo(): string {
 }
 
 export default async function paymentRoutes(app: FastifyInstance) {
-  // 所有支付端点需登录
-  app.addHook('preHandler', async (request: FastifyRequest) => {
-    if (!request.userId) {
-      throw ApiError.unauthorized('NOT_AUTHENTICATED', '请先登录');
-    }
-  });
+  // 鉴权策略：
+  // - 用户面（/plans, /orders, /orders/:outTradeNo, /my-subscription）走 app.authGuard
+  // - /webhooks/* 不走 JWT：dev/confirm 用 outTradeNo+userId 自身做凭据；
+  //   生产 wechat/alipay 由支付平台签名替代
+  // 因此这里不挂全局 hook，而是按路由加 preHandler。
 
   // ---- 套餐列表 ----
-  app.get('/plans', async () => {
+  app.get('/plans', { preHandler: app.authGuard }, async () => {
     return Object.entries(PLAN_PRICES).map(([key, plan]) => ({
       id: key,
       name: plan.name,
@@ -53,7 +52,7 @@ export default async function paymentRoutes(app: FastifyInstance) {
   });
 
   // ---- 创建订单 ----
-  app.post('/orders', async (request: FastifyRequest) => {
+  app.post('/orders', { preHandler: app.authGuard }, async (request: FastifyRequest) => {
     const userId = request.userId!;
     const body = request.body as { plan: string; channel?: string };
     const planKey = body.plan || 'monthly';
@@ -97,7 +96,7 @@ export default async function paymentRoutes(app: FastifyInstance) {
   });
 
   // ---- 查询订单状态（前端轮询） ----
-  app.get('/orders/:outTradeNo', async (request: FastifyRequest) => {
+  app.get('/orders/:outTradeNo', { preHandler: app.authGuard }, async (request: FastifyRequest) => {
     const userId = request.userId!;
     const { outTradeNo } = request.params as { outTradeNo: string };
 
@@ -136,55 +135,69 @@ export default async function paymentRoutes(app: FastifyInstance) {
       throw ApiError.notFound('ORDER_NOT_FOUND', '订单不存在');
     }
     if (order.status === 'paid') {
-      return reply.type('text/html').send('<h2>✅ 该订单已支付</h2>');
+      return reply.type('text/html; charset=utf-8').send(
+        '<!doctype html><meta charset="utf-8"><title>已支付</title>' +
+        '<body style="font-family:sans-serif;text-align:center;padding-top:80px">' +
+        '<h2>✅ 该订单已支付</h2>' +
+        '</body>'
+      );
     }
 
     const now = new Date();
     const plan = PLAN_PRICES[order.plan];
     const expiresAt = new Date(now.getTime() + plan.days * 24 * 60 * 60 * 1000);
 
-    // 事务：更新订单 + 创建/延长订阅
-    await prisma.$transaction([
-      prisma.order.update({
+    // 事务：更新订单 + 创建/延长订阅。
+    // 用 callback 形式而非数组形式——数组形式要求每项都是 Prisma promise，
+    // 没法写"先查后写"的依赖链；callback 里可以任意 await。
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
         where: { outTradeNo },
         data: { status: 'paid', paidAt: now, transactionId: `DEV_${outTradeNo}` },
-      }),
-      // 查找现有活跃订阅，延长它；否则新建
-      prisma.subscription.findFirst({
-        where: { userId: order.userId, status: 'active', expiresAt: { gt: now } },
-      }).then(async (existing) => {
-        if (existing) {
-          // 延长现有订阅
-          const newExpiresAt = new Date(Math.max(existing.expiresAt.getTime(), now.getTime()) + plan.days * 24 * 60 * 60 * 1000);
-          await prisma.subscription.update({
-            where: { id: existing.id },
-            data: { expiresAt: newExpiresAt },
-          });
-        } else {
-          // 新建订阅
-          await prisma.subscription.create({
-            data: {
-              userId: order.userId,
-              plan: order.plan,
-              status: 'active',
-              startsAt: now,
-              expiresAt,
-              source: order.channel,
-            },
-          });
-        }
-      }),
-    ]);
+      });
 
-    return reply.type('text/html').send(`
-      <html><body style="font-family:sans-serif;text-align:center;padding-top:80px">
-        <h1>✅ 支付成功！</h1>
-        <p>订单号：${outTradeNo}</p>
-        <p>套餐：${plan.name}</p>
-        <p>到期时间：${expiresAt.toISOString()}</p>
-        <p style="color:#666">请返回 App 刷新订阅状态</p>
-      </body></html>
-    `);
+      const existing = await tx.subscription.findFirst({
+        where: { userId: order.userId, status: 'active', expiresAt: { gt: now } },
+        orderBy: { expiresAt: 'desc' },
+      });
+
+      if (existing) {
+        // 延长现有订阅：在最新到期日基础上再续 plan.days
+        const newExpiresAt = new Date(
+          Math.max(existing.expiresAt.getTime(), now.getTime()) + plan.days * 24 * 60 * 60 * 1000
+        );
+        await tx.subscription.update({
+          where: { id: existing.id },
+          data: { expiresAt: newExpiresAt },
+        });
+      } else {
+        await tx.subscription.create({
+          data: {
+            userId: order.userId,
+            plan: order.plan,
+            status: 'active',
+            startsAt: now,
+            expiresAt,
+            source: order.channel,
+          },
+        });
+      }
+    });
+
+    return reply.type('text/html; charset=utf-8').send(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>支付成功</title>
+</head>
+<body style="font-family:sans-serif;text-align:center;padding-top:80px">
+  <h1>✅ 支付成功！</h1>
+  <p>订单号：${outTradeNo}</p>
+  <p>套餐：${plan.name}</p>
+  <p>到期时间：${expiresAt.toISOString()}</p>
+  <p style="color:#666">请返回 App 刷新订阅状态</p>
+</body>
+</html>`);
   });
 
   // ---- 微信支付回调（生产环境验签） ----
@@ -270,7 +283,7 @@ export default async function paymentRoutes(app: FastifyInstance) {
   });
 
   // ---- 当前用户订阅状态 ----
-  app.get('/my-subscription', async (request: FastifyRequest) => {
+  app.get('/my-subscription', { preHandler: app.authGuard }, async (request: FastifyRequest) => {
     const userId = request.userId!;
     const now = new Date();
 

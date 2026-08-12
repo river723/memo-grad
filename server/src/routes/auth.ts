@@ -7,7 +7,6 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import crypto from 'node:crypto';
 import { prisma } from '../db';
 import { config } from '../config';
 import { ApiError } from '../errors';
@@ -21,6 +20,8 @@ import {
 } from '../services/tokenService';
 import { sendVerificationCode } from '../services/smsService';
 import { getEntitlement } from '../services/subscriptionService';
+import { hashPassword, verifyPassword } from '../services/passwordService';
+import { parseBody } from '../utils/parseBody';
 
 /** 中国大陆手机号。国际号码等接入海外支付时再扩展。 */
 const phoneSchema = z.string().regex(/^1[3-9]\d{9}$/, '手机号格式不正确');
@@ -53,35 +54,8 @@ const refreshBody = z.object({
 /**
  * 密码哈希：scrypt（Node 内置，无需额外依赖）。
  * 格式 `scrypt$<salt-hex>$<hash-hex>`，便于将来换算法时识别旧格式。
+ * 实现已抽到 services/passwordService.ts。
  */
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16);
-  const hash = crypto.scryptSync(password, salt, 64);
-  return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const parts = stored.split('$');
-  if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
-  const salt = Buffer.from(parts[1], 'hex');
-  const expected = Buffer.from(parts[2], 'hex');
-  const actual = crypto.scryptSync(password, salt, expected.length);
-  return crypto.timingSafeEqual(expected, actual);
-}
-
-/** 把 zod 校验失败转成统一的 ApiError。 */
-function parseBody<T extends z.ZodTypeAny>(schema: T, body: unknown): z.infer<T> {
-  const result = schema.safeParse(body);
-  if (!result.success) {
-    const first = result.error.issues[0];
-    throw ApiError.badRequest(
-      'VALIDATION_FAILED',
-      first?.message || '请求参数不合法',
-      { path: first?.path?.join('.') }
-    );
-  }
-  return result.data;
-}
 
 export default async function authRoutes(app: FastifyInstance) {
   /** 记录/更新登录设备，供"最近登录设备"与同步游标使用。 */
@@ -279,6 +253,7 @@ export default async function authRoutes(app: FastifyInstance) {
         phone: user.phone,
         email: user.email,
         nickname: user.nickname,
+        role: user.role,
         createdAt: user.createdAt.toISOString(),
       },
       entitlement,

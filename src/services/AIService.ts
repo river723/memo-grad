@@ -13,6 +13,14 @@
 import { api, ApiClientError } from './ApiClient';
 import { AIResponse } from '../types';
 
+/** 服务端 402：配额耗尽或未订阅，前端收到后应导航到订阅页 */
+export class SubscriptionRequiredError extends Error {
+  constructor(message: string, public readonly details?: Record<string, unknown>) {
+    super(message);
+    this.name = 'SubscriptionRequiredError';
+  }
+}
+
 class AIService {
   /** 调用后端 AI 代理 */
   private async proxy<T = any>(action: string, params: Record<string, unknown>): Promise<T> {
@@ -23,7 +31,7 @@ class AIService {
       if (err instanceof ApiClientError) {
         // 402 是 quota 耗尽 / 未订阅，前端可以据此弹订阅引导
         if (err.statusCode === 402) {
-          throw new Error(err.message || '该功能需要订阅。请在设置中查看订阅方案。');
+          throw new SubscriptionRequiredError(err.message || '该功能需要订阅。请在设置中查看订阅方案。', err.details);
         }
         throw new Error(err.message || 'AI 服务调用失败');
       }
