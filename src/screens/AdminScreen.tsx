@@ -1,326 +1,109 @@
 /**
- * 管理员仪表盘。
- * 只有当用户 role === 'admin' 时，StatsScreen 的「账号」卡片才会显示「进入后台」链接。
- * 点击后跳转到这里。
+ * 后台控制台（薄壳 + 自定义顶部 Tab）。
+ *
+ * 5 个 Tab：概览 / 用户 / 订单 / 审计 / 公告
+ * 用户详情是 push 的子页面（不是 Tab）。
+ *
+ * 不引入 @react-navigation/material-top-tabs：项目里没装，web 兼容性也未必稳。
+ * 用纯 ScrollView 横滑按钮替代，简单可靠。
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
-import { Card, Text, Button, Divider, List } from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { View, ScrollView } from 'react-native';
+import { Text } from 'react-native-paper';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
-import { api } from '../services/ApiClient';
 import { useAuth } from '../providers/AuthProvider';
+import AdminOverviewScreen from './admin/AdminOverviewScreen';
+import AdminUserListScreen from './admin/AdminUserListScreen';
+import AdminOrderListScreen from './admin/AdminOrderListScreen';
+import AdminAuditLogScreen from './admin/AdminAuditLogScreen';
+import AdminAnnouncementsScreen from './admin/AdminAnnouncementsScreen';
+import AdminUserDetailScreen from './admin/AdminUserDetailScreen';
 
-type AdminStats = {
-  totalUsers: number;
-  activeSubscriptions: number;
-  totalAiCalls: number;
-};
+type Tab = 'overview' | 'users' | 'orders' | 'audit' | 'announcements';
 
-type User = {
-  id: string;
-  phone: string | null;
-  email: string | null;
-  role: 'user' | 'admin';
-  disabled: boolean;
-  createdAt: string;
-};
+const TABS: Array<{ key: Tab; label: string; icon: string }> = [
+  { key: 'overview', label: '概览', icon: 'dashboard' },
+  { key: 'users', label: '用户', icon: 'people' },
+  { key: 'orders', label: '订单', icon: 'receipt' },
+  { key: 'audit', label: '审计', icon: 'history' },
+  { key: 'announcements', label: '公告', icon: 'campaign' },
+];
 
 export default function AdminScreen() {
   const { colors } = useAppTheme();
   const { logout } = useAuth();
-  const useStyles = makeStyles((colors) => ({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
+  const useStyles = makeStyles((c) => ({
+    container: { flex: 1, backgroundColor: c.background },
     header: {
-      backgroundColor: colors.primary,
-      padding: 24,
-      paddingTop: 48,
-      alignItems: 'center',
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: c.primary, paddingHorizontal: 12, paddingVertical: 10,
     },
-    title: {
-      fontSize: 24,
-      fontWeight: '700',
-      color: colors.onSurface,
-    },
-    sub: {
-      fontSize: 14,
-      color: colors.onSurfaceVariant,
-      opacity: 0.8,
-      marginTop: 4,
-    },
-    content: {
-      flex: 1,
-    },
-    contentInner: {
-      padding: 16,
-      paddingBottom: 80,
-    },
-    card: {
-      marginBottom: 16,
-      elevation: 2,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: colors.onSurface,
-      marginBottom: 8,
-    },
-    grid: {
+    headerTitle: { color: '#ffffff', fontSize: 18, fontWeight: '700' },
+    headerSub: { color: '#ffffff', fontSize: 11, opacity: 0.85 },
+    logoutBtn: { marginLeft: 8 },
+    tabBar: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      flexWrap: 'wrap',
+      backgroundColor: c.surface,
+      borderBottomWidth: 1, borderColor: c.outline,
     },
-    gridItem: {
-      alignItems: 'center',
-      minWidth: 80,
+    tab: {
+      paddingHorizontal: 14, paddingVertical: 10,
+      borderBottomWidth: 2, borderBottomColor: 'transparent',
     },
-    label: {
-      fontSize: 12,
-      color: colors.onSurfaceVariant,
-    },
-    value: {
-      fontSize: 24,
-      fontWeight: '700',
-      color: colors.onSurface,
-      marginTop: 4,
-    },
-    divider: {
-      height: 1,
-      backgroundColor: colors.outline,
-      marginVertical: 12,
-    },
-    center: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: 200,
-    },
-    error: {
-      color: colors.error,
-      marginTop: 16,
-    },
-    footer: {
-      padding: 16,
-      borderTopWidth: 1,
-      borderColor: colors.outline,
-    },
+    tabActive: { borderBottomColor: c.primary },
+    tabLabel: { color: c.onSurfaceVariant, fontSize: 13, fontWeight: '500' },
+    tabLabelActive: { color: c.primary, fontWeight: '700' },
+    screen: { flex: 1 },
   }));
   const styles = useStyles();
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [statsRes, usersRes] = await Promise.all([
-        api.get<any>('/api/admin/stats'),
-        api.get<any>('/api/admin/users?limit=200'),
-      ]);
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
-      setStats(statsRes);
-      setUsers(usersRes.users ?? usersRes);
-    } catch (e: any) {
-      setError(e?.message || '加载失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
-  const handleDisableUser = async (id: string, disabled: boolean) => {
-    try {
-      await api.patch(`/api/admin/users/${id}`, { disabled: !disabled });
-      fetchData();
-    } catch (e: any) {
-      console.error('操作失败:', e?.message);
-    }
-  };
-
-  const adminCount = users.filter(u => u.role === 'admin').length;
+  const goUser = (id: string) => setDetailUserId(id);
+  const backToList = () => setDetailUserId(null);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>后台控制台</Text>
-        <Text style={styles.sub}>MemoGrad 网络版管理面板</Text>
+        <View>
+          <Text style={styles.headerTitle}>后台控制台</Text>
+          <Text style={styles.headerSub}>MemoGrad 管理面板</Text>
+        </View>
+        <Text style={styles.logoutBtn} onPress={logout}>
+          <Text style={{ color: '#ffffff', fontSize: 12 }}>退出</Text>
+        </Text>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchData} />}
-        contentContainerStyle={styles.contentInner}
-      >
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        ) : error ? (
-          <View style={styles.center}>
-            <MaterialIcons name="error" size={48} color={colors.error} />
-            <Text style={styles.error}>{error}</Text>
-            <Button mode="outlined" onPress={fetchData}>重试</Button>
-          </View>
-        ) : (
-          <>
-            {/* 概览卡片 */}
-            <Card style={styles.card}>
-              <Card.Content>
-                <View style={styles.grid}>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.label}>总用户</Text>
-                    <Text style={styles.value}>{stats?.totalUsers ?? 0}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.label}>活跃订阅</Text>
-                    <Text style={styles.value}>{stats?.activeSubscriptions ?? 0}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.label}>AI 调用次数</Text>
-                    <Text style={styles.value}>{stats?.totalAiCalls ?? 0}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.label}>后台管理员</Text>
-                    <Text style={styles.value}>{adminCount}</Text>
-                  </View>
-                </View>
-              </Card.Content>
-            </Card>
+      {detailUserId ? (
+        <AdminUserDetailScreen userId={detailUserId} onBack={backToList} />
+      ) : (
+        <>
+          <ScrollView horizontal style={styles.tabBar} showsHorizontalScrollIndicator={false}>
+            {TABS.map((t) => (
+              <View
+                key={t.key}
+                style={[styles.tab, activeTab === t.key ? styles.tabActive : null]}
+                onTouchEnd={() => setActiveTab(t.key)}
+              >
+                <Text style={[styles.tabLabel, activeTab === t.key ? styles.tabLabelActive : null]}>
+                  {t.label}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
 
-            {/* 用户列表 */}
-            <Card style={styles.card}>
-              <Card.Content>
-                <Text style={styles.sectionTitle}>用户管理</Text>
-                <Divider style={styles.divider} />
-                {users.map(u => (
-                  <List.Item
-                    key={u.id}
-                    title={u.phone || u.email || '无联系方式'}
-                    description={
-                      u.role === 'admin'
-                        ? `[管理员] 手机号: ${u.phone || '无'}`
-                        : `${u.disabled ? '[已封禁]' : ''} 注册: ${new Date(u.createdAt).toLocaleDateString()}`
-                    }
-                    left={() => (
-                      <MaterialIcons
-                        name={u.role === 'admin' ? 'shield' : 'person'}
-                        size={24}
-                        color={u.disabled ? colors.error : colors.primary}
-                      />
-                    )}
-                    right={() => u.role !== 'admin' ? (
-                      <Button
-                        mode="outlined"
-                        onPress={() => handleDisableUser(u.id, u.disabled)}
-                      >
-                        {u.disabled ? '解禁' : '封禁'}
-                      </Button>
-                    ) : undefined}
-                  />
-                ))}
-              </Card.Content>
-            </Card>
-          </>
-        )}
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <Button mode="contained" icon="logout" onPress={() => logout()}>
-          退出登录
-        </Button>
-      </View>
+          <View style={styles.screen}>
+            {activeTab === 'overview' ? <AdminOverviewScreen /> : null}
+            {activeTab === 'users' ? <AdminUserListScreen onSelectUser={goUser} /> : null}
+            {activeTab === 'orders' ? <AdminOrderListScreen onSelectUser={goUser} /> : null}
+            {activeTab === 'audit' ? <AdminAuditLogScreen /> : null}
+            {activeTab === 'announcements' ? <AdminAnnouncementsScreen /> : null}
+          </View>
+        </>
+      )}
     </View>
   );
 }
-
-const styles = makeStyles(colors => ({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    backgroundColor: colors.primary,
-    padding: 24,
-    paddingTop: 48,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.onSurface,
-  },
-  sub: {
-    fontSize: 14,
-    color: colors.onSurfaceVariant,
-    opacity: 0.8,
-    marginTop: 4,
-  },
-  content: {
-    flex: 1,
-  },
-  contentInner: {
-    padding: 16,
-    paddingBottom: 80,
-  },
-  card: {
-    marginBottom: 16,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.onSurface,
-    marginBottom: 8,
-  },
-  grid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-  },
-  gridItem: {
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  label: {
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-  },
-  value: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.onSurface,
-    marginTop: 4,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.outline,
-    marginVertical: 12,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 200,
-  },
-  error: {
-    color: colors.error,
-    marginTop: 16,
-  },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderColor: colors.outline,
-  },
-}));

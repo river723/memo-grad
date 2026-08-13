@@ -14,6 +14,7 @@ import adminRoutes from './routes/adminRoutes';
 import aiRoutes from './routes/aiRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import syncRoutes from './routes/syncRoutes';
+import announcementRoutes from './routes/announcementRoutes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -71,6 +72,16 @@ export async function buildApp() {
       );
     }
 
+    // Fastify 自身抛的 4xx（如空 JSON body 解析失败）：按原状态码返回，不吞成 500
+    const fastifyStatus = (error as { statusCode?: number }).statusCode;
+    if (fastifyStatus && fastifyStatus >= 400 && fastifyStatus < 500) {
+      return reply.status(fastifyStatus).send(
+        toErrorBody(
+          ApiError.badRequest('BAD_REQUEST', (error as Error).message || '请求格式不正确')
+        )
+      );
+    }
+
     // 未预期的错误：完整记录，但不把内部细节返回给客户端
     request.log.error({ err: error }, '未处理的服务端错误');
     return reply.status(500).send(
@@ -96,6 +107,8 @@ export async function buildApp() {
   await app.register(aiRoutes, { prefix: '/api/ai' });
   await app.register(paymentRoutes, { prefix: '/api/pay' });
   await app.register(syncRoutes, { prefix: '/api/sync' });
+  // 公开公告路由（不带 admin 前缀），放最后让前几个固定前缀的先匹配
+  await app.register(announcementRoutes, { prefix: '/api' });
 
   return app;
 }

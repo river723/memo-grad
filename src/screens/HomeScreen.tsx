@@ -18,6 +18,8 @@ import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import { Word, StudyRecord, WeeklyStudyTrend } from '../types';
 import { format } from 'date-fns';
+import { useAnnouncements } from '../providers/AnnouncementProvider';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 
 type TodayStats = {
   totalWords: number;
@@ -309,8 +311,17 @@ export default function HomeScreen() {
     loading && todayStats.totalWords === 0 && recentWords.length === 0 && !error;
   const isEmpty = !loading && !error && todayStats.totalWords === 0;
 
+  // 公告：每次 focus 时刷新
+  const { refresh: refreshAnnouncements } = useAnnouncements();
+  useFocusEffect(
+    useCallback(() => {
+      refreshAnnouncements();
+    }, [refreshAnnouncements])
+  );
+
   return (
     <View style={styles.container}>
+      <AnnouncementBanner />
       <ScrollView contentContainerStyle={styles.content}>
         {showSpinner && (
           <View style={styles.centerState}>

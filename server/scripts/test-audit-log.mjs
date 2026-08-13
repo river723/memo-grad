@@ -24,8 +24,16 @@ const { prisma } = await import('../src/db.ts');
 const { writeAuditLog } = await import('../src/services/auditLog.ts');
 
 const ts = Date.now();
-const adminId = `test-admin-${ts}`;
-const targetId = `test-target-${ts}`;
+// FK 约束：adminUserId / targetUserId 必须引用真实 users.id。
+// 这里建真实用户（admin + target），targetId 用真实 userId。
+const admin = await prisma.user.create({
+  data: { phone: `1390${String(ts).slice(-5)}01`, role: 'admin' },
+});
+const target = await prisma.user.create({
+  data: { phone: `1390${String(ts).slice(-5)}02` },
+});
+const adminId = admin.id;
+const targetId = target.id;
 
 let passed = 0;
 async function test(name, fn) {
@@ -106,6 +114,7 @@ await test('prisma 抛错时不向外抛（best-effort）', async () => {
 
 // 清理测试数据
 await prisma.adminActionLog.deleteMany({ where: { adminUserId: adminId } });
+await prisma.user.deleteMany({ where: { id: { in: [adminId, targetId] } } });
 
 console.log(`\n${passed === 4 ? '🎉' : '⚠️ '} ${passed}/4 通过`);
 process.exit(process.exitCode || 0);

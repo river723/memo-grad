@@ -25,8 +25,13 @@ export class ApiError extends Error {
     return new ApiError(401, code, message);
   }
 
-  static forbidden(code: string, message: string) {
-    return new ApiError(403, code, message);
+  static forbidden(code: string, message: string, details?: Record<string, unknown>) {
+    return new ApiError(403, code, message, details);
+  }
+
+  /** 409：资源状态冲突（如已有有效订阅不能再授权）。 */
+  static conflict(code: string, message: string, details?: Record<string, unknown>) {
+    return new ApiError(409, code, message, details);
   }
 
   static notFound(code: string, message: string) {

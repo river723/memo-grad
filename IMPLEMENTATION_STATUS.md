@@ -129,6 +129,36 @@
 - 响应式布局
 - 直观的用户界面
 
+### 6. 后台管理（Admin Console）✅ 100%
+
+后端 18 个端点（`/api/admin/*`） + 1 个公开端点（`/api/announcements/active`）。
+
+**核心能力**：
+- 用户管理：列表（分页 + 多维筛选）+ 详情（9 个聚合面板）+ 封禁/解封
+- 用户写操作 11 个：封禁/解封、改密、强制下线、重置 AI 配额、授权订阅、撤销订阅、退款
+- 跨用户订单列表 + 跨用户审计日志
+- 公告 CRUD + 公开 active 端点
+- 统计概览：5 个总量 KPI + 5 个时间维度扩展（收入、新增、即将到期、AI 失败、30 天每日新增）
+- 收入时序：按天聚合 + 按 plan 拆分
+
+**安全设计**：
+- `User.role` 数据库为唯一真源（JWT 不带 role，每次请求重查）
+- **LAST_ADMIN 守卫**：封禁/降级最后一名 admin → 409 拒绝
+- 降级 admin / 封禁 / 改密 / 强制下线 一律撤销全部 refresh token
+- 所有写动作必走 `writeAuditLog` 留痕（best-effort，失败不抛错）
+- 救援工具 `manage-admin.ts` CLI 兜底（防 HTTP 端点全部失效）
+
+**前端**：
+- `src/screens/AdminScreen.tsx` 薄壳 + 5 个 Tab（概览/用户/订单/审计/公告）
+- 用户详情是嵌套子页（不是 Tab）
+- 11 个敏感操作统一走 `ConfirmDialog`，支持 `requireReason` 强制填原因
+- 公告通过 `AnnouncementProvider` + `AnnouncementBanner` 在 HomeScreen 顶部展示
+
+**测试**：
+- 7 个集成测试脚本（password/audit/queries/userAdmin/subscriptionAdmin/refund/announcements）
+- 1 个端到端 e2e 脚本（22 个用例，覆盖完整客服流程）
+- 跑法见 `DEVELOPMENT_GUIDE.md` 的「测试策略」章节
+
 ## 🚧 待开发功能
 
 ### 高优先级 (P0)

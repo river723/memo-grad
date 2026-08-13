@@ -228,10 +228,69 @@ npm test
 - 测试核心组件渲染
 - 测试用户交互
 
-### 3. 集成测试
-- 测试数据流
-- 测试AI服务调用
-- 测试学习算法
+### 3. 集成测试（后端）
+后端集成测试脚本位于 `server/scripts/`，纯 Node 22 + tsx 运行，不需要额外框架：
+
+| 脚本 | 覆盖 | 跑法 |
+|---|---|---|
+| `test-password-service.mjs` | scrypt 哈希/校验 | `cd server && node --import tsx scripts/test-password-service.mjs` |
+| `test-audit-log.mjs` | 审计日志写入 + 错误吞掉 | `cd server && node --import tsx scripts/test-audit-log.mjs` |
+| `test-admin-queries.mjs` | 用户列表筛选 + 9 面板详情 | `cd server && node --import tsx scripts/test-admin-queries.mjs` |
+| `test-user-admin.mjs` | 封禁/解封/改密/强制下线/重置配额 + LAST_ADMIN 守卫 | `cd server && node --import tsx scripts/test-user-admin.mjs` |
+| `test-subscription-admin.mjs` | 授权/撤销订阅 + 409 守卫 | `cd server && node --import tsx scripts/test-subscription-admin.mjs` |
+| `test-refund-and-orders.mjs` | 退款事务 + 跨用户订单列表 | `cd server && node --import tsx scripts/test-refund-and-orders.mjs` |
+| `test-announcements.mjs` | 公告 CRUD + 公开 active 端点 | `cd server && node --import tsx scripts/test-announcements.mjs` |
+| `test-e2e-admin.mjs` | **完整客服流程 e2e**（22 个用例） | `cd server && node --import tsx scripts/test-e2e-admin.mjs`（需服务在 :3000） |
+
+跑全部：手工依次执行上面 7 个 `test-*.mjs`。
+
+## 🛠️ 后台管理（Admin Console）
+
+后端：18 个端点全部挂在 `/api/admin` 下，外加一个公开端点 `/api/announcements/active`。
+
+### 角色与权限
+- `User.role` 字段决定（`user` | `admin`），不在 JWT 里——每个 admin 请求都重新查库，**降级立即生效**
+- 内联 preHandler 在 `server/src/routes/adminRoutes.ts:20-29` 强制要求 `role === 'admin' && !disabled`
+- **LAST_ADMIN 守卫**：封禁/降级最后一个 admin → 409 `LAST_ADMIN`，防止自锁
+- 救援工具：`server/scripts/manage-admin.ts list|promote|demote|unblock|rescue <phone|email>`
+
+### 写动作清单（11 个敏感操作）
+所有写动作必走 `services/auditLog.ts:writeAuditLog`（best-effort，失败不抛错）。
+
+| 端点 | 触发 | 副作用 |
+|---|---|---|
+| `DELETE /api/admin/users/:id` | 封禁 | 撤销全部 refresh token |
+| `PATCH .../role: 'user'` | 降级 | 撤销全部 refresh token（修 P0 自锁） |
+| `PATCH .../disabled: false` | 解封 | 清空封禁元数据 |
+| `POST .../reset-password` | 重置密码 | 撤销全部 refresh token |
+| `POST .../force-logout` | 强制下线 | 撤销全部 refresh token（不改 disabled） |
+| `POST .../reset-ai-quota` | 重置 AI 配额 | 删本月 AiUsage 行（订阅不受影响） |
+| `POST .../grant-subscription` | 授权订阅 | 已有 active 时 409 |
+| `POST .../revoke-subscription` | 撤销订阅 | status='refunded' |
+| `POST .../refund-order` | 退款 | 事务里 order + 匹配订阅同步 refunded |
+| `POST /api/admin/announcements` | 创建公告 | 写审计 |
+| `DELETE /api/admin/announcements/:id` | 删除公告 | 写审计（硬删） |
+
+### 退款匹配规则
+退款会找用户的 active 订阅，要求：
+- `source ∈ {wechat, alipay}`（不是后台授权的）
+- `startsAt` 在 `order.paidAt ± 5 分钟` 内
+- 多个候选取 `startsAt` 最接近 `paidAt` 的那一条
+
+找不到匹配订阅时仍退款订单，返回 `warning` 字段提示管理员手动处理。
+
+### 公告系统
+- 时间窗 `now ∈ [startsAt, endsAt]` 过滤
+- `audience='all'` 给所有人；`'pro'` 仅 Pro 用户可见
+- 公开端点 `GET /api/announcements/active` 不需要登录；带 token 时区分 Pro/非 Pro
+- 客户端通过 `AnnouncementProvider` 启动时拉一次 + `HomeScreen` focus 时刷新
+- dismiss 状态存 AsyncStorage 按 announcement.id 持久化
+
+### 前端入口
+- `src/screens/AdminScreen.tsx` 是薄壳（109 行），5 个 Tab：概览/用户/订单/审计/公告
+- 用户详情是嵌套子页（点列表项进入，back 回列表）
+- 11 个敏感操作统一走 `src/screens/admin/components/ConfirmDialog.tsx`，支持 `requireReason` 强制填原因
+- Tab 切换是自定义 ScrollView 横滑按钮（**不引入** @react-navigation/material-top-tabs）
 
 ## 📦 构建和部署
 
