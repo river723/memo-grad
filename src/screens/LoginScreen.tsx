@@ -18,7 +18,8 @@ import {
 } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
 import { useAuth } from '../providers/AuthProvider';
-import { palette } from '../theme/tokens';
+import { palette, statusLight } from '../theme/tokens';
+import { timingMedium } from '../theme/motion';
 
 export default function LoginScreen() {
   const { login, sendCode } = useAuth();
@@ -53,7 +54,7 @@ export default function LoginScreen() {
       setCooldown(60);
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 300,
+        ...timingMedium,
         useNativeDriver: true,
       }).start();
       cooldownRef.current = setInterval(() => {
@@ -224,12 +225,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: statusLight.active.bg,
     borderRadius: 8,
   },
   devCodeText: {
     textAlign: 'center',
-    color: '#2E7D32',
+    color: statusLight.active.fg,
   },
   errorText: {
     color: palette.error,

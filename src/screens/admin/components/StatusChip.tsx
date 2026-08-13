@@ -1,64 +1,111 @@
 /**
- * 状态色卡：统一订阅状态、订单状态、封禁状态、用户角色的色卡显示。
+ * StatusChip —— 状态色卡。
+ *
+ * 6 状态 × 2 主题（light+dark）全部走 `colors.status` token。
+ * 不再使用任何硬编码 hex，深色模式自动正确显示。
+ *
+ * 兼容历史 API：保留 active / paid / success / admin / user / expired / warning /
+ * pending / refunded / failed / closed / banned 等 12 种 kind 名称，
+ * 映射到 6 种状态色（active / pending / expired / refunded / closed / banned）。
  */
 import React from 'react';
-import { Chip } from 'react-native-paper';
+import { View, Text, StyleSheet } from 'react-native';
 import { useAppTheme } from '../../../theme/theme';
+import { radius, spacing } from '../../../theme/tokens';
+import type { StatusKind } from '../../../theme/tokens';
 
-export type StatusKind = 'active' | 'expired' | 'refunded' | 'pending' | 'paid' | 'closed' | 'banned' | 'admin' | 'user' | 'success' | 'failed' | 'warning';
+export type { StatusKind } from '../../../theme/tokens';
 
-const LABEL: Partial<Record<StatusKind, string>> = {
-  active: '生效中',
-  expired: '已过期',
-  refunded: '已退款',
-  pending: '待支付',
-  paid: '已支付',
-  closed: '已关闭',
-  banned: '已封禁',
-  admin: '管理员',
-  user: '用户',
-  success: '成功',
-  failed: '失败',
-  warning: '警告',
+// 兼容旧 kind 名称 → 6 状态 token 映射
+const KIND_MAP: Record<LegacyStatusKind, StatusKind> = {
+  active: 'active',
+  paid: 'active',
+  success: 'active',
+  admin: 'active',
+  user: 'closed',
+  expired: 'expired',
+  warning: 'pending',
+  pending: 'pending',
+  refunded: 'refunded',
+  failed: 'refunded',
+  closed: 'closed',
+  banned: 'banned',
 };
 
-export default function StatusChip({ kind, label }: { kind: StatusKind; label?: string }) {
+export type LegacyStatusKind =
+  | 'active'
+  | 'expired'
+  | 'refunded'
+  | 'pending'
+  | 'paid'
+  | 'closed'
+  | 'banned'
+  | 'admin'
+  | 'user'
+  | 'success'
+  | 'failed'
+  | 'warning';
+
+const LABEL: Partial<Record<LegacyStatusKind, string>> = {
+  active: '生效中',
+  paid: '已支付',
+  success: '成功',
+  admin: '管理员',
+  user: '用户',
+  expired: '已过期',
+  warning: '警告',
+  pending: '待处理',
+  refunded: '已退款',
+  failed: '失败',
+  closed: '已关闭',
+  banned: '已封禁',
+};
+
+export interface StatusChipProps {
+  kind: LegacyStatusKind;
+  label?: string;
+  size?: 'sm' | 'md';
+}
+
+export default function StatusChip({ kind, label, size = 'md' }: StatusChipProps) {
   const { colors } = useAppTheme();
-  const bgMap: Record<StatusKind, string> = {
-    active: '#d4edda',
-    paid: '#d4edda',
-    success: '#d4edda',
-    admin: '#cce5ff',
-    user: '#e2e3e5',
-    expired: '#fff3cd',
-    warning: '#fff3cd',
-    pending: '#fff3cd',
-    refunded: '#f8d7da',
-    failed: '#f8d7da',
-    closed: '#e2e3e5',
-    banned: '#f8d7da',
-  };
-  const fgMap: Record<StatusKind, string> = {
-    active: '#155724',
-    paid: '#155724',
-    success: '#155724',
-    admin: '#004085',
-    user: '#383d41',
-    expired: '#856404',
-    warning: '#856404',
-    pending: '#856404',
-    refunded: '#721c24',
-    failed: '#721c24',
-    closed: '#383d41',
-    banned: '#721c24',
-  };
+  const statusKind = KIND_MAP[kind];
+  const palette = colors.status[statusKind];
+
   return (
-    <Chip
-      compact
-      style={{ backgroundColor: bgMap[kind], marginRight: 4 }}
-      textStyle={{ color: fgMap[kind], fontSize: 11 }}
+    <View
+      style={[
+        styles.chip,
+        {
+          backgroundColor: palette.bg,
+          borderColor: palette.border,
+          paddingHorizontal: size === 'sm' ? 8 : 10,
+          paddingVertical: size === 'sm' ? 2 : 4,
+          borderRadius: radius.pill,
+        },
+      ]}
     >
-      {label ?? LABEL[kind] ?? kind}
-    </Chip>
+      <Text
+        style={[
+          styles.text,
+          {
+            color: palette.fg,
+            fontSize: size === 'sm' ? 11 : 12,
+            fontWeight: '600',
+          },
+        ]}
+        numberOfLines={1}
+      >
+        {label ?? LABEL[kind] ?? kind}
+      </Text>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  chip: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+  },
+  text: { letterSpacing: 0.2 },
+});

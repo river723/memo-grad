@@ -165,7 +165,7 @@ export default function ArticleDetailScreen() {
   if (!article) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1976D2" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -204,7 +204,7 @@ export default function ArticleDetailScreen() {
           <Card.Content>
             {isRegenerating ? (
               <View style={styles.regeneratingArea}>
-                <ActivityIndicator size="large" color="#1976D2" />
+                <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={styles.regeneratingText}>正在重新生成文章...</Text>
               </View>
             ) : (
@@ -255,7 +255,7 @@ export default function ArticleDetailScreen() {
 
         {/* 底部提示 */}
         <Text style={styles.tapHint}>
-          💡 点击文中<Text style={{ color: '#1976D2', fontWeight: '600' }}>蓝色高亮</Text>生词可查看释义
+          💡 点击文中<Text style={{ color: colors.primary, fontWeight: '600' }}>蓝色高亮</Text>生词可查看释义
         </Text>
       </ScrollView>
 
@@ -276,7 +276,7 @@ export default function ArticleDetailScreen() {
           onPress={handleDelete}
           icon="delete-outline"
           style={styles.bottomButton}
-          textColor="#F44336"
+          textColor={colors.danger}
         >
           删除
         </Button>

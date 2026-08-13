@@ -24,18 +24,19 @@ const ACTION_LABELS: Record<string, string> = {
   'announcement.delete': '删除公告',
 };
 
-const ACTION_COLORS: Record<string, string> = {
-  'user.ban': '#c62828',
-  'user.unban': '#2e7d32',
-  'user.set_role': '#1565c0',
-  'user.reset_password': '#e65100',
-  'user.force_logout': '#546e7a',
-  'user.reset_ai_quota': '#00838f',
-  'sub.grant': '#2e7d32',
-  'sub.revoke': '#c62828',
-  'sub.refund': '#c62828',
-  'announcement.create': '#6a1b9a',
-  'announcement.delete': '#546e7a',
+// 审计 action → 6 状态色 + 语义色映射（无硬编码 hex）
+const ACTION_COLOR_KINDS: Record<string, 'banned' | 'active' | 'pending' | 'refunded' | 'closed'> = {
+  'user.ban': 'banned',
+  'user.unban': 'active',
+  'user.set_role': 'pending',
+  'user.reset_password': 'pending',
+  'user.force_logout': 'closed',
+  'user.reset_ai_quota': 'pending',
+  'sub.grant': 'active',
+  'sub.revoke': 'banned',
+  'sub.refund': 'refunded',
+  'announcement.create': 'active',
+  'announcement.delete': 'refunded',
 };
 
 const ACTION_ICONS: Record<string, string> = {
@@ -179,7 +180,8 @@ export default function AdminAuditLogScreen() {
             无审计记录
           </Text>
         ) : logs.map((l) => {
-          const color = ACTION_COLORS[l.action] || colors.onSurfaceVariant;
+          const statusKind = ACTION_COLOR_KINDS[l.action] || 'closed';
+          const color = colors.status[statusKind].fg;
           const icon = ACTION_ICONS[l.action] || 'check';
           return (
             <View key={l.id} style={[styles.card, { borderLeftColor: color }]}>

@@ -3,8 +3,9 @@ import { View, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppTheme, lightNavTheme, darkNavTheme } from '../theme/theme';
+import { palette } from '../theme/tokens';
 import { useAuth } from '../providers/AuthProvider';
 import LoginScreen from '../screens/LoginScreen';
 
@@ -47,177 +48,148 @@ import SettingsScreen from '../screens/SettingsScreen';
 import AdminScreen from '../screens/AdminScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 
-import type { RootStackParamList, MainTabParamList, LearnStackParamList, ReadStackParamList, PracticeStackParamList, StatsStackParamList } from './types';
+import type {
+  RootStackParamList,
+  MainTabParamList,
+  LearnStackParamList,
+  ReadStackParamList,
+  PracticeStackParamList,
+  StatsStackParamList,
+} from './types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createStackNavigator<RootStackParamList>();
 
+/**
+ * Tab Stack 内的 header 配置工厂（已收敛）。
+ * - 墨绿背景（colors.primary）+ 白字 + icon
+ * - 字号走 typography.title token
+ * - 隐藏底部 1px hairline（headerShadowVisible: false）
+ */
+function makeTabHeaderOptions(title: string, icon: string) {
+  return {
+    headerTitle: () => {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const { colors } = useAppTheme();
+      const typography = colors.typography;
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <MaterialCommunityIcons name={icon as any} size={20} color={colors.onPrimary} />
+          <Text
+            style={{
+              color: colors.onPrimary,
+              fontSize: typography.title.size,
+              lineHeight: typography.title.lineHeight,
+              fontWeight: '600',
+              letterSpacing: 0.2,
+            }}
+          >
+            {title}
+          </Text>
+        </View>
+      );
+    },
+    headerStyle: { backgroundColor: palette.primary },
+    headerTintColor: palette.onPrimary,
+    headerBackTitleVisible: false,
+    headerShadowVisible: false,
+  };
+}
+
 // ==================== 学习 Tab ====================
 function LearnStack() {
-  const { colors } = useAppTheme();
   const Stack = createStackNavigator<LearnStackParamList>();
-
-  const headerOptions = (title: string, icon: string) => ({
-    headerTitle: ({ color }: { color: string }) => (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <MaterialIcons name={icon as any} size={22} color={color} />
-        <Text style={{ color, fontWeight: 'bold', fontSize: 17 }}>{title}</Text>
-      </View>
-    ),
-    headerStyle: {
-      backgroundColor: colors.primary,
-    },
-    headerTintColor: '#ffffff',
-    headerTitleStyle: {
-      fontWeight: 'bold' as const,
-    },
-    headerBackTitleVisible: false,
-  } as any);
-
   return (
     <Stack.Navigator>
-      <Stack.Screen name="Home" component={HomeScreen} options={headerOptions('学习', 'menu')} />
-      <Stack.Screen name="Study" component={StudyScreen} options={headerOptions('开始学习', 'menu')} />
-      <Stack.Screen name="WordDetail" component={WordDetailScreen} options={headerOptions('单词详情', 'menu-book')} />
-      <Stack.Screen name="AddWord" component={AddWordScreen} options={headerOptions('添加生词', 'add')} />
-      <Stack.Screen name="WordbankPicker" component={WordbankPickerScreen} options={headerOptions('从词库选词', 'menu-book')} />
-      <Stack.Screen name="WordList" component={WordListScreen} options={headerOptions('生词本', 'menu-book')} />
-      <Stack.Screen name="Dictionary" component={DictionaryScreen} options={headerOptions('词库', 'menu-book')} />
-      <Stack.Screen name="DictionaryBrowse" component={DictionaryBrowseScreen} options={headerOptions('浏览词库', 'menu-book')} />
-      <Stack.Screen name="DictionaryWordDetail" component={DictionaryWordDetailScreen} options={headerOptions('单词详情', 'menu-book')} />
+      <Stack.Screen name="Home" component={HomeScreen} options={makeTabHeaderOptions('学习', 'book-open-page-variant')} />
+      <Stack.Screen name="Study" component={StudyScreen} options={makeTabHeaderOptions('开始学习', 'book-open-page-variant')} />
+      <Stack.Screen name="WordDetail" component={WordDetailScreen} options={makeTabHeaderOptions('单词详情', 'book-open-variant')} />
+      <Stack.Screen name="AddWord" component={AddWordScreen} options={makeTabHeaderOptions('添加生词', 'plus-box')} />
+      <Stack.Screen name="WordbankPicker" component={WordbankPickerScreen} options={makeTabHeaderOptions('从词库选词', 'book-multiple')} />
+      <Stack.Screen name="WordList" component={WordListScreen} options={makeTabHeaderOptions('生词本', 'book-open-variant')} />
+      <Stack.Screen name="Dictionary" component={DictionaryScreen} options={makeTabHeaderOptions('词库', 'library')} />
+      <Stack.Screen name="DictionaryBrowse" component={DictionaryBrowseScreen} options={makeTabHeaderOptions('浏览词库', 'library')} />
+      <Stack.Screen name="DictionaryWordDetail" component={DictionaryWordDetailScreen} options={makeTabHeaderOptions('单词详情', 'book-open-variant')} />
     </Stack.Navigator>
   );
 }
 
 // ==================== 阅读 Tab ====================
 function ReadStack() {
-  const { colors } = useAppTheme();
   const Stack = createStackNavigator<ReadStackParamList>();
-
-  const headerOptions = (title: string, icon: string) => ({
-    headerTitle: ({ color }: { color: string }) => (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <MaterialIcons name={icon as any} size={22} color={color} />
-        <Text style={{ color, fontWeight: 'bold', fontSize: 17 }}>{title}</Text>
-      </View>
-    ),
-    headerStyle: {
-      backgroundColor: colors.primary,
-    },
-    headerTintColor: '#ffffff',
-    headerTitleStyle: {
-      fontWeight: 'bold' as const,
-    },
-    headerBackTitleVisible: false,
-  } as any);
-
   return (
     <Stack.Navigator>
-      <Stack.Screen name="ReadHome" component={ReadHomeScreen} options={headerOptions('阅读', 'book')} />
-      <Stack.Screen name="StoryDetail" component={StoryDetailScreen} options={headerOptions('故事阅读', 'book')} />
-      <Stack.Screen name="ArticleGenerate" component={ArticleGenerateScreen} options={headerOptions('生成文章', 'description')} />
-      <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} options={headerOptions('文章阅读', 'description')} />
+      <Stack.Screen name="ReadHome" component={ReadHomeScreen} options={makeTabHeaderOptions('阅读', 'book-open-page-variant-outline')} />
+      <Stack.Screen name="StoryDetail" component={StoryDetailScreen} options={makeTabHeaderOptions('故事阅读', 'book-open-page-variant')} />
+      <Stack.Screen name="ArticleGenerate" component={ArticleGenerateScreen} options={makeTabHeaderOptions('生成文章', 'file-document-edit')} />
+      <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} options={makeTabHeaderOptions('文章阅读', 'file-document')} />
     </Stack.Navigator>
   );
 }
 
 // ==================== 练习 Tab ====================
 function PracticeStack() {
-  const { colors } = useAppTheme();
   const Stack = createStackNavigator<PracticeStackParamList>();
-
-  const headerOptions = (title: string, icon: string) => ({
-    headerTitle: ({ color }: { color: string }) => (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <MaterialIcons name={icon as any} size={22} color={color} />
-        <Text style={{ color, fontWeight: 'bold', fontSize: 17 }}>{title}</Text>
-      </View>
-    ),
-    headerStyle: {
-      backgroundColor: colors.primary,
-    },
-    headerTintColor: '#ffffff',
-    headerTitleStyle: {
-      fontWeight: 'bold' as const,
-    },
-    headerBackTitleVisible: false,
-  } as any);
-
   return (
     <Stack.Navigator>
-      <Stack.Screen name="PracticeHub" component={PracticeHubScreen} options={headerOptions('练习', 'edit')} />
-      <Stack.Screen name="ExamSetup" component={ExamSetupScreen} options={headerOptions('考题练习', 'edit')} />
-      <Stack.Screen name="ExamAnswer" component={ExamAnswerScreen} options={headerOptions('答题中', 'edit')} />
-      <Stack.Screen name="ExamResult" component={ExamResultScreen} options={headerOptions('练习结果', 'edit')} />
-      <Stack.Screen name="WrongQuestionReview" component={WrongQuestionReviewScreen} options={headerOptions('错题本', 'edit')} />
-      <Stack.Screen name="ExamHistory" component={ExamHistoryScreen} options={headerOptions('练习历史', 'edit')} />
-      <Stack.Screen name="RealExamList" component={RealExamListScreen} options={headerOptions('真题练习', 'menu')} />
-      <Stack.Screen name="RealExamReading" component={RealExamReadingScreen} options={headerOptions('阅读理解', 'menu')} />
-      <Stack.Screen name="RealExamCloze" component={RealExamClozeScreen} options={headerOptions('完形填空', 'menu')} />
-      <Stack.Screen name="RealExamNewType" component={RealExamNewTypeScreen} options={headerOptions('新题型', 'menu')} />
-      <Stack.Screen name="RealExamTranslation" component={RealExamTranslationScreen} options={headerOptions('翻译', 'menu')} />
-      <Stack.Screen name="RealExamWriting" component={RealExamWritingScreen} options={headerOptions('写作', 'menu')} />
-      <Stack.Screen name="RealExamResult" component={RealExamResultScreen} options={headerOptions('练习结果', 'menu')} />
+      <Stack.Screen name="PracticeHub" component={PracticeHubScreen} options={makeTabHeaderOptions('练习', 'puzzle')} />
+      <Stack.Screen name="ExamSetup" component={ExamSetupScreen} options={makeTabHeaderOptions('考题练习', 'puzzle')} />
+      <Stack.Screen name="ExamAnswer" component={ExamAnswerScreen} options={makeTabHeaderOptions('答题中', 'puzzle')} />
+      <Stack.Screen name="ExamResult" component={ExamResultScreen} options={makeTabHeaderOptions('练习结果', 'chart-bar')} />
+      <Stack.Screen name="WrongQuestionReview" component={WrongQuestionReviewScreen} options={makeTabHeaderOptions('错题本', 'alert-circle')} />
+      <Stack.Screen name="ExamHistory" component={ExamHistoryScreen} options={makeTabHeaderOptions('练习历史', 'history')} />
+      <Stack.Screen name="RealExamList" component={RealExamListScreen} options={makeTabHeaderOptions('真题练习', 'book-open-page-variant')} />
+      <Stack.Screen name="RealExamReading" component={RealExamReadingScreen} options={makeTabHeaderOptions('阅读理解', 'book-open-page-variant')} />
+      <Stack.Screen name="RealExamCloze" component={RealExamClozeScreen} options={makeTabHeaderOptions('完形填空', 'book-open-page-variant')} />
+      <Stack.Screen name="RealExamNewType" component={RealExamNewTypeScreen} options={makeTabHeaderOptions('新题型', 'book-open-page-variant')} />
+      <Stack.Screen name="RealExamTranslation" component={RealExamTranslationScreen} options={makeTabHeaderOptions('翻译', 'translate')} />
+      <Stack.Screen name="RealExamWriting" component={RealExamWritingScreen} options={makeTabHeaderOptions('写作', 'pencil')} />
+      <Stack.Screen name="RealExamResult" component={RealExamResultScreen} options={makeTabHeaderOptions('练习结果', 'chart-bar')} />
     </Stack.Navigator>
   );
 }
 
 // ==================== 统计 Tab ====================
 function StatsStack() {
-  const { colors } = useAppTheme();
   const Stack = createStackNavigator<StatsStackParamList>();
-
-  const headerOptions = (title: string, icon: string) => ({
-    headerTitle: ({ color }: { color: string }) => (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <MaterialIcons name={icon as any} size={22} color={color} />
-        <Text style={{ color, fontWeight: 'bold', fontSize: 17 }}>{title}</Text>
-      </View>
-    ),
-    headerStyle: {
-      backgroundColor: colors.primary,
-    },
-    headerTintColor: '#ffffff',
-    headerTitleStyle: {
-      fontWeight: 'bold' as const,
-    },
-    headerBackTitleVisible: false,
-  } as any);
-
   return (
     <Stack.Navigator>
-      <Stack.Screen name="Stats" component={StatsScreen} options={headerOptions('我的', 'person')} />
-      <Stack.Screen name="StatsDetail" component={StatsDetailScreen} options={headerOptions('学习统计', 'bar-chart')} />
-      <Stack.Screen name="Settings" component={SettingsScreen} options={headerOptions('设置', 'settings')} />
-      <Stack.Screen name="Admin" component={AdminScreen} options={headerOptions('后台控制台', 'shield')} />
-      <Stack.Screen name="Subscription" component={SubscriptionScreen} options={headerOptions('订阅方案', 'card')} />
+      <Stack.Screen name="Stats" component={StatsScreen} options={makeTabHeaderOptions('我的', 'account')} />
+      <Stack.Screen name="StatsDetail" component={StatsDetailScreen} options={makeTabHeaderOptions('学习统计', 'chart-line')} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={makeTabHeaderOptions('设置', 'cog')} />
+      <Stack.Screen name="Admin" component={AdminScreen} options={makeTabHeaderOptions('后台控制台', 'shield-crown')} />
+      <Stack.Screen name="Subscription" component={SubscriptionScreen} options={makeTabHeaderOptions('订阅方案', 'card-account-details')} />
     </Stack.Navigator>
   );
 }
 
 // ==================== 主 Tab 导航器 ====================
-
-// 图标名映射
 const TAB_ICONS: Record<string, string> = {
-  Home: 'menu',
-  Read: 'description',
-  Practice: 'edit',
-  Stats: 'person',
+  Home: 'book-open-page-variant',
+  Read: 'book-open-page-variant-outline',
+  Practice: 'puzzle',
+  Stats: 'account',
 };
 
 function MainTabs() {
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
+  const typography = colors.typography;
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color, size }) => (
-          <MaterialIcons name={TAB_ICONS[route.name] as any} size={size} color={color} />
+          <MaterialCommunityIcons
+            name={TAB_ICONS[route.name] as any}
+            size={size}
+            color={color}
+          />
         ),
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tertiary,
         headerShown: false,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: typography.caption.size,
+          fontWeight: '500',
           paddingBottom: 4,
         },
         tabBarStyle: {
@@ -239,10 +211,9 @@ function MainTabs() {
 
 // ==================== 根导航器 ====================
 export default function AppNavigator() {
-  const { dark } = useAppTheme();
+  const { dark, colors } = useAppTheme();
   const { user, loading } = useAuth();
 
-  // 固定浏览器标签标题
   useEffect(() => {
     document.title = '考研英语生词本AI版';
     const interval = setInterval(() => {
@@ -253,11 +224,19 @@ export default function AppNavigator() {
     return () => clearInterval(interval);
   }, []);
 
-  // 初始化中：等 AuthProvider 从 AsyncStorage 恢复完 token
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: dark ? '#121212' : '#F5F5F5' }}>
-        <Text style={{ fontSize: 18, color: dark ? '#FFF' : '#333' }}>加载中...</Text>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: colors.background,
+        }}
+      >
+        <Text style={{ fontSize: 18, color: colors.onSurface }}>
+          加载中...
+        </Text>
       </View>
     );
   }

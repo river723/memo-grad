@@ -13,28 +13,39 @@ export interface AdminKpiCardProps {
   value: number | string;
   hint?: string;
   icon?: string;
-  color?: string;
+  /** 语义色 token 名（primary / success / warning / danger），不再是 hex */
+  color?: 'primary' | 'success' | 'warning' | 'danger';
 }
+
+const SEMANTIC: Record<NonNullable<AdminKpiCardProps['color']>, (c: any) => string> = {
+  primary: (c) => c.primary,
+  success: (c) => c.success,
+  warning: (c) => c.warning,
+  danger: (c) => c.danger,
+};
 
 export default function AdminKpiCard({ label, value, hint, icon, color }: AdminKpiCardProps) {
   const { colors } = useAppTheme();
+  const resolvedColor = color ? SEMANTIC[color](colors) : undefined;
   const useStyles = makeStyles((c) => ({
     card: {
       flex: 1, minWidth: 140, margin: 6,
       backgroundColor: c.surface,
       borderRadius: 10,
-      elevation: 2,
+      borderWidth: 1,
+      borderColor: c.outline,
+      elevation: 0,
     },
     content: { padding: 14 },
     topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconWrap: {
       width: 30, height: 30, borderRadius: 8,
-      backgroundColor: (color ?? c.primary) + '18',
+      backgroundColor: (resolvedColor ?? c.primary) + '18',
       alignItems: 'center', justifyContent: 'center',
     },
     icon: { fontSize: 16 },
     label: { fontSize: 11, color: c.onSurfaceVariant, marginTop: 8, fontWeight: '500' },
-    value: { fontSize: 22, fontWeight: '700', color: color ?? c.onSurface, marginTop: 2, lineHeight: 26 },
+    value: { fontSize: 22, fontWeight: '700', color: resolvedColor ?? c.onSurface, marginTop: 2, lineHeight: 26 },
     hint: { fontSize: 10, color: c.onSurfaceVariant, marginTop: 4 },
   }));
   const styles = useStyles();
@@ -46,7 +57,7 @@ export default function AdminKpiCard({ label, value, hint, icon, color }: AdminK
           <Text style={styles.label}>{label}</Text>
           {icon ? (
             <View style={styles.iconWrap}>
-              <MaterialIcons name={icon as any} size={16} color={color ?? colors.primary} style={styles.icon} />
+              <MaterialIcons name={icon as any} size={16} color={resolvedColor ?? colors.primary} style={styles.icon} />
             </View>
           ) : null}
         </View>

@@ -187,7 +187,7 @@ export default function WordDetailScreen() {
       ) : null}
       {enhancing ? (
         <Surface style={styles.enhancingBar}>
-          <ActivityIndicator size="small" color="#1976D2" />
+          <ActivityIndicator size="small" color={colors.primary} />
           <Text style={styles.enhancingText}>AI 正在补全...</Text>
         </Surface>
       ) : null}

@@ -652,7 +652,7 @@ const useStyles = makeStyles(colors => ({
   statusText: { fontSize: 13, color: colors.onSurfaceVariant },
   statusSelected: { fontSize: 13, color: colors.primary },
   statusExisting: { fontSize: 13, color: colors.tertiary },
-  statusIgnored: { fontSize: 13, color: '#F57C00' },
+  statusIgnored: { fontSize: 13, color: colors.warning },
 
   // 搜索
   searchCard: {
@@ -820,7 +820,7 @@ const useStyles = makeStyles(colors => ({
   },
   ignorePillText: {
     fontSize: 12,
-    color: '#F57C00',
+    color: colors.warning,
   },
 
   // 空态

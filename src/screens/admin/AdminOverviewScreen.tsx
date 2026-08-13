@@ -11,17 +11,18 @@ import { AdminApi } from '../../services/AdminApi';
 import AdminKpiCard from './components/AdminKpiCard';
 import type { AdminStats } from './types';
 
-// 10 个 KPI 的数据定义，统一 icon / 颜色 / hint
-const KPI_DEFS = [
-  { key: 'monthlyRevenueYuan', label: '本月收入',   icon: 'attach-money', color: '#2e7d32', hint: 'paid 订单 / 当月' },
-  { key: 'newUsersThisMonth',  label: '本月新增用户', icon: 'person-add',   color: '#1565c0', hint: undefined },
-  { key: 'expiringSoonCount',  label: '7 天内到期',   icon: 'warning',      color: '#e65100', hint: 'active 订阅' },
-  { key: 'failedAiCallsThisMonth', label: '本月 AI 失败', icon: 'cloud-off', color: '#c62828', hint: undefined },
+// 10 个 KPI 的数据定义，统一 icon / 语义色 / hint
+// color 使用语义色 token 名（primary / success / warning / danger），不再写 hex
+const KPI_DEFS: { key: string; label: string; icon: string; color?: 'primary' | 'success' | 'warning' | 'danger'; hint?: string }[] = [
+  { key: 'monthlyRevenueYuan', label: '本月收入',   icon: 'attach-money', color: 'success', hint: 'paid 订单 / 当月' },
+  { key: 'newUsersThisMonth',  label: '本月新增用户', icon: 'person-add',   color: 'primary', hint: undefined },
+  { key: 'expiringSoonCount',  label: '7 天内到期',   icon: 'warning',      color: 'warning', hint: 'active 订阅' },
+  { key: 'failedAiCallsThisMonth', label: '本月 AI 失败', icon: 'cloud-off', color: 'danger', hint: undefined },
   { key: 'totalUsers',         label: '总用户',        icon: 'people',       color: undefined,  hint: undefined },
-  { key: 'activeSubscriptions',label: '活跃订阅',     icon: 'verified',     color: '#2e7d32', hint: undefined },
+  { key: 'activeSubscriptions',label: '活跃订阅',     icon: 'verified',     color: 'success', hint: undefined },
   { key: 'totalAiCalls',       label: 'AI 调用总数',   icon: 'api',          color: undefined,  hint: '历史累计' },
-  { key: 'adminCount',         label: '管理员数',      icon: 'shield',       color: '#1565c0', hint: undefined },
-  { key: 'disabledCount',      label: '已封禁用户',    icon: 'block',        color: '#c62828', hint: undefined },
+  { key: 'adminCount',         label: '管理员数',      icon: 'shield',       color: 'primary', hint: undefined },
+  { key: 'disabledCount',      label: '已封禁用户',    icon: 'block',        color: 'danger', hint: undefined },
   { key: 'activeRate',         label: '活跃订阅率',    icon: 'percent',      color: undefined,  hint: undefined },
 ];
 

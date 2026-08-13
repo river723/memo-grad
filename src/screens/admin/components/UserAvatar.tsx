@@ -13,7 +13,7 @@ export default function UserAvatar({ name, size = 36 }: { name: string | null; s
       width: size, height: size, borderRadius: size / 2,
       backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
     },
-    text: { color: '#ffffff', fontWeight: '700', fontSize: size * 0.45 },
+    text: { color: c.onPrimary, fontWeight: '700', fontSize: size * 0.45 },
   }));
   const styles = useStyles();
   const initial = (name && name.trim().length > 0) ? name.trim()[0].toUpperCase() : '?';

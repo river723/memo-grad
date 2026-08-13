@@ -152,9 +152,9 @@ export default function ArticleGenerateScreen() {
 
   const getCoverageColor = (wordId: string): string => {
     const count = coverage.get(wordId) || 0;
-    if (count === 0) return '#4CAF50';
-    if (count === 1) return '#FF9800';
-    return '#9E9E9E';
+    if (count === 0) return colors.success;
+    if (count === 1) return colors.warning;
+    return colors.tertiary;
   };
 
   const toggleWordSelection = (word: Word) => {
@@ -507,7 +507,7 @@ export default function ArticleGenerateScreen() {
       {/* 加载状态 */}
       {isGenerating && (
         <View style={styles.loadingArea}>
-          <ActivityIndicator size="large" color="#1976D2" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>AI 正在为你创作文章...</Text>
           <Text style={styles.loadingHint}>这可能需要 10-30 秒</Text>
         </View>

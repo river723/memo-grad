@@ -5,8 +5,8 @@ import { MD3Theme } from 'react-native-paper';
 import { lightTheme, darkTheme } from '../theme/theme';
 import StorageService from '../services/StorageService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { ToastProvider } from '../components/ds/Toast';
 
-// 使用 @expo/vector-icons 替代 react-native-vector-icons
 const paperSettings = {
   icon: (props: any) => <MaterialCommunityIcons {...props} />,
 };
@@ -36,29 +36,26 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('light');
   const [resolvedTheme, setResolvedTheme] = useState<MD3Theme>(lightTheme);
 
-  // 初始化时加载保存的主题设置
   useEffect(() => {
     const loadSavedTheme = async () => {
       try {
         const settings = await StorageService.getSettings();
         const savedTheme = settings.theme || 'light';
 
-        // 验证并安全转换字符串为联合类型
         if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
           setThemeMode(savedTheme);
         } else {
-          setThemeMode('light'); // 默认值
+          setThemeMode('light');
         }
       } catch (error) {
         console.error('Failed to load saved theme:', error);
-        setThemeMode('light'); // 默认值
+        setThemeMode('light');
       }
     };
 
     loadSavedTheme();
   }, []);
 
-  // 当 themeMode 变化时，重新计算当前主题
   useEffect(() => {
     const currentTheme = themeMode === 'dark' ||
                         (themeMode === 'system' && systemColorScheme === 'dark')
@@ -68,12 +65,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     setResolvedTheme(currentTheme);
   }, [themeMode, systemColorScheme]);
 
-  // 保存主题设置到本地存储
   const handleSetThemeMode = async (mode: 'light' | 'dark' | 'system') => {
     try {
       setThemeMode(mode);
-
-      // 保存到设置中
       await StorageService.saveSettings({ theme: mode });
     } catch (error) {
       console.error('Failed to save theme:', error);
@@ -89,7 +83,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   return (
     <ThemeContext.Provider value={contextValue}>
       <PaperProvider theme={resolvedTheme} settings={paperSettings}>
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </PaperProvider>
     </ThemeContext.Provider>
   );

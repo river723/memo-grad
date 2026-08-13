@@ -7,6 +7,7 @@ import {
   ProgressBar,
   Surface,
 } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
@@ -157,7 +158,7 @@ export default function ExamAnswerScreen() {
         </View>
         <ProgressBar
           progress={(currentIndex + 1) / questions.length}
-          color="#1976D2"
+          color={colors.primary}
           style={styles.bar}
         />
       </Surface>
@@ -186,13 +187,13 @@ export default function ExamAnswerScreen() {
             <Text
               style={[
                 styles.feedbackText,
-                { color: selectedOption === getCorrectAnswer(currentQuestion) ? '#4CAF50' : '#F44336' },
+                { color: selectedOption === getCorrectAnswer(currentQuestion) ? colors.success : colors.danger },
               ]}
             >
-              {selectedOption === getCorrectAnswer(currentQuestion) ? '✓ 正确!' : '✗ 错误'}
+              {selectedOption === getCorrectAnswer(currentQuestion) ? ' 正确' : ' 错误'}
             </Text>
             <View style={styles.bottomActions}>
-              <Button mode="text" onPress={handleSkip} textColor="#999">跳过</Button>
+              <Button mode="text" onPress={handleSkip} textColor={colors.tertiary}>跳过</Button>
               <Button mode="contained" onPress={handleNext}>
                 {isLastQuestion ? '查看结果' : '下一题'}
               </Button>
@@ -201,7 +202,7 @@ export default function ExamAnswerScreen() {
         ) : (
           <View style={styles.waitingRow}>
             <Text style={styles.waitingText}>请选择一个选项</Text>
-            <Button mode="text" onPress={handleSkip} textColor="#999">跳过</Button>
+            <Button mode="text" onPress={handleSkip} textColor={colors.tertiary}>跳过</Button>
           </View>
         )}
       </Surface>
@@ -272,15 +273,16 @@ function ClozeQuestionCard({
   onSelect: (option: string) => void;
 }) {
   const styles = useStyles();
+  const { colors: c } = useAppTheme();
   const sentenceParts = question.sentence.split('[BLANK]');
 
   return (
     <Card style={styles.questionCard}>
       <Card.Content>
         <View style={styles.typeTag}>
-          <Text style={[styles.typeTagText, { color: '#E65100' }]}>完形选词</Text>
+          <Text style={[styles.typeTagText, { color: c.warning }]}>完形选词</Text>
         </View>
-        <Surface style={[styles.sentenceBox, { borderLeftColor: '#E65100' }]}>
+        <Surface style={[styles.sentenceBox, { borderLeftColor: c.warning }]}>
           <Text style={styles.sentenceText}>
             {sentenceParts.length === 2 ? (
               <>
@@ -392,36 +394,48 @@ const useStyles = makeStyles(colors => ({
   container: { flex: 1, backgroundColor: colors.background },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   emptyText: { fontSize: 16, color: colors.tertiary, marginBottom: 16 },
-  progressBar: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: colors.surface, elevation: 2 },
+  progressBar: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.outline },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   progressText: { fontSize: 14, fontWeight: '600', color: colors.onSurface },
   accuracyText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
-  bar: { height: 6, borderRadius: 3 },
+  bar: { height: 3, borderRadius: 2, backgroundColor: colors.outline },
   questionArea: { flex: 1 },
   questionContent: { padding: 16, paddingBottom: 32 },
-  questionCard: { borderRadius: 16, elevation: 3 },
-  typeTag: { alignSelf: 'flex-start', backgroundColor: colors.primaryContainer, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 16 },
+  questionCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface },
+  typeTag: { alignSelf: 'flex-start', backgroundColor: colors.status.active.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 16 },
   typeTagText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
   promptText: { fontSize: 15, color: colors.onSurfaceVariant, marginBottom: 16, marginTop: 4 },
-  sentenceBox: { backgroundColor: colors.background, padding: 16, borderRadius: 12, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: colors.primary },
-  sentenceText: { fontSize: 16, color: colors.onSurface, lineHeight: 26, fontStyle: 'italic' },
-  underlinedWord: { color: colors.primary, fontWeight: '800', textDecorationLine: 'underline', textDecorationColor: colors.primary, textDecorationStyle: 'solid' },
-  blankMarker: { color: colors.primary, fontWeight: '800', fontSize: 20, textDecorationLine: 'underline' },
-  optionsGrid: { gap: 10 },
-  optionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.outline, minHeight: 48 },
-  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primaryContainer },
-  optionCorrect: { borderColor: palette.success, backgroundColor: palette.successLight },
-  optionIncorrect: { borderColor: palette.danger, backgroundColor: palette.dangerLight },
+  sentenceBox: { backgroundColor: colors.background, padding: 16, borderRadius: 8, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: colors.primary },
+  sentenceText: { fontSize: 18, color: colors.onSurface, lineHeight: 28, fontFamily: 'SourceSerif4, Georgia, serif' },
+  underlinedWord: { color: colors.primary, fontWeight: '700', textDecorationLine: 'underline', textDecorationColor: colors.primary, textDecorationStyle: 'solid' },
+  blankMarker: { color: colors.primary, fontWeight: '700', fontSize: 20, textDecorationLine: 'underline' },
+  optionsGrid: { gap: 10, marginTop: 4 },
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    minHeight: 56,
+    borderLeftWidth: 4,
+    borderLeftColor: 'transparent',
+  },
+  optionSelected: { borderColor: colors.primary, borderLeftColor: colors.primary, backgroundColor: colors.primaryContainer },
+  optionCorrect: { borderColor: colors.success, borderLeftColor: colors.success, backgroundColor: colors.status.active.bg },
+  optionIncorrect: { borderColor: colors.danger, borderLeftColor: colors.danger, backgroundColor: colors.status.refunded.bg },
   optionIndex: { fontSize: 15, fontWeight: '700', color: colors.tertiary, width: 28, textAlign: 'center' },
-  optionText: { fontSize: 15, color: colors.onSurface, flex: 1 },
+  optionText: { fontSize: 15, color: colors.onSurface, flex: 1, lineHeight: 22 },
   optionTextSelected: { color: colors.primary, fontWeight: '600' },
-  optionTextCorrect: { color: palette.successDark, fontWeight: '600' },
-  optionTextIncorrect: { color: palette.dangerDark },
-  checkIcon: { fontSize: 20, color: palette.success, fontWeight: '800', marginLeft: 4 },
-  crossIcon: { fontSize: 20, color: palette.danger, fontWeight: '800', marginLeft: 4 },
-  bottomBar: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, elevation: 4 },
+  optionTextCorrect: { color: colors.success, fontWeight: '600' },
+  optionTextIncorrect: { color: colors.danger, fontWeight: '600' },
+  checkIcon: { fontSize: 20, color: colors.success, fontWeight: '700', marginLeft: 4 },
+  crossIcon: { fontSize: 20, color: colors.danger, fontWeight: '700', marginLeft: 4 },
+  bottomBar: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.outline },
   feedbackRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  feedbackText: { fontSize: 17, fontWeight: '700' },
+  feedbackText: { fontSize: 16, fontWeight: '600' },
   bottomActions: { flexDirection: 'row', gap: 8 },
   waitingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   waitingText: { fontSize: 14, color: colors.tertiary },

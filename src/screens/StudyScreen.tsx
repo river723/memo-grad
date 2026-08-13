@@ -24,6 +24,7 @@ import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
+import FlashcardStudy from '../components/FlashcardStudy';
 
 type StudyScreenMode = 'flashcard' | 'listening' | 'quiz' | 'article';
 
@@ -707,7 +708,7 @@ export default function StudyScreen() {
 
             {isGeneratingArticle && (
               <View style={styles.articleLoadingBox}>
-                <ActivityIndicator animating color="#1976D2" />
+                <ActivityIndicator animating color={colors.primary} />
                 <Text style={styles.articleLoadingText}>AI 正在为你创作短文...</Text>
               </View>
             )}
@@ -751,146 +752,17 @@ export default function StudyScreen() {
     if (!currentWord) return null;
 
     return (
-      <View style={styles.modeContainer}>
-        <Card style={styles.wordCard}>
-          <Card.Content style={styles.cardContent}>
-            {!isFlipped ? (
-              <View style={styles.cardFront}>
-                <Text style={styles.wordText}>{currentWord.word}</Text>
-                {currentWord.pronunciation_uk && (
-                  <Text style={styles.pronunciation}>
-                    UK [{currentWord.pronunciation_uk}]
-                  </Text>
-                )}
-                {currentWord.pronunciation_us && (
-                  <Text style={styles.pronunciation}>
-                    US [{currentWord.pronunciation_us}]
-                  </Text>
-                )}
-                <Button
-                  mode="outlined"
-                  onPress={() => speakWord(currentWord.word)}
-                  style={styles.soundButton}
-                  icon={speechSettings.soundEnabled ? 'volume-high' : 'volume-off'}
-                  disabled={!speechSettings.soundEnabled}
-                >
-                  {speechSettings.soundEnabled ? '发音' : '发音已关闭'}
-                </Button>
-                <Text style={styles.flipHint}>点击翻转</Text>
-              </View>
-            ) : (
-              <View style={styles.cardBack}>
-                {/* 单词 + 发音 */}
-                <View style={styles.cardBackWordHeader}>
-                  <Text style={styles.cardBackWord}>{currentWord.word}</Text>
-                  <Button
-                    mode="text"
-                    onPress={() => speakWord(currentWord.word)}
-                    icon={speechSettings.soundEnabled ? 'volume-high' : 'volume-off'}
-                    compact
-                    disabled={!speechSettings.soundEnabled}
-                  >
-                    {' '}
-                  </Button>
-                </View>
-                {currentWord.pronunciation_uk && (
-                  <Text style={styles.cardBackPronunciation}>
-                    UK [{currentWord.pronunciation_uk}]
-                    {currentWord.pronunciation_us ? `  US [${currentWord.pronunciation_us}]` : ''}
-                  </Text>
-                )}
-
-                {/* 释义列表 */}
-                {currentWord.definitions.map((def, index) => (
-                  <Surface key={index} style={styles.definitionItem}>
-                    <View style={styles.definitionHeader}>
-                      <Text style={styles.partOfSpeech}>{def.part_of_speech}</Text>
-                      {def.is_core && <Chip mode="flat" compact style={styles.coreTag}>核心</Chip>}
-                      {def.is_rare_sense && <Chip mode="flat" compact style={styles.rareTag}>熟词僻义</Chip>}
-                    </View>
-                    <Text style={styles.meaning}>{def.meaning}</Text>
-                    {def.example && (
-                      <Text style={styles.example}>例句: {def.example}</Text>
-                    )}
-                  </Surface>
-                ))}
-
-                {/* 词根词缀 */}
-                {currentWord.etymology && (
-                  <Surface style={styles.etymologyBox}>
-                    <Text style={styles.etymologyTitle}>🔍 词根词缀</Text>
-                    <Text style={styles.etymologyText}>{currentWord.etymology}</Text>
-                  </Surface>
-                )}
-
-                {/* 记忆口诀 */}
-                {currentWord.memory_tip && (
-                  <Surface style={styles.etymologyBox}>
-                    <Text style={styles.etymologyTitle}>💡 记忆口诀</Text>
-                    <Text style={styles.etymologyText}>{currentWord.memory_tip}</Text>
-                  </Surface>
-                )}
-
-                {/* 形近词 / 易混词提醒 */}
-                {Array.isArray(currentWord.similar_words) && currentWord.similar_words.length > 0 && (
-                  <Surface style={styles.etymologyBox}>
-                    <Text style={styles.etymologyTitle}>🔗 易混词提醒</Text>
-                    {currentWord.similar_words.map((sw, index) => (
-                      <Text key={index} style={styles.etymologyText}>
-                        · {sw.word}（{sw.relation === 'spelling' ? '形近' : sw.relation === 'meaning' ? '义近' : '同根'}）— {sw.description}
-                      </Text>
-                    ))}
-                  </Surface>
-                )}
-
-                {/* AI 补全：仅当词条信息不全且已配置 AI 时显示 */}
-                {canWordBeEnhanced(currentWord, appSettings) && (
-                  <Button
-                    mode="outlined"
-                    icon="auto-fix"
-                    onPress={enhanceCurrentWord}
-                    loading={enhancingWordId === currentWord.id}
-                    disabled={enhancingWordId === currentWord.id}
-                    style={styles.enhanceBtn}
-                    compact
-                  >
-                    {enhancingWordId === currentWord.id
-                      ? 'AI 补全中...'
-                      : 'AI 补全词根、例句、近义词'}
-                  </Button>
-                )}
-              </View>
-            )}
-          </Card.Content>
-        </Card>
-
-        <Button
-          mode="outlined"
-          onPress={() => setIsFlipped(!isFlipped)}
-          style={styles.flipButton}
-        >
-          {isFlipped ? '显示单词' : '显示释义'}
-        </Button>
-
-        {isFlipped && (
-          <View style={styles.resultButtons}>
-            <Button
-              mode="contained"
-              onPress={() => handleResult(false)}
-              style={[styles.resultButton, { backgroundColor: '#F44336' }]}
-            >
-              不认识
-            </Button>
-            <Button
-              mode="contained"
-              onPress={() => handleResult(true)}
-              style={[styles.resultButton, { backgroundColor: '#4CAF50' }]}
-            >
-              认识
-            </Button>
-          </View>
-        )}
-      </View>
+      <FlashcardStudy
+        currentWord={currentWord}
+        onResult={handleResult}
+        speakWord={speakWord}
+        speechEnabled={speechSettings.soundEnabled}
+        onEnhance={enhanceCurrentWord}
+        enhancing={enhancingWordId === currentWord.id}
+        appSettings={appSettings}
+        progressCurrent={currentIndex + 1}
+        progressTotal={words.length}
+      />
     );
   };
 
@@ -1110,7 +982,7 @@ export default function StudyScreen() {
           </View>
           <ProgressBar
             progress={(currentIndex + 1) / Math.max(words.length, 1)}
-            color="#1976D2"
+            color={colors.primary}
             style={styles.progressBar}
           />
         </Card.Content>
@@ -1142,8 +1014,8 @@ export default function StudyScreen() {
                 </View>
                 <View style={styles.completionStatItem}>
                   <Text style={[styles.completionStatNumber, {
-                    color: studyStats.accuracy >= 80 ? '#4CAF50' :
-                           studyStats.accuracy >= 60 ? '#FF9800' : '#F44336'
+                    color: studyStats.accuracy >= 80 ? colors.success :
+                           studyStats.accuracy >= 60 ? colors.warning : colors.danger
                   }]}>
                     {studyStats.accuracy.toFixed(1)}%
                   </Text>
@@ -1222,7 +1094,7 @@ export default function StudyScreen() {
                   setShowExitConfirm(false);
                   navigation.goBack();
                 }}
-                buttonColor="#F44336"
+                buttonColor={colors.danger}
               >
                 退出
               </Button>

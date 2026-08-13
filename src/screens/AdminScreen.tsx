@@ -53,7 +53,7 @@ export default function AdminScreen() {
       backgroundColor: c.primary,
     },
     navLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    navTitle: { color: '#ffffff', fontSize: 19, fontWeight: '700' },
+    navTitle: { color: c.onPrimary, fontSize: 19, fontWeight: '700' },
     navLogout: { marginLeft: 'auto', padding: 4 },
     // 横排 tab：纯 View，无 ScrollView，规避 web 端 RNW horizontal 布局 bug
     tabBar: {
@@ -86,11 +86,11 @@ export default function AdminScreen() {
       {/* 单行导航：品牌 + 退出 */}
       <View style={styles.nav}>
         <View style={styles.navLeft}>
-          <MaterialIcons name="admin-panel-settings" size={24} color="#ffffff" />
+          <MaterialIcons name="admin-panel-settings" size={24} color={styles.navTitle.color} />
           <Text style={styles.navTitle}>管理面板</Text>
         </View>
         <TouchableOpacity style={styles.navLogout} onPress={logout} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <MaterialIcons name="logout" size={24} color="#ffffff" />
+          <MaterialIcons name="logout" size={24} color={styles.navTitle.color} />
         </TouchableOpacity>
       </View>
 

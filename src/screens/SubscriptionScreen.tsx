@@ -255,39 +255,127 @@ export default function SubscriptionScreen() {
               续费或升级
             </Text>
           )}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-            {plans.map((plan) => (
-              <Card
-                key={plan.id}
-                style={{
-                  flex: 1,
-                  minWidth: 140,
-                  backgroundColor: plan.id === 'monthly' ? colors.primaryContainer : colors.surface,
-                  borderWidth: plan.id === 'monthly' ? 2 : 0,
-                  borderColor: colors.primary,
-                }}
-              >
-                <Card.Content style={{ alignItems: 'center', padding: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.onSurface }}>
-                    {plan.name}
-                  </Text>
-                  <Text style={{ fontSize: 28, fontWeight: '700', color: colors.primary, marginTop: 8 }}>
-                    ¥{plan.priceYuan}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, marginTop: 4 }}>
-                    {plan.days}天
-                  </Text>
-                  <Button
-                    mode={plan.id === 'monthly' ? 'contained' : 'outlined'}
-                    onPress={() => handleOrder(plan.id)}
-                    disabled={!!order}
-                    style={{ marginTop: 12 }}
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: 12,
+              alignItems: 'stretch',
+            }}
+          >
+            {plans.map((plan) => {
+              const isRecommended = plan.id === 'monthly';
+              return (
+                <View
+                  key={plan.id}
+                  style={{
+                    flex: isRecommended ? 1.15 : 1,
+                    minWidth: 140,
+                    transform: isRecommended ? [{ scale: 1.04 }] : undefined,
+                  }}
+                >
+                  <Card
+                    style={{
+                      flex: 1,
+                      backgroundColor: isRecommended ? colors.primaryContainer : colors.surface,
+                      borderWidth: isRecommended ? 1.5 : 1,
+                      borderColor: isRecommended ? colors.primary : colors.outline,
+                      borderRadius: 16,
+                    }}
                   >
-                    {isPro ? '续费' : plan.id === 'monthly' ? '立即订阅' : '选择'}
-                  </Button>
-                </Card.Content>
-              </Card>
-            ))}
+                    <Card.Content style={{ alignItems: 'center', padding: 20, position: 'relative' }}>
+                      {isRecommended && (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            top: -10,
+                            alignSelf: 'center',
+                            backgroundColor: colors.accent,
+                            paddingHorizontal: 10,
+                            paddingVertical: 3,
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text style={{ color: colors.onPrimary, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
+                            最受欢迎
+                          </Text>
+                        </View>
+                      )}
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: '700',
+                          color: colors.onSurface,
+                          letterSpacing: 0.2,
+                        }}
+                      >
+                        {plan.name}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 12 }}>
+                        <Text
+                          style={{
+                            fontSize: 18,
+                            color: colors.primary,
+                            fontWeight: '600',
+                            marginRight: 2,
+                          }}
+                        >
+                          ¥
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 36,
+                            lineHeight: 40,
+                            color: colors.primary,
+                            fontWeight: '700',
+                            fontFamily: 'SourceSerif4, Georgia, serif',
+                            letterSpacing: -1,
+                          }}
+                        >
+                          {plan.priceYuan}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, marginTop: 4 }}>
+                        {plan.days}天
+                      </Text>
+                      {/* 特性列表 */}
+                      <View style={{ marginTop: 14, alignSelf: 'stretch', gap: 6 }}>
+                        {[
+                          '无限 AI 单词分析',
+                          'AI 文章生成',
+                          'AI 真题解析',
+                          '导出 / 备份',
+                        ].map((feat, i) => (
+                          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <View
+                              style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 7,
+                                backgroundColor: isRecommended ? colors.success : colors.outline,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <Text style={{ color: colors.onPrimary, fontSize: 9, fontWeight: '700' }}>✓</Text>
+                            </View>
+                            <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, flex: 1 }}>{feat}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      <Button
+                        mode={isRecommended ? 'contained' : 'outlined'}
+                        onPress={() => handleOrder(plan.id)}
+                        disabled={!!order}
+                        style={{ marginTop: 16, alignSelf: 'stretch' }}
+                      >
+                        {isPro ? '续费' : isRecommended ? '立即订阅' : '选择'}
+                      </Button>
+                    </Card.Content>
+                  </Card>
+                </View>
+              );
+            })}
           </View>
         </View>
       )}

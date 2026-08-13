@@ -53,7 +53,7 @@ export default function AdminOrderListScreen({ onSelectUser }: Props) {
     orderChannel: { fontSize: 11, color: c.onSurfaceVariant },
     orderMeta: { fontSize: 11, color: c.onSurfaceVariant, marginTop: 3 },
     orderRight: { alignItems: 'flex-end', gap: 3 },
-    amount: { fontSize: 15, fontWeight: '700', color: '#2e7d32' },
+    amount: { fontSize: 15, fontWeight: '700', color: c.success },
     empty: { textAlign: 'center', color: c.onSurfaceVariant, padding: 32, fontSize: 13 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
     error: { color: c.error, marginBottom: 12 },

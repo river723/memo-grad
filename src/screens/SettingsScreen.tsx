@@ -415,7 +415,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.examAutoAdvance}
               onValueChange={value => saveSettings({ examAutoAdvance: value })}
-              color="#1976D2"
+              color={colors.primary}
             />
           </View>
 
@@ -441,7 +441,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.showRareSense}
               onValueChange={value => saveSettings({ showRareSense: value })}
-              color="#1976D2"
+              color={colors.primary}
             />
           </View>
 
@@ -453,7 +453,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.showEtymology}
               onValueChange={value => saveSettings({ showEtymology: value })}
-              color="#1976D2"
+              color={colors.primary}
             />
           </View>
 
@@ -469,7 +469,7 @@ export default function SettingsScreen() {
             <Switch
               value={settings.soundEnabled && settings.autoPlaySound}
               onValueChange={value => saveSettings({ autoPlaySound: value })}
-              color="#1976D2"
+              color={colors.primary}
               disabled={!settings.soundEnabled}
             />
           </View>

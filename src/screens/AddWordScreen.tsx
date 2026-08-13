@@ -12,17 +12,18 @@ import {
   Portal,
   SegmentedButtons
 } from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useAppNavigation } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
-import { palette } from '../theme/tokens';
+import { palette, radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { Word, AIResponse, AppSettings } from '../types';
 import { getLocalWordDictResult, mergeAIResultIntoWord } from '../utils/wordUtils';
 import DifficultyDots from '../components/DifficultyDots';
+import SectionHeader from '../components/ds/SectionHeader';
 
 type AddWordTab = 'wordbank' | 'manual';
 
@@ -406,16 +407,39 @@ export default function AddWordScreen() {
     <>
     <ScrollView style={styles.container}>
       <View style={styles.pageHeader}>
-        {/* <Text style={styles.pageTitle}>添加新生词</Text> */}
+        <Text style={styles.pageTitle}>添加生词</Text>
         <Text style={styles.pageSubtitle}>从本地增强词库快速选择，或手工录入并用 AI 补全释义</Text>
+      </View>
+
+      {/* 步骤指示器：1 选词 → 2 录入 → 3 确认 */}
+      <View style={styles.stepIndicator}>
+        <View style={[styles.stepDot, { backgroundColor: colors.primary }]}>
+          <Text style={{ color: colors.onPrimary, fontSize: 12, fontWeight: '700' }}>1</Text>
+        </View>
+        <Text style={[styles.stepLabel, { color: colors.primary, marginLeft: 6 }]}>选词</Text>
+        <View style={[styles.stepLine, { backgroundColor: colors.outline }]} />
+        <View
+          style={[
+            styles.stepDot,
+            { backgroundColor: activeTab === 'manual' ? colors.primary : colors.surface, borderWidth: 1.5, borderColor: activeTab === 'manual' ? colors.primary : colors.outline },
+          ]}
+        >
+          <Text style={{ color: activeTab === 'manual' ? colors.onPrimary : colors.tertiary, fontSize: 12, fontWeight: '700' }}>2</Text>
+        </View>
+        <Text style={[styles.stepLabel, { color: activeTab === 'manual' ? colors.primary : colors.tertiary, marginLeft: 6 }]}>录入</Text>
+        <View style={[styles.stepLine, { backgroundColor: colors.outline }]} />
+        <View style={[styles.stepDot, { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.outline }]}>
+          <Text style={{ color: colors.tertiary, fontSize: 12, fontWeight: '700' }}>3</Text>
+        </View>
+        <Text style={[styles.stepLabel, { color: colors.tertiary, marginLeft: 6 }]}>确认</Text>
       </View>
 
       <SegmentedButtons
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as AddWordTab)}
         buttons={[
-          { value: 'wordbank', label: '从本地词库选词', icon: 'book-search' },
-          { value: 'manual', label: '手工添加新单词', icon: 'pencil-plus' },
+          { value: 'wordbank', label: '本地词库', icon: 'book-search' },
+          { value: 'manual', label: '手工添加', icon: 'pencil-plus' },
         ]}
         style={styles.tabButtons}
       />
@@ -711,13 +735,15 @@ const useStyles = makeStyles(colors => ({
     elevation: 2,
   },
   pageHeader: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.primary,
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.onSurface,
+    fontFamily: 'SourceSerif4, Georgia, serif',
     marginBottom: 6,
+    letterSpacing: -0.3,
   },
   pageSubtitle: {
     fontSize: 13,
@@ -726,6 +752,30 @@ const useStyles = makeStyles(colors => ({
   },
   tabButtons: {
     marginBottom: 16,
+  },
+  // 新增：步骤指示器
+  stepIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  stepDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepLine: {
+    flex: 1,
+    height: 1.5,
+    marginHorizontal: 6,
+  },
+  stepLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.4,
   },
   pickerEntryRow: {
     flexDirection: 'row',
@@ -896,7 +946,7 @@ const useStyles = makeStyles(colors => ({
   },
   difficultyInlineLabel: {
     fontSize: 12,
-    color: '#795548',
+    color: palette.accentDark,
     marginRight: 6,
     fontWeight: '600',
   },
