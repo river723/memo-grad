@@ -13,8 +13,8 @@
  *   9-11. 占位 — 实际是上面 8 个 + 几个 disabled 状态
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
-import { Card, Text, Button, List, Divider, IconButton, Menu, TextInput, Snackbar, Banner as PaperBanner } from 'react-native-paper';
+import { View, ScrollView, RefreshControl, ActivityIndicator, Modal, Pressable } from 'react-native';
+import { Card, Text, Button, Divider, IconButton, TextInput, Snackbar, Surface } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../../theme/theme';
 import { makeStyles } from '../../utils/useStyles';
@@ -40,6 +40,11 @@ export default function AdminUserDetailScreen({ userId, onBack }: { userId: stri
     actionBtn: { marginRight: 4, marginBottom: 4 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 },
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
+    modalSheet: { width: 280, borderRadius: 12, padding: 16, backgroundColor: c.surface },
+    modalTitle: { fontSize: 15, fontWeight: 'bold', color: c.onSurface, marginBottom: 12 },
+    modalLabel: { fontSize: 12, color: c.onSurfaceVariant, marginBottom: 4 },
+    modalAction: { marginTop: 8 },
   }));
   const styles = useStyles();
 
@@ -47,8 +52,8 @@ export default function AdminUserDetailScreen({ userId, onBack }: { userId: stri
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snack, setSnack] = useState<{ msg: string; err?: boolean } | null>(null);
-  const [grantMenuVisible, setGrantMenuVisible] = useState(false);
   const [grantDays, setGrantDays] = useState('7');
+  const [grantDialogVisible, setGrantDialogVisible] = useState(false);
 
   const [confirmDialog, ConfirmNode] = useConfirmDialog();
 
@@ -101,6 +106,29 @@ export default function AdminUserDetailScreen({ userId, onBack }: { userId: stri
       </View>
     );
   }
+
+  // 授权订阅：确认天数与套餐，然后弹 confirmDialog 走敏感操作流程。
+  // 注意：定义在此处（守卫之后）才能让 detail 的类型收窄生效。
+  const grantSubscription = async (plan: 'monthly' | 'quarterly' | 'yearly') => {
+    setGrantDialogVisible(false);
+    const days = parseInt(grantDays, 10);
+    if (!Number.isFinite(days) || days < 1) {
+      setSnack({ msg: '天数无效', err: true });
+      return;
+    }
+    const r = await confirmDialog({
+      title: '确认授权订阅',
+      body: `将给 ${detail.phone || detail.email} 授权 ${days} 天 ${plan}（来源：manual）。如果已有有效订阅会失败。`,
+      confirmText: '确认授权',
+      requireReason: true,
+      reasonLabel: '授权原因',
+    });
+    if (!r.confirmed) return;
+    await runOp(
+      () => AdminApi.grantSubscription(detail.id, plan, days, 'manual', r.reason),
+      '已授权订阅'
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -323,53 +351,42 @@ export default function AdminUserDetailScreen({ userId, onBack }: { userId: stri
 
         <View style={styles.actionBtn} />
 
-        <Menu
-          visible={grantMenuVisible}
-          onDismiss={() => setGrantMenuVisible(false)}
-          anchor={
-            <Button mode="outlined" style={styles.actionBtn} onPress={() => setGrantMenuVisible(true)}>授权订阅…</Button>
-          }
+        {/* 授权订阅：不用 paper Menu（web 上 findNodeHandle 抛错），用 Modal 弹窗 */}
+        <Button mode="outlined" style={styles.actionBtn} onPress={() => setGrantDialogVisible(true)}>授权订阅…</Button>
+
+        <Modal
+          visible={grantDialogVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setGrantDialogVisible(false)}
         >
-          <View style={{ paddingHorizontal: 12, paddingVertical: 4, width: 220 }}>
-            <Text style={{ fontSize: 12, color: colors.onSurfaceVariant }}>天数（1-3650）</Text>
-            <TextInput
-              mode="outlined"
-              dense
-              keyboardType="number-pad"
-              value={grantDays}
-              onChangeText={setGrantDays}
-            />
-            {(['monthly', 'quarterly', 'yearly'] as const).map((plan) => (
-              <Button
-                key={plan}
-                mode="text"
-                compact
-                onPress={async () => {
-                  setGrantMenuVisible(false);
-                  const days = parseInt(grantDays, 10);
-                  if (!Number.isFinite(days) || days < 1) {
-                    setSnack({ msg: '天数无效', err: true });
-                    return;
-                  }
-                  const r = await confirmDialog({
-                    title: '确认授权订阅',
-                    body: `将给 ${detail.phone || detail.email} 授权 ${days} 天 ${plan}（来源：manual）。如果已有有效订阅会失败。`,
-                    confirmText: '确认授权',
-                    requireReason: true,
-                    reasonLabel: '授权原因',
-                  });
-                  if (!r.confirmed) return;
-                  await runOp(
-                    () => AdminApi.grantSubscription(detail.id, plan, days, 'manual', r.reason),
-                    '已授权订阅'
-                  );
-                }}
-              >
-                授权 {plan} {grantDays}天
-              </Button>
-            ))}
-          </View>
-        </Menu>
+          <Pressable style={styles.modalBackdrop} onPress={() => setGrantDialogVisible(false)}>
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <Surface style={styles.modalSheet} elevation={3}>
+                <Text style={styles.modalTitle}>授权订阅</Text>
+                <Text style={styles.modalLabel}>天数（1-3650）</Text>
+                <TextInput
+                  mode="outlined"
+                  dense
+                  keyboardType="number-pad"
+                  value={grantDays}
+                  onChangeText={setGrantDays}
+                />
+                {(['monthly', 'quarterly', 'yearly'] as const).map((plan) => (
+                  <Button
+                    key={plan}
+                    mode="contained-tonal"
+                    style={styles.modalAction}
+                    onPress={() => grantSubscription(plan)}
+                  >
+                    授权 {plan} {grantDays}天
+                  </Button>
+                ))}
+                <Button mode="text" onPress={() => setGrantDialogVisible(false)}>取消</Button>
+              </Surface>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {detail.isPro ? (
           <Button mode="text" style={styles.actionBtn} onPress={async () => {
