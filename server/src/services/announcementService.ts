@@ -22,8 +22,10 @@ export interface ListAnnouncementsFilters {
 }
 
 export async function listAnnouncements(filters: ListAnnouncementsFilters = {}) {
-  const page = Math.max(0, filters.page ?? 0);
-  const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+  // 注意：路由层 parseInt(undefined) 会得到 NaN，Prisma skip/take 不接受 NaN，
+  // 所以这里必须用 Number.isFinite 过滤（与 adminQueries 的守卫一致）。
+  const page = Math.max(0, Number.isFinite(filters.page ?? 0) ? (filters.page ?? 0) : 0);
+  const limit = Math.min(100, Math.max(1, Number.isFinite(filters.limit ?? 20) ? (filters.limit ?? 20) : 20));
 
   const where: Record<string, unknown> = {};
   if (filters.audience) where.audience = filters.audience;

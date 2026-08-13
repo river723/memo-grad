@@ -227,7 +227,7 @@ export default function StatsScreen() {
             {user && user.role === 'admin' && (
               <Button
                 mode="text"
-                icon="admin"
+                icon="shield-crown"
                 onPress={() => navigation.navigate('Admin')}
                 style={styles.adminLink}
               >

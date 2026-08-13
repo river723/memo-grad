@@ -3,7 +3,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
-import { Text, Button, Searchbar, Chip } from 'react-native-paper';
+import { Text, Button, Chip, IconButton } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../../theme/theme';
 import { makeStyles } from '../../utils/useStyles';
@@ -25,35 +25,72 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  'user.ban': '#dc3545',
-  'user.unban': '#28a745',
-  'user.set_role': '#007bff',
-  'user.reset_password': '#fd7e14',
-  'user.force_logout': '#6c757d',
-  'user.reset_ai_quota': '#17a2b8',
-  'sub.grant': '#28a745',
-  'sub.revoke': '#dc3545',
-  'sub.refund': '#dc3545',
-  'announcement.create': '#6f42c1',
-  'announcement.delete': '#6c757d',
+  'user.ban': '#c62828',
+  'user.unban': '#2e7d32',
+  'user.set_role': '#1565c0',
+  'user.reset_password': '#e65100',
+  'user.force_logout': '#546e7a',
+  'user.reset_ai_quota': '#00838f',
+  'sub.grant': '#2e7d32',
+  'sub.revoke': '#c62828',
+  'sub.refund': '#c62828',
+  'announcement.create': '#6a1b9a',
+  'announcement.delete': '#546e7a',
+};
+
+const ACTION_ICONS: Record<string, string> = {
+  'user.ban': 'block',
+  'user.unban': 'check-circle',
+  'user.set_role': 'admin-panel-settings',
+  'user.reset_password': 'lock-reset',
+  'user.force_logout': 'logout',
+  'user.reset_ai_quota': 'memory',
+  'sub.grant': 'thumb-up',
+  'sub.revoke': 'thumb-down',
+  'sub.refund': 'money-off',
+  'announcement.create': 'campaign',
+  'announcement.delete': 'delete-forever',
 };
 
 export default function AdminAuditLogScreen() {
   const { colors } = useAppTheme();
   const useStyles = makeStyles((c) => ({
     container: { flex: 1, backgroundColor: c.background },
-    searchRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4 },
-    search: { flex: 1, backgroundColor: c.surface },
-    list: { paddingBottom: 80 },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
-    error: { color: c.error, marginBottom: 12 },
-    card: { backgroundColor: c.surface, marginVertical: 1, padding: 12 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    action: { fontSize: 13, fontWeight: '600', color: c.onSurface },
+    // 筛选条
+    filterRow: {
+      flexDirection: 'row', flexWrap: 'wrap',
+      paddingHorizontal: 10, paddingVertical: 8,
+      backgroundColor: c.surface,
+      borderBottomWidth: 1, borderBottomColor: c.outline,
+      gap: 4,
+    },
+    // 统计行
+    statsRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 12, paddingVertical: 6,
+      backgroundColor: c.surface,
+      borderBottomWidth: 1, borderBottomColor: c.outline, gap: 6,
+    },
+    statsText: { fontSize: 11, color: c.onSurfaceVariant },
+    // 日志列表
+    list: { paddingBottom: 20 },
+    card: {
+      backgroundColor: c.surface,
+      marginHorizontal: 10, marginVertical: 4,
+      borderRadius: 8, elevation: 1,
+      borderLeftWidth: 3,
+    },
+    cardContent: { padding: 10 },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    actionRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    actionIcon: { fontSize: 15 },
+    action: { fontSize: 13, fontWeight: '500', color: c.onSurface },
     time: { fontSize: 11, color: c.onSurfaceVariant },
     meta: { fontSize: 11, color: c.onSurfaceVariant, marginTop: 4 },
-    note: { fontSize: 12, color: c.onSurface, marginTop: 4 },
-    target: { fontSize: 11, color: c.onSurfaceVariant, marginTop: 2, fontFamily: 'monospace' },
+    target: { fontSize: 10, color: c.onSurfaceVariant, marginTop: 2, fontFamily: 'monospace' },
+    note: { fontSize: 12, color: c.onSurface, marginTop: 4, lineHeight: 17 },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
+    error: { color: c.error, marginBottom: 12 },
   }));
   const styles = useStyles();
 
@@ -64,17 +101,12 @@ export default function AdminAuditLogScreen() {
   const [actionFilter, setActionFilter] = useState<string | undefined>(undefined);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const r = await AdminApi.listAuditLog({ limit: 100, action: actionFilter });
-      setLogs(r.logs);
-      setTotal(r.total);
-    } catch (e: any) {
-      setError(e?.message || '加载失败');
-    } finally {
-      setLoading(false);
-    }
+      setLogs(r.logs); setTotal(r.total);
+    } catch (e: any) { setError(e?.message || '加载失败'); }
+    finally { setLoading(false); }
   }, [actionFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -98,52 +130,83 @@ export default function AdminAuditLogScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView horizontal style={styles.searchRow} showsHorizontalScrollIndicator={false}>
+      {/* 筛选条（flexWrap 替代 ScrollView horizontal，规避 RNW web 布局 bug） */}
+      <View style={styles.filterRow}>
         <Chip
-          selected={!actionFilter}
+          compact
+          textStyle={{ fontWeight: '400', fontSize: 11 }}
+          style={{
+            marginRight: 4, marginBottom: 4,
+            backgroundColor: !actionFilter ? colors.primary + '18' : colors.surfaceVariant,
+            borderColor: !actionFilter ? colors.primary : 'transparent',
+          }}
           onPress={() => setActionFilter(undefined)}
-          style={{ marginRight: 4 }}
         >全部</Chip>
         {Object.entries(ACTION_LABELS).map(([k, v]) => (
           <Chip
             key={k}
-            selected={actionFilter === k}
+            compact
+            textStyle={{ fontWeight: '400', fontSize: 11 }}
+            style={{
+              marginRight: 4, marginBottom: 4,
+              backgroundColor: actionFilter === k ? colors.primary + '18' : colors.surfaceVariant,
+              borderColor: actionFilter === k ? colors.primary : 'transparent',
+            }}
             onPress={() => setActionFilter(k)}
-            style={{ marginRight: 4 }}
           >{v}</Chip>
         ))}
-      </ScrollView>
+      </View>
 
+      {/* 统计行 */}
+      <View style={styles.statsRow}>
+        <MaterialIcons name="history" size={14} color={colors.onSurfaceVariant} />
+        <Text style={styles.statsText}>共 {total} 条操作记录</Text>
+        {actionFilter ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+            <Chip compact>{ACTION_LABELS[actionFilter]}</Chip>
+            <IconButton icon="close" size={14} onPress={() => setActionFilter(undefined)} style={{ padding: 2 }} />
+          </View>
+        ) : null}
+      </View>
+
+      {/* 日志列表 */}
       <ScrollView
         refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchData} />}
         contentContainerStyle={styles.list}
       >
-        <Text style={{ paddingHorizontal: 12, paddingVertical: 4, fontSize: 11, color: colors.onSurfaceVariant }}>
-          共 {total} 条
-        </Text>
         {logs.length === 0 ? (
-          <Text style={{ textAlign: 'center', padding: 24, color: colors.onSurfaceVariant }}>无审计记录</Text>
-        ) : logs.map((l) => (
-          <View key={l.id} style={styles.card}>
-            <View style={styles.header}>
-              <Text style={[styles.action, { color: ACTION_COLORS[l.action] || colors.onSurface }]}>
-                {ACTION_LABELS[l.action] || l.action}
-              </Text>
-              <Text style={styles.time}>{new Date(l.createdAt).toLocaleString('zh-CN')}</Text>
+          <Text style={{ textAlign: 'center', padding: 32, color: colors.onSurfaceVariant, fontSize: 13 }}>
+            无审计记录
+          </Text>
+        ) : logs.map((l) => {
+          const color = ACTION_COLORS[l.action] || colors.onSurfaceVariant;
+          const icon = ACTION_ICONS[l.action] || 'check';
+          return (
+            <View key={l.id} style={[styles.card, { borderLeftColor: color }]}>
+              <View style={styles.cardContent}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.actionRow}>
+                    <MaterialIcons name={icon as any} size={15} color={color} />
+                    <Text style={[styles.action, { color }]}>{ACTION_LABELS[l.action] || l.action}</Text>
+                  </View>
+                  <Text style={styles.time}>{new Date(l.createdAt).toLocaleString('zh-CN')}</Text>
+                </View>
+                <Text style={styles.target}>
+                  {l.targetType}#{l.targetId.slice(0, 8)}
+                  {l.targetUserId ? ` → user#${l.targetUserId.slice(0, 8)}` : ''}
+                </Text>
+                {l.admin ? (
+                  <Text style={styles.meta}>
+                    <MaterialIcons name="person" size={10} color={colors.onSurfaceVariant} style={{ marginRight: 3 }} />
+                    {l.admin.phone || l.admin.email || l.admin.nickname || l.admin.id.slice(0, 8)}
+                    {l.ipAddress ? ` · ${l.ipAddress}` : ''}
+                  </Text>
+                ) : null}
+                {l.note ? <Text style={styles.note}>{l.note}</Text> : null}
+              </View>
             </View>
-            <Text style={styles.target}>
-              {l.targetType}#{l.targetId.slice(0, 8)}
-              {l.targetUserId ? ` → user#${l.targetUserId.slice(0, 8)}` : ''}
-            </Text>
-            {l.admin ? (
-              <Text style={styles.meta}>
-                操作人：{l.admin.phone || l.admin.email || l.admin.nickname || l.admin.id.slice(0, 8)}
-                {l.ipAddress ? ` · ${l.ipAddress}` : ''}
-              </Text>
-            ) : null}
-            {l.note ? <Text style={styles.note}>{l.note}</Text> : null}
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     </View>
   );

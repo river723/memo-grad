@@ -1,16 +1,20 @@
 /**
- * 后台控制台（薄壳 + 自定义顶部 Tab）。
+ * 后台控制台（单行紧凑导航 + 横排 Tab）。
  *
  * 5 个 Tab：概览 / 用户 / 订单 / 审计 / 公告
  * 用户详情是 push 的子页面（不是 Tab）。
  *
- * 不引入 @react-navigation/material-top-tabs：项目里没装，web 兼容性也未必稳。
- * 用纯 ScrollView 横滑按钮替代，简单可靠。
+ * 通过 headerShown: false 隐藏 React Navigation 的父级 Stack header，
+ * 避免双重导航栏叠加导致过高。
+ * 用纯 View 横排替代 ScrollView 水平 tab，规避 web 端 RNW horizontal
+ * ScrollView 布局 bug（导致高度异常放大到 470px）。
  */
 
-import React, { useState } from 'react';
-import { View, ScrollView } from 'react-native';
+import React, { useState, useLayoutEffect } from 'react';
+import { View, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
 import { useAuth } from '../providers/AuthProvider';
@@ -34,26 +38,38 @@ const TABS: Array<{ key: Tab; label: string; icon: string }> = [
 export default function AdminScreen() {
   const { colors } = useAppTheme();
   const { logout } = useAuth();
+  const navigation = useNavigation();
+  // 隐藏父级 Stack header，避免双重导航栏
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
   const useStyles = makeStyles((c) => ({
     container: { flex: 1, backgroundColor: c.background },
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      backgroundColor: c.primary, paddingHorizontal: 12, paddingVertical: 10,
+    // 单行导航栏：蓝色底，左标题右退出
+    nav: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 20, paddingVertical: 16,
+      backgroundColor: c.primary,
     },
-    headerTitle: { color: '#ffffff', fontSize: 18, fontWeight: '700' },
-    headerSub: { color: '#ffffff', fontSize: 11, opacity: 0.85 },
-    logoutBtn: { marginLeft: 8 },
+    navLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    navTitle: { color: '#ffffff', fontSize: 19, fontWeight: '700' },
+    navLogout: { marginLeft: 'auto', padding: 4 },
+    // 横排 tab：纯 View，无 ScrollView，规避 web 端 RNW horizontal 布局 bug
     tabBar: {
       flexDirection: 'row',
       backgroundColor: c.surface,
-      borderBottomWidth: 1, borderColor: c.outline,
+      borderBottomWidth: 1, borderBottomColor: c.outline,
+      paddingHorizontal: 8,
     },
     tab: {
-      paddingHorizontal: 14, paddingVertical: 10,
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      paddingHorizontal: 16, paddingVertical: 10,
       borderBottomWidth: 2, borderBottomColor: 'transparent',
+      flexShrink: 0,
     },
     tabActive: { borderBottomColor: c.primary },
-    tabLabel: { color: c.onSurfaceVariant, fontSize: 13, fontWeight: '500' },
+    tabLabel: { color: c.onSurfaceVariant, fontSize: 14, fontWeight: '500' },
     tabLabelActive: { color: c.primary, fontWeight: '700' },
     screen: { flex: 1 },
   }));
@@ -67,34 +83,46 @@ export default function AdminScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>后台控制台</Text>
-          <Text style={styles.headerSub}>MemoGrad 管理面板</Text>
+      {/* 单行导航：品牌 + 退出 */}
+      <View style={styles.nav}>
+        <View style={styles.navLeft}>
+          <MaterialIcons name="admin-panel-settings" size={24} color="#ffffff" />
+          <Text style={styles.navTitle}>管理面板</Text>
         </View>
-        <Text style={styles.logoutBtn} onPress={logout}>
-          <Text style={{ color: '#ffffff', fontSize: 12 }}>退出</Text>
-        </Text>
+        <TouchableOpacity style={styles.navLogout} onPress={logout} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MaterialIcons name="logout" size={24} color="#ffffff" />
+        </TouchableOpacity>
       </View>
 
       {detailUserId ? (
         <AdminUserDetailScreen userId={detailUserId} onBack={backToList} />
       ) : (
         <>
-          <ScrollView horizontal style={styles.tabBar} showsHorizontalScrollIndicator={false}>
-            {TABS.map((t) => (
-              <View
-                key={t.key}
-                style={[styles.tab, activeTab === t.key ? styles.tabActive : null]}
-                onTouchEnd={() => setActiveTab(t.key)}
-              >
-                <Text style={[styles.tabLabel, activeTab === t.key ? styles.tabLabelActive : null]}>
-                  {t.label}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
+          {/* Tab 导航栏（纯 View 横排，避免 web 端 ScrollView horizontal 布局 bug） */}
+          <View style={styles.tabBar}>
+            {TABS.map((t) => {
+              const active = activeTab === t.key;
+              return (
+                <TouchableOpacity
+                  key={t.key}
+                  style={[styles.tab, active ? styles.tabActive : null]}
+                  onPress={() => setActiveTab(t.key)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MaterialIcons
+                    name={t.icon as any}
+                    size={17}
+                    color={active ? colors.primary : colors.onSurfaceVariant}
+                  />
+                  <Text style={[styles.tabLabel, active ? styles.tabLabelActive : null]}>
+                    {t.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
+          {/* 内容区 */}
           <View style={styles.screen}>
             {activeTab === 'overview' ? <AdminOverviewScreen /> : null}
             {activeTab === 'users' ? <AdminUserListScreen onSelectUser={goUser} /> : null}

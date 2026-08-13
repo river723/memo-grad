@@ -2,8 +2,8 @@
  * 后台用户列表 Tab：搜索 + 筛选 + 跳详情。
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
-import { Searchbar, Text, Button, List, IconButton, Menu, Divider } from 'react-native-paper';
+import { View, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { Text, Button, IconButton } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../../theme/theme';
 import { makeStyles } from '../../utils/useStyles';
@@ -20,16 +20,41 @@ export default function AdminUserListScreen({ onSelectUser }: Props) {
   const { colors } = useAppTheme();
   const useStyles = makeStyles((c) => ({
     container: { flex: 1, backgroundColor: c.background },
-    searchRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4 },
-    search: { flex: 1, backgroundColor: c.surface },
-    filterButton: { marginLeft: 4 },
-    filterChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: c.surfaceVariant, marginRight: 4 },
-    list: { paddingBottom: 80 },
+    // 搜索行
+    searchRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 10, paddingVertical: 6,
+      backgroundColor: c.surfaceVariant, gap: 6,
+    },
+    searchWrap: {
+      flex: 1, flexDirection: 'row', alignItems: 'center',
+      backgroundColor: c.surface, borderRadius: 8,
+      paddingHorizontal: 10, borderWidth: 1, borderColor: c.outline,
+    },
+    searchText: { flex: 1, fontSize: 13, color: c.onSurface },
+    // 统计行
+    statsRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 12, paddingVertical: 6,
+      backgroundColor: c.surface,
+      borderBottomWidth: 1, borderBottomColor: c.outline, gap: 6,
+    },
+    statsText: { fontSize: 11, color: c.onSurfaceVariant },
+    // 列表项
+    list: { paddingBottom: 20 },
+    userRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 12, paddingVertical: 10,
+      backgroundColor: c.surface,
+      borderBottomWidth: 1, borderBottomColor: c.outline,
+    },
+    userInfo: { flex: 1, marginLeft: 10 },
+    userName: { fontSize: 13, fontWeight: '600', color: c.onSurface },
+    meta: { fontSize: 11, color: c.onSurfaceVariant, marginTop: 2, lineHeight: 16 },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 4, gap: 4 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200 },
     error: { color: c.error, marginBottom: 12 },
-    row: { flexDirection: 'row', alignItems: 'center' },
-    meta: { fontSize: 11, color: c.onSurfaceVariant, marginTop: 2 },
-    empty: { textAlign: 'center', color: c.onSurfaceVariant, padding: 24 },
+    empty: { textAlign: 'center', color: c.onSurfaceVariant, padding: 32, fontSize: 13 },
   }));
   const styles = useStyles();
 
@@ -42,24 +67,18 @@ export default function AdminUserListScreen({ onSelectUser }: Props) {
   const [filters, setFilters] = useState<{ role?: 'user' | 'admin'; disabled?: boolean }>({});
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const params: ListUsersParams = { limit: 100, sort: 'createdAt' };
       if (search.trim()) params.search = search.trim();
       if (filters.role) params.role = filters.role;
       if (filters.disabled !== undefined) params.disabled = filters.disabled;
       const r = await AdminApi.listUsers(params);
-      setUsers(r.users);
-      setTotal(r.total);
-    } catch (e: any) {
-      setError(e?.message || '加载失败');
-    } finally {
-      setLoading(false);
-    }
+      setUsers(r.users); setTotal(r.total);
+    } catch (e: any) { setError(e?.message || '加载失败'); }
+    finally { setLoading(false); }
   }, [search, filters]);
 
-  // 搜索框去抖
   useEffect(() => {
     const t = setTimeout(fetchData, 300);
     return () => clearTimeout(t);
@@ -84,69 +103,49 @@ export default function AdminUserListScreen({ onSelectUser }: Props) {
 
   return (
     <View style={styles.container}>
+      {/* 搜索栏 */}
       <View style={styles.searchRow}>
-        <Searchbar
-          style={styles.search}
-          placeholder="搜索手机号 / 邮箱"
-          value={search}
-          onChangeText={setSearch}
-        />
-        <Menu
-          visible={filterMenuVisible}
-          onDismiss={() => setFilterMenuVisible(false)}
-          anchor={
-            <IconButton
-              icon="filter-variant"
-              size={24}
-              onPress={() => setFilterMenuVisible(true)}
-            />
-          }
-        >
-          <Menu.Item
-            onPress={() => { setFilters({}); setFilterMenuVisible(false); }}
-            title="全部"
-          />
-          <Divider />
-          <Menu.Item onPress={() => { setFilters({ role: 'user' }); setFilterMenuVisible(false); }} title="仅普通用户" />
-          <Menu.Item onPress={() => { setFilters({ role: 'admin' }); setFilterMenuVisible(false); }} title="仅管理员" />
-          <Menu.Item onPress={() => { setFilters({ disabled: true }); setFilterMenuVisible(false); }} title="仅已封禁" />
-        </Menu>
+        <View style={styles.searchWrap}>
+          <MaterialIcons name="search" size={17} color={colors.onSurfaceVariant} />
+          <Text style={styles.searchText} selectable>{search}</Text>
+          {search ? (
+            <IconButton icon="close" size={16} onPress={() => setSearch('')} style={{ marginLeft: 4, padding: 2 }} />
+          ) : null}
+        </View>
       </View>
 
+      {/* 统计行 */}
+      <View style={styles.statsRow}>
+        <MaterialIcons name="people" size={14} color={colors.onSurfaceVariant} />
+        <Text style={styles.statsText}>共 {total} 个用户</Text>
+      </View>
+
+      {/* 列表 */}
       <ScrollView
         refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchData} />}
         contentContainerStyle={styles.list}
       >
-        <Text style={{ paddingHorizontal: 12, paddingVertical: 4, fontSize: 11, color: colors.onSurfaceVariant }}>
-          共 {total} 个用户
-        </Text>
         {users.length === 0 ? (
           <Text style={styles.empty}>无匹配用户</Text>
         ) : users.map((u) => (
-          <List.Item
-            key={u.id}
-            onPress={() => onSelectUser(u.id)}
-            title={u.phone || u.email || '无联系方式'}
-            description={() => (
-              <View>
-                <View style={styles.row}>
-                  <StatusChip kind={u.role === 'admin' ? 'admin' : 'user'} />
-                  {u.disabled ? <StatusChip kind="banned" /> : null}
-                  {u.isPro ? <StatusChip kind="active" label={u.currentPlan ?? 'Pro'} /> : null}
-                </View>
-                <Text style={styles.meta}>
-                  注册 {new Date(u.createdAt).toLocaleDateString('zh-CN')}
-                  {u.lastSyncAt ? ` · 最后同步 ${new Date(u.lastSyncAt).toLocaleDateString('zh-CN')}` : ' · 从未同步'}
-                  {` · ${u.totalWords} 词 · AI ${u.aiCallsThisMonth} 次/月`}
-                </Text>
+          <TouchableOpacity key={u.id} style={styles.userRow} onPress={() => onSelectUser(u.id)}>
+            <UserAvatar name={u.phone || u.email} size={40} />
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{u.phone || u.email || '无联系方式'}</Text>
+              <Text style={styles.meta}>
+                注册 {new Date(u.createdAt).toLocaleDateString('zh-CN')}
+                {u.lastSyncAt ? ` · 同步 ${new Date(u.lastSyncAt).toLocaleDateString('zh-CN')}` : ' · 从未同步'}
+                {' · '}
+                {u.totalWords} 词 · AI {u.aiCallsThisMonth} 次/月
+              </Text>
+              <View style={styles.chips}>
+                <StatusChip kind={u.role === 'admin' ? 'admin' : 'user'} />
+                {u.disabled ? <StatusChip kind="banned" /> : null}
+                {u.isPro ? <StatusChip kind="active" label={u.currentPlan ?? 'Pro'} /> : null}
               </View>
-            )}
-            left={() => (
-              <View style={{ justifyContent: 'center', marginLeft: 8 }}>
-                <UserAvatar name={u.phone || u.email} />
-              </View>
-            )}
-          />
+            </View>
+            <MaterialIcons name="chevron-right" size={18} color={colors.onSurfaceVariant} />
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </View>
