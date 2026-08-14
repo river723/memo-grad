@@ -1,12 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { Card, Text, Button, Surface } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
-import realExamsRaw from '../data/realExams.json';
-import type { RealExamYear, RealExamTranslationPaper } from '../types';
-
-const realExams = realExamsRaw as unknown as RealExamYear[];
+import { getExamSet } from '../utils/realExamContent';
+import type { RealExamTranslationPaper } from '../types';
 
 /**
  * 翻译阅览屏（英一划线句翻译 / 英二段落翻译）。翻译为主观题，无自动判分。
@@ -23,15 +21,40 @@ export default function RealExamTranslationScreen() {
     paperId: string;
   };
 
-  const paper: RealExamTranslationPaper | null = useMemo(() => {
-    const y = realExams.find(x => x.year === year);
-    const set = y?.[setId];
-    return set?.translation && set.translation.id === paperId ? set.translation : null;
+  const [paper, setPaper] = useState<RealExamTranslationPaper | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const set = await getExamSet(year, setId);
+        const t = set?.translation && set.translation.id === paperId ? set.translation : null;
+        if (!cancelled) setPaper(t);
+      } catch (err) {
+        console.warn('[RealExamTranslation] 拉取套卷失败：', err);
+        if (!cancelled) setPaper(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [year, setId, paperId]);
 
   // 每条译文单独控制展开，默认全部折叠
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const toggle = (idx: number) => setRevealed(prev => ({ ...prev, [idx]: !prev[idx] }));
+
+  if (loading) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>真题加载中…</Text>
+      </View>
+    );
+  }
 
   if (!paper) {
     return (

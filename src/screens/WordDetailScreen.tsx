@@ -8,7 +8,7 @@ import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
-import { Word, AppSettings } from '../types';
+import { Word, AppSettings, AIResponse } from '../types';
 import {
   canWordBeEnhanced,
   getLocalWordDictResult,
@@ -58,7 +58,7 @@ export default function WordDetailScreen() {
     if (!word) return;
     setEnhancing(true);
     try {
-      const localResult = getLocalWordDictResult(word.word);
+      const localResult = await getLocalWordDictResult(word.word);
       const result = localResult || await AIService.analyzeWord(word.word);
 
       if (!result) return;
@@ -81,7 +81,28 @@ export default function WordDetailScreen() {
     }
   };
 
-  const localWordDictResult = word ? getLocalWordDictResult(word.word) : null;
+  // 词库命中状态（异步）。用于决定「增强」按钮是否可用。
+  const [localWordDictResult, setLocalWordDictResult] = useState<AIResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!word) {
+        setLocalWordDictResult(null);
+        return;
+      }
+      try {
+        const result = await getLocalWordDictResult(word.word);
+        if (!cancelled) setLocalWordDictResult(result);
+      } catch (err) {
+        console.warn('[WordDetail] 拉取词库词条失败：', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [word?.word]);
+
   const canEnhance = !!(
     word &&
     needsWordEnhancement(word) &&

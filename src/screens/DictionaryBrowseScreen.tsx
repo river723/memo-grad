@@ -136,8 +136,26 @@ export default function DictionaryBrowseScreen() {
 
   const dict = route.params ? getDictionaryById(route.params.dictId) : null;
 
-  // 全量数据（字母序）。useState 惰性初始化，避免每次 render 重建。
-  const [list] = useState<DictEntry[]>(() => getLocalWordDictWords());
+  // 全量数据（字母序）。异步加载：词库现在从后端拉取，加载前为空列表。
+  const [list, setList] = useState<DictEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const words = await getLocalWordDictWords();
+        if (!cancelled) setList(words);
+      } catch (err) {
+        console.warn('[DictionaryBrowse] 拉取词库列表失败：', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -299,11 +317,18 @@ export default function DictionaryBrowseScreen() {
         style={styles.list}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={styles.emptyText}>没有找到匹配的单词</Text>
-            <Text style={styles.emptyHint}>试试其他搜索词</Text>
-          </View>
+          loading ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>⏳</Text>
+              <Text style={styles.emptyText}>词库加载中…</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>🔍</Text>
+              <Text style={styles.emptyText}>没有找到匹配的单词</Text>
+              <Text style={styles.emptyHint}>试试其他搜索词</Text>
+            </View>
+          )
         }
       />
     </View>

@@ -74,7 +74,7 @@ export default function ArticleDetailScreen() {
         const word = allWords.find(w => w.id === wordId);
         if (word) {
           // 生词本存的记录可能缺少记忆技巧等字段，用本地词库回填
-          const dict = getLocalWordDictResult(word.word);
+          const dict = await getLocalWordDictResult(word.word);
           const enriched: Word = dict
             ? {
                 ...word,

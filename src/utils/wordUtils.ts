@@ -1,7 +1,258 @@
+/**
+ * 词条相关的纯函数 + 词库访问抽象层。
+ *
+ * 词库访问入口（getLocalWordDictResult / getLocalWordDictWords）原本直接
+ * import src/data/worddict.json。网络版改造后改成 async：
+ *   1. 内存 cache（最快路径）
+ *   2. AsyncStorage 缓存（跨进程持久化）
+ *   3. HTTP 调 /api/worddict/full（带 If-None-Match）
+ *   4. 远程失败 → 回落到 import 的本地 JSON
+ *
+ * 降级开关 EXPO_PUBLIC_USE_REMOTE_CONTENT=false 时直接走 import 路径，
+ * 与老代码行为等价——审核前测试或老仓库分支切换用。
+ */
+
 import { Word, AppSettings, AIResponse, WordDictEntry, WordDictJson } from '../types';
 import worddictJson from '../data/worddict.json';
+import StorageService from '../services/StorageService';
+import { WordDictApi, WordDictEntryWire, WordDictMeta } from '../services/WordDictApi';
 
-const worddict = worddictJson as WordDictJson;
+// `process.env.EXPO_PUBLIC_*` 在 Expo 编译时被静态替换；运行时为字面量。
+// 默认 true：生产用远程；本地审核或老分支对比设 false。
+const USE_REMOTE = process.env.EXPO_PUBLIC_USE_REMOTE_CONTENT !== 'false';
+
+const localFallback = worddictJson as WordDictJson;
+
+const fallbackMeta: WordDictMeta = {
+  version: 'local-fallback',
+  wordCount: Object.keys(localFallback.results).length,
+  etag: 'local-fallback',
+  publishedAt: '1970-01-01T00:00:00.000Z',
+};
+
+type CachedShape = {
+  version: string;
+  etag: string;
+  savedAt: number;
+  /** key=小写单词，value=WordDictEntryWire（与服务端形态一致） */
+  entries: Record<string, WordDictEntryWire>;
+};
+
+/** 内存 cache（最快）。启动时从 AsyncStorage 填充，远程拉取后更新。 */
+let memCache: CachedShape | null = null;
+
+/** 并发首次加载的合并 Promise——避免多个 screen 同时 await 触发 N 次请求。 */
+let loadPromise: Promise<CachedShape> | null = null;
+
+function clampDifficulty(value: number | undefined): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 3;
+  return Math.max(1, Math.min(5, Math.round(value)));
+}
+
+/**
+ * 把 wire 形态的词条转成 AIResponse 形态（与 getLocalWordDictResult 旧签名兼容）。
+ * AIResponse 是 AI 增强流程的输入/输出格式，与 worddict 词条字段一致只是命名约定。
+ */
+function wireToAIResponse(entry: WordDictEntryWire): AIResponse {
+  return {
+    definitions: entry.definitions,
+    etymology: entry.etymology,
+    similar_words: entry.similar_words,
+    suggestedDifficulty: entry.suggestedDifficulty,
+    examFrequency: entry.examFrequency,
+    memoryTip: entry.memoryTip,
+  };
+}
+
+async function readCacheFromStorage(): Promise<CachedShape | null> {
+  try {
+    const raw = await StorageService._rawGetItem(
+      StorageService.contentKey('worddict_full_v1')
+    );
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedShape;
+    if (!parsed || !parsed.entries || !parsed.etag) return null;
+    return parsed;
+  } catch (err) {
+    console.warn('[wordUtils] 读 AsyncStorage 词库缓存失败：', err);
+    return null;
+  }
+}
+
+async function writeCacheToStorage(cache: CachedShape): Promise<void> {
+  try {
+    await StorageService._rawSetItem(
+      StorageService.contentKey('worddict_full_v1'),
+      JSON.stringify(cache)
+    );
+  } catch (err) {
+    console.warn('[wordUtils] 写 AsyncStorage 词库缓存失败：', err);
+  }
+}
+
+/**
+ * 加载或刷新词库缓存。返回最终可用的 cache。
+ * 失败时回落到 import 的本地 JSON，保证离线 / 审核前 / 远程挂时仍可用。
+ */
+async function ensureLoaded(): Promise<CachedShape> {
+  if (memCache) return memCache;
+  if (loadPromise) return loadPromise;
+
+  loadPromise = (async () => {
+    // 1. AsyncStorage 持久化层
+    const fromStorage = await readCacheFromStorage();
+    if (fromStorage) memCache = fromStorage;
+
+    if (!USE_REMOTE) {
+      if (!memCache) {
+        // 降级开关下用本地 JSON 当 cache，等价于老行为
+        memCache = {
+          version: fallbackMeta.version,
+          etag: fallbackMeta.etag,
+          savedAt: Date.now(),
+          entries: localFallback.results as unknown as Record<string, WordDictEntryWire>,
+        };
+      }
+      return memCache;
+    }
+
+    // 2. 远程：先用 meta 校验版本，再决定是否拉全量
+    try {
+      const remoteMeta = await WordDictApi.getMeta(
+        memCache ? { etag: memCache.etag } : {}
+      );
+      // 304 → 服务端认为本地 cache 仍是最新；继续用 memCache
+      // 200 → meta 有更新（或首次拉取），需要继续拉 full
+      if (remoteMeta === null) {
+        if (!memCache) {
+          // 不可能：304 必然意味着有 etag 对应的本地数据。兜底走 full。
+          const full = await WordDictApi.getFull();
+          if (full) {
+            memCache = {
+              version: full.version,
+              etag: full.etag,
+              savedAt: Date.now(),
+              entries: indexByWord(full.entries),
+            };
+            await writeCacheToStorage(memCache);
+          }
+        }
+      } else {
+        // meta 拉到了；要么首次（memCache null），要么 etag 不一致（需要刷新 full）
+        if (!memCache || memCache.etag !== remoteMeta.etag) {
+          const full = await WordDictApi.getFull();
+          if (full) {
+            memCache = {
+              version: full.version,
+              etag: full.etag,
+              savedAt: Date.now(),
+              entries: indexByWord(full.entries),
+            };
+            await writeCacheToStorage(memCache);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[wordUtils] 远程词库拉取失败，使用本地缓存或 fallback：', err);
+    }
+
+    // 3. 三道保险都没成功时，落到 import JSON
+    if (!memCache) {
+      memCache = {
+        version: fallbackMeta.version,
+        etag: fallbackMeta.etag,
+        savedAt: Date.now(),
+        entries: localFallback.results as unknown as Record<string, WordDictEntryWire>,
+      };
+    }
+
+    return memCache;
+  })().finally(() => {
+    loadPromise = null;
+  });
+
+  return loadPromise;
+}
+
+function indexByWord(entries: WordDictEntryWire[]): Record<string, WordDictEntryWire> {
+  const map: Record<string, WordDictEntryWire> = {};
+  for (const e of entries) {
+    map[e.word.toLowerCase()] = e;
+  }
+  return map;
+}
+
+// =====================================================================
+// 对外 API：保留旧函数签名，仅同步 → async。
+// =====================================================================
+
+/**
+ * 从本地增强词典读取单词分析结果，命中时可直接复用 AIResponse 合并逻辑。
+ *
+ * 异步（之前是同步）。改造后内部走「内存 → AsyncStorage → 远程 → import」四层。
+ */
+export async function getLocalWordDictResult(word: string): Promise<AIResponse | null> {
+  const cache = await ensureLoaded();
+  const key = word.trim().toLowerCase();
+  const entry = cache.entries[key];
+  return entry ? wireToAIResponse(entry) : null;
+}
+
+/**
+ * 把 worddict 的对象映射词条转换成应用内 Word 结构。
+ *
+ * 同步（无需网络）。该函数本身不变——它只是数据形态转换，
+ * 网络版改造把它从一个「隐式依赖 worddict.json 导入」的同步函数，
+ * 升级为「明确接收一份 entry 参数」的纯函数。
+ */
+export function wordDictEntryToWord(
+  word: string,
+  entry: WordDictEntry
+): Omit<Word, 'id' | 'created_at' | 'updated_at'> {
+  return {
+    word,
+    definitions: entry.definitions,
+    etymology: entry.etymology,
+    similar_words: Array.isArray(entry.similar_words) ? entry.similar_words : [],
+    memory_tip: entry.memoryTip,
+    difficulty: clampDifficulty(entry.suggestedDifficulty),
+    frequency:
+      typeof entry.examFrequency === 'number'
+        ? clampDifficulty(entry.examFrequency)
+        : 2,
+  };
+}
+
+/**
+ * 本地增强词典的候选列表，供选词页直接使用。
+ *
+ * 异步（之前是同步）。批量场景（WordbankPicker）会一次性拿全量
+ * 4801 条，命中内存 cache 路径应在 50ms 内返回。
+ */
+export async function getLocalWordDictWords(): Promise<Omit<Word, 'id' | 'created_at' | 'updated_at'>[]> {
+  const cache = await ensureLoaded();
+  return Object.entries(cache.entries).map(([word, entry]) =>
+    wordDictEntryToWord(word, entry as unknown as WordDictEntry)
+  );
+}
+
+/**
+ * 拉当前词库版本元信息（version + wordCount + etag）。
+ * 主要给 DICTIONARIES 卡片用，异步获取真实 wordCount。
+ */
+export async function getLocalWordDictMeta(): Promise<WordDictMeta> {
+  await ensureLoaded();
+  return {
+    version: memCache?.version ?? fallbackMeta.version,
+    wordCount: memCache ? Object.keys(memCache.entries).length : fallbackMeta.wordCount,
+    etag: memCache?.etag ?? fallbackMeta.etag,
+    publishedAt: memCache ? new Date(memCache.savedAt).toISOString() : fallbackMeta.publishedAt,
+  };
+}
+
+// =====================================================================
+// 与词库无关的纯函数（保持同步原状）
+// =====================================================================
 
 /**
  * 判断词条是否为「骨架词」——本地词库直接加入但还没经过 AI 增强的。
@@ -59,53 +310,6 @@ export function mergeAIResultIntoWord(
         ? clampDifficulty(result.examFrequency)
         : w.frequency,
   };
-}
-
-function clampDifficulty(value: number | undefined): number {
-  if (typeof value !== 'number' || Number.isNaN(value)) return 3;
-  return Math.max(1, Math.min(5, Math.round(value)));
-}
-
-/** 从本地增强词典读取单词分析结果，命中时可直接复用 AIResponse 合并逻辑。 */
-export function getLocalWordDictResult(word: string): AIResponse | null {
-  const key = word.trim().toLowerCase();
-  const entry = worddict.results[key];
-  if (!entry) return null;
-
-  return {
-    definitions: entry.definitions,
-    etymology: entry.etymology,
-    similar_words: entry.similar_words,
-    suggestedDifficulty: entry.suggestedDifficulty,
-    examFrequency: entry.examFrequency,
-    memoryTip: entry.memoryTip,
-  };
-}
-
-/** 把 worddict 的对象映射词条转换成应用内 Word 结构。 */
-export function wordDictEntryToWord(
-  word: string,
-  entry: WordDictEntry
-): Omit<Word, 'id' | 'created_at' | 'updated_at'> {
-  return {
-    word,
-    definitions: entry.definitions,
-    etymology: entry.etymology,
-    similar_words: Array.isArray(entry.similar_words) ? entry.similar_words : [],
-    memory_tip: entry.memoryTip,
-    difficulty: clampDifficulty(entry.suggestedDifficulty),
-    frequency:
-      typeof entry.examFrequency === 'number'
-        ? clampDifficulty(entry.examFrequency)
-        : 2,
-  };
-}
-
-/** 本地增强词典的候选列表，供选词页直接使用。 */
-export function getLocalWordDictWords(): Omit<Word, 'id' | 'created_at' | 'updated_at'>[] {
-  return Object.entries(worddict.results).map(([word, entry]) =>
-    wordDictEntryToWord(word, entry)
-  );
 }
 
 /**

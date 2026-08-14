@@ -111,15 +111,15 @@ export default function AddWordScreen() {
       const aiResults = new Map<string, AIResponse>();
       const missingWords: string[] = [];
 
-      words.forEach(word => {
-        const localResult = getLocalWordDictResult(word);
+      for (const word of words) {
+        const localResult = await getLocalWordDictResult(word);
         if (localResult) {
           localResults.set(word, localResult);
           resultMap.set(word, localResult);
         } else {
           missingWords.push(word);
         }
-      });
+      }
 
       if (missingWords.length > 0) {
         // AI 补齐本地词库没覆盖到的单词（网络版：不需要 apiKey 检查，后端统一管理）
@@ -151,12 +151,12 @@ export default function AddWordScreen() {
       console.error('错误详情:', error.message, error.response?.data);
 
       const localResults = new Map<string, AIResponse>();
-      words.forEach(word => {
-        const localResult = getLocalWordDictResult(word);
+      for (const word of words) {
+        const localResult = await getLocalWordDictResult(word);
         if (localResult) {
           localResults.set(word, localResult);
         }
-      });
+      }
 
       if (localResults.size > 0) {
         setAnalysisSources({ local: localResults, ai: new Map() });

@@ -15,6 +15,9 @@ import aiRoutes from './routes/aiRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import syncRoutes from './routes/syncRoutes';
 import announcementRoutes from './routes/announcementRoutes';
+import worddictRoutes from './routes/worddictRoutes';
+import examContentRoutes from './routes/examContentRoutes';
+import storyRoutes from './routes/storyRoutes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -107,6 +110,12 @@ export async function buildApp() {
   await app.register(aiRoutes, { prefix: '/api/ai' });
   await app.register(paymentRoutes, { prefix: '/api/pay' });
   await app.register(syncRoutes, { prefix: '/api/sync' });
+  // 公开词库路由（不带 admin 前缀），与 announcement 一样放最后
+  await app.register(worddictRoutes, { prefix: '/api' });
+  // 公开真题内容路由（不带 admin 前缀）
+  await app.register(examContentRoutes, { prefix: '/api' });
+  // 公开系列故事路由（不带 admin 前缀）
+  await app.register(storyRoutes, { prefix: '/api' });
   // 公开公告路由（不带 admin 前缀），放最后让前几个固定前缀的先匹配
   await app.register(announcementRoutes, { prefix: '/api' });
 

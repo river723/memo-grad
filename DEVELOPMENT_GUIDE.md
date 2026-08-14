@@ -46,6 +46,26 @@ App 启动后进入“设置 → AI API设置”，填写 DeepSeek API Key，点
 npx expo start
 ```
 
+### 静态内容数据源（词库 / 真题 / 故事）
+
+词库与真题已迁到后端（`server/`），前端走四层降级：内存 → AsyncStorage → 后端 API（ETag/304）→ 本地 JSON fallback。
+
+- **数据源开关**：`.env` 里的 `EXPO_PUBLIC_USE_REMOTE_CONTENT`
+  - `true`（默认）：走后端 API + 客户端缓存（生产模式）
+  - `false`：回落到 import 本地 JSON（后端未就绪时 / 审核前测试）
+- **后端灌库与验证**（在 `server/` 目录）：
+  ```bash
+  npx prisma generate
+  npx prisma migrate dev --name add_worddict_and_exam_content
+  npm run seed:worddict        # 4801 词条
+  npm run seed:exams           # 34 套卷 + 272 paperId
+  npm run dev                  # 起服务
+  npm run test:worddict        # 9 项 curl 验证
+  npm run test:exams           # 12 项 curl 验证
+  ```
+- **缓存位置**：AsyncStorage 的 `content:*` key（全局共享、不带 userId 前缀、不进同步实体白名单）
+- **数据流抽象层**：[src/utils/wordUtils.ts](src/utils/wordUtils.ts)（词库）与 [src/utils/realExamContent.ts](src/utils/realExamContent.ts)（真题），screen 一律经此访问，不得直接 import `src/data/*.json`（fallback 除外）
+
 ## 📱 核心功能模块详解
 
 ### 1. 数据存储服务 (StorageService)

@@ -24,7 +24,7 @@
 
 **2. 同步的真正难点是 ID，不是网络。** 现有自增 ID 在两台设备各建一个 word 会同时得到 id=5。需先把 ID 迁移到 UUID（客户端生成），并给每条记录加 `updated_at` / `deleted_at` / `dirty` 三个字段。这是同步的地基，比写 sync API 更关键。
 
-**3. 静态内容不要急着上云。** worddict/realExams/stories 是只读的，打进 bundle 反而保证离线可用。第一期保留现状，仅加一个版本号接口用于将来增量更新。
+**3. 静态内容已上云（2026-08 完成）。** worddict/realExams 已从 bundle 迁到后端（Prisma 表 + 公开 API + ETag/304），客户端走「内存 → AsyncStorage → 远程 → 本地 JSON fallback」四层降级。stories 方案已批准待实施。详见 [fuzzy-churning-wozniak.md](C:\Users\Administrator\.claude\plans\fuzzy-churning-wozniak.md) 与 [server/prisma/schema.prisma](server/prisma/schema.prisma) 的「公共静态内容」段。原决策「第一期保留现状」已被取代——内容资产需要可控更新（修错不发版）、防盗（IP 不裸奔在 bundle）、可观测（使用数据）。
 
 **4. 免费/付费的功能切分：**
 - 免费（无 AI）：词库浏览、生词本、卡片背诵、听音背词、真题练习全部题型、错题本、统计、系列故事阅读
@@ -113,7 +113,7 @@
 - **阶段 0 的 ID 迁移是不可逆操作**，需先写迁移测试并保留回滚用的原始数据快照
 - **AI 成本兜底**：`ai_usage` 表要在阶段 3 就位，否则定价拍脑袋。建议初期把月配额设保守（如 300 次），观察真实用量再放宽
 - **移动端支付合规**：iOS 端不能出现任何指向外部支付的链接或文案暗示（Apple 3.1.1），只能完全不提
-- 8.4MB 静态数据 + 网络版后仍打进 bundle，移动端安装包偏大，后续可考虑首启下载
+- 静态内容已后端化（词库 4.79MB + 真题 2.9MB 不再进 bundle）；stories 723KB 待实施
 
 ## 建议起步
 

@@ -15,7 +15,14 @@
     "prisma:studio": "prisma studio",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "test:auth": "node scripts/test-auth.mjs"
+    "seed:worddict": "tsx scripts/seed_worddict.ts",
+    "seed:exams": "tsx scripts/seed_real_exams.ts",
+    "seed:stories": "tsx scripts/seed_stories.ts",
+    "stories:gen:db": "tsx scripts/generateStoriesToDb.ts",
+    "test:auth": "node scripts/test-auth.mjs",
+    "test:worddict": "bash scripts/test_worddict_api.sh",
+    "test:exams": "bash scripts/test_exam_api.sh",
+    "test:stories": "bash scripts/test_stories_api.sh"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

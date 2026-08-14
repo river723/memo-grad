@@ -426,3 +426,259 @@ model Announcement {
   @@index([audience, startsAt])
   @@map("announcements")
 }
+
+// ==================== 公共静态内容（词库/真题/故事）====================
+//
+// 命名约定：
+// - 与用户数据表（snake_case + soft delete）不同，这类表字段名沿用前端类型定义
+//   （camelCase，如 suggestedDifficulty / examFrequency / memoryTip），避免在 service
+//   层做一遍字段转换。
+// - 不进 SyncService 同步实体白名单——全站共享、不带 userId 维度。
+// - 旧 JSON 文件（src/data/worddict.json 等）作为降级 fallback 保留 1 个 minor。
+
+/// 词库版本号表。一行 = 一个发布版本。
+/// 客户端 ETag 协商走 `etag` 字段，零运行时开销。
+model WordDictVersion {
+  id          String   @id @default(uuid())
+  /// 语义化版本号字符串，如 "2026.08.14"
+  version     String   @unique
+  /// 词条总数（冗余存储以便快速返回元数据）
+  wordCount   Int      @map("word_count")
+  /// 用于客户端 ETag 协商的版本指纹
+  etag        String
+  /// 出版时间
+  publishedAt DateTime @map("published_at")
+  /// 是否为当前生效版本（一个时间点只能有一个 true）
+  isCurrent   Boolean  @default(false) @map("is_current")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  /// 与项目 soft-delete 约定保持一致（虽然词库内容通常不删）
+  deletedAt   DateTime? @map("deleted_at")
+
+  entries     WordDictEntry[]
+
+  @@map("word_dict_versions")
+}
+
+/// 单个词条。word（小写）作为业务主键，不带 UUID。
+/// definitions / similar_words 数组存 Json 字段——4801 词条 × 每条数个对象，拆表过度工程。
+model WordDictEntry {
+  /// 小写英文单词作为主键
+  word                String   @id
+  versionId           String   @map("version_id")
+  /// definitions 数组：[{ part_of_speech, meaning, example?, is_core?, is_rare_sense? }]
+  definitions         Json
+  /// 词根词缀
+  etymology           String?  @db.Text
+  /// similar_words 数组：[{ word, relation, description }]
+  similarWords        Json     @map("similar_words")
+  /// 建议难度 1-5
+  suggestedDifficulty Int?     @map("suggested_difficulty")
+  /// 考试频次 1-5
+  examFrequency       Int?     @map("exam_frequency")
+  /// 记忆口诀
+  memoryTip           String?  @db.Text @map("memory_tip")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  version     WordDictVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+  @@map("word_dict_entries")
+}
+
+// ==================== 真题内容（全局共享，题面/答案/解析） ====================
+//
+// 与词库同属公共静态内容：不带 userId、不进同步实体白名单。
+// 字段命名沿用前端类型（RealExamReadingPassage / RealExamClozePaper 等）
+// 直接镜像 JSON 形态——题面/选项/解析都以 Json 或 Text 存。
+//
+// 关键约束：paperId / questionId 是 RealExamWrongQuestion 的业务主键
+// （2023-e1-text1-q21 这种），迁移前后必须字节级一致，绝不重排。
+
+/// 套卷元信息。一行 = (year, setId) 一套卷。
+/// 派生信息：2023 + english1 → paperId 前缀 "2023-e1-"
+model RealExamPaper {
+  id          String   @id @default(uuid())
+  year        Int
+  setId       String   @map("set_id")  // english1 | english2
+  /// 该套卷的 paperId 列表：["2023-e1-text1", ..., "2023-e1-cloze", ...]
+  /// 存 Json 数组，方便一次拉全元信息。
+  paperIds    Json     @map("paper_ids")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  passages         RealExamPassage[]
+  clozePaper       RealExamCloze?
+  newTypePaper     RealExamNewType?
+  translationPaper RealExamTranslation?
+  writingPaper     RealExamWriting?
+
+  @@unique([year, setId])
+  @@index([year, setId])
+  @@map("real_exam_papers")
+}
+
+/// 阅读题文章。一篇一行。paperId 是业务主键（如 "2023-e1-text1"）。
+model RealExamPassage {
+  id          String   @id @default(uuid())
+  paperId     String   @unique @map("paper_id")  // 业务主键
+  paperRefId  String   @map("paper_ref_id")  // FK → RealExamPaper.id
+  /// text1 / text2 / text3 / text4
+  passageKey  String   @map("passage_key")
+  title       String
+  /// 英文正文（可能数 KB，Text 而非 VarChar）
+  passage     String   @db.Text
+  /// 段落级中英对照：[ { en, zh } ]，存 Json
+  paragraphs  Json
+  /// questions 数组：[ { id, stem, options[], answer, explanation? } ]
+  /// 存 Json 数组
+  questions   Json
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  paper       RealExamPaper @relation(fields: [paperRefId], references: [id], onDelete: Cascade)
+
+  @@index([paperRefId])
+  @@map("real_exam_passages")
+}
+
+/// 完形。一套卷只有一篇。
+model RealExamCloze {
+  id          String   @id @default(uuid())
+  paperId     String   @unique @map("paper_id")  // "2023-e1-cloze"
+  paperRefId  String   @unique @map("paper_ref_id")
+  /// 含 [1]..[20] 占位的 passage
+  passage     String   @db.Text
+  /// 段落级中英对照
+  paragraphs  Json
+  /// blanks 数组：[{ index, options[], answer, explanation? }]
+  blanks      Json
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  paper       RealExamPaper @relation(fields: [paperRefId], references: [id], onDelete: Cascade)
+
+  @@map("real_exam_clozes")
+}
+
+/// 新题型（如七选五/排序）。
+/// 结构直接镜像 JSON：无 passage 字段，题干是 direction + options + questions。
+model RealExamNewType {
+  id          String   @id @default(uuid())
+  paperId     String   @unique @map("paper_id")
+  paperRefId  String   @unique @map("paper_ref_id")
+  /// subtype: ordering | matching 等
+  subtype     String
+  /// 大题方向/说明
+  direction   String   @db.Text
+  /// options 数组：[{ letter, text }]
+  options     Json
+  /// questions 数组：[{ index, answer, explanation? }]
+  questions   Json
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  paper       RealExamPaper @relation(fields: [paperRefId], references: [id], onDelete: Cascade)
+
+  @@map("real_exam_newtypes")
+}
+
+/// 翻译题。结构镜像 JSON。
+model RealExamTranslation {
+  id          String   @id @default(uuid())
+  paperId     String   @unique @map("paper_id")
+  paperRefId  String   @unique @map("paper_ref_id")
+  /// subtype: sentence 等
+  subtype     String
+  direction   String   @db.Text
+  passage     String   @db.Text
+  /// items 数组：[{ index, en, zh }]
+  items       Json
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  paper       RealExamPaper @relation(fields: [paperRefId], references: [id], onDelete: Cascade)
+
+  @@map("real_exam_translations")
+}
+
+/// 写作题。结构镜像 JSON：parts 数组（Part A 小作文 + Part B 大作文）。
+model RealExamWriting {
+  id          String   @id @default(uuid())
+  paperId     String   @unique @map("paper_id")
+  paperRefId  String   @unique @map("paper_ref_id")
+  /// parts 数组：[{ label, direction, ... }]
+  parts       Json
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  paper       RealExamPaper @relation(fields: [paperRefId], references: [id], onDelete: Cascade)
+
+  @@map("real_exam_writings")
+}
+
+// ==================== 系列故事（全局共享） ====================
+
+/// 系列故事元信息。20 章为一组，1:1 拆分成 StoryChapter。
+/// 字段命名跟前端 StorySeries 接口保持一致。
+model Story {
+  id            String   @id @default(uuid())
+  /// 系列标题，如「星际漫游者：4801词奇幻之旅」
+  seriesTitle   String   @unique @map("series_title")
+  /// 词表词数（生成设计如此：4801 词覆盖 worddict 全集）
+  totalWords    Int      @map("total_words")
+  /// 章节总数。当前固定 20，未来加新系列时此字段决定是建新 Story 还是扩展现有
+  totalChapters Int      @map("total_chapters")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  /// 软删除位（与项目 SyncMeta 风格统一）
+  deletedAt     DateTime? @map("deleted_at")
+
+  chapters      StoryChapter[]
+
+  @@map("stories")
+}
+
+/// 单个章节。chapterId 是数字（1..20）——是内容索引而非用户实体 ID，
+/// 与路由参数 navigation/types.ts 的 chapterId 保持一致，勿改 UUID。
+model StoryChapter {
+  id          String   @id @default(uuid())
+  storyId     String   @map("story_id")
+  /// 章节号 1..20，全剧内唯一
+  chapterId   Int      @map("chapter_id")
+  title       String
+  /// 英文正文（可能数 KB，Text 而非 VarChar）
+  content     String   @db.Text
+  /// 中文译文，与 content 段数锁步
+  translation String   @db.Text
+  /// 目标词词形数组（暂存 Json；未来 worddict 后端化后改为 UUID 数组）
+  words       Json
+  /// 真实正文字数（不含 title）
+  wordCount   Int      @map("word_count")
+  /// 主题枚举字符串：adventure / sciFi / mystery / ...
+  theme       String
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, chapterId])
+  @@index([storyId, chapterId])
+  @@map("story_chapters")
+}

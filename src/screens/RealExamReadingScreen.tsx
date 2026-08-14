@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Card, Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
@@ -6,17 +6,14 @@ import { makeStyles } from '../utils/useStyles';
 import { generateId } from '../utils/idUtils';
 import { palette } from '../theme/tokens';
 import { stripLetterPrefix } from '../components/ReviewOption';
-import realExamsRaw from '../data/realExams.json';
+import { getExamSet } from '../utils/realExamContent';
 import StorageService from '../services/StorageService';
 import type {
-  RealExamYear,
   RealExamReadingPassage,
   RealExamAnswerItem,
   RealExamLetter,
   RealExamSession,
 } from '../types';
-
-const realExams = realExamsRaw as unknown as RealExamYear[];
 
 const LETTERS: RealExamLetter[] = ['A', 'B', 'C', 'D'];
 
@@ -32,10 +29,28 @@ export default function RealExamReadingScreen() {
 
   const { year, setId, passageId } = (route.params || {}) as { year: number; setId: 'english1' | 'english2'; passageId: string };
 
-  const passage: RealExamReadingPassage | null = useMemo(() => {
-    const y = realExams.find(x => x.year === year);
-    const set = y?.[setId];
-    return set?.reading.find(p => p.id === passageId) ?? null;
+  // 异步拉取套卷：getExamSet 带内存/AsyncStorage 缓存，命中后即时返回
+  const [passage, setPassage] = useState<RealExamReadingPassage | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const set = await getExamSet(year, setId);
+        const found = set?.reading.find(p => p.id === passageId) ?? null;
+        if (!cancelled) setPassage(found);
+      } catch (err) {
+        console.warn('[RealExamReading] 拉取套卷失败：', err);
+        if (!cancelled) setPassage(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [year, setId, passageId]);
 
   // key: questionId -> selected letter
@@ -48,6 +63,14 @@ export default function RealExamReadingScreen() {
       if (Object.keys(draft).length > 0) setSelections(draft as Record<string, RealExamLetter>);
     });
   }, [passage]);
+
+  if (loading) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>真题加载中…</Text>
+      </View>
+    );
+  }
 
   if (!passage) {
     return (

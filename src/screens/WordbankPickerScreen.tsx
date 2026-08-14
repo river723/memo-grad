@@ -157,12 +157,28 @@ export default function WordbankPickerScreen() {
   const styles = useStyles();
   const flatRef = useRef<FlatList>(null);
 
-  // 数据
-  const [list] = useState<WordbankEntry[]>(() => getLocalWordDictWords());
+  // 数据。异步加载：词库现在从后端拉取，加载前为空列表。
+  const [list, setList] = useState<WordbankEntry[]>([]);
   const [existing, setExisting] = useState<Set<string>>(new Set());
   const [ignored, setIgnored] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+
+  // 拉取词库全量列表（首次进入时加载一次）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const words = await getLocalWordDictWords();
+        if (!cancelled) setList(words);
+      } catch (err) {
+        console.warn('[WordbankPicker] 拉取词库列表失败：', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 筛选
   const [query, setQuery] = useState('');

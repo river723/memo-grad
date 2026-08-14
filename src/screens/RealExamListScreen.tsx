@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, Text } from 'react-native';
 import { Card, SegmentedButtons } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,13 +8,18 @@ import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import realExamsRaw from '../data/realExams.json';
+import { getExamYears, getExamSet, type ExamSet, type SetId } from '../utils/realExamContent';
 import type { RealExamYear, RealExamSession, RealExamWrongQuestion } from '../types';
-
-const realExams = realExamsRaw as unknown as RealExamYear[];
 
 type SetFilter = 'all' | 'english1' | 'english2';
 type PaperStatus = { text: string; color: string };
+
+/** 年份卡数据：year 元数据 + 已加载的套卷内容（懒加载，展开时才拉）。 */
+type YearEntry = {
+  year: number;
+  english1: RealExamYear['english1'] | null;
+  english2: RealExamYear['english2'] | null;
+};
 
 /**
  * 真题练习入口页：按年份列出可练习的历年真题。
@@ -28,11 +33,68 @@ export default function RealExamListScreen() {
   const [sessions, setSessions] = useState<RealExamSession[]>([]);
   const [wrongs, setWrongs] = useState<RealExamWrongQuestion[]>([]);
   const [filter, setFilter] = useState<SetFilter>('all');
+  // 年份元数据 + 各年份的套卷内容。年份列表异步拉取；套卷内容懒加载（展开时才拉）。
+  const [years, setYears] = useState<YearEntry[]>([]);
+  const [loadingYears, setLoadingYears] = useState(true);
   // 默认展开最近一年，其余折叠，避免十年全铺开
-  const [expanded, setExpanded] = useState<Set<number>>(() => {
-    const sorted = [...realExams].sort((a, b) => b.year - a.year);
-    return new Set(sorted.length > 0 ? [sorted[0].year] : []);
-  });
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  // 首屏：拉年份列表 + 默认展开最近一年
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const yearNums = await getExamYears();
+        if (cancelled) return;
+        const entries = yearNums.map((y) => ({ year: y, english1: null, english2: null }));
+        setYears(entries);
+        if (entries.length > 0) {
+          setExpanded(new Set([entries[0].year]));
+          loadYearContent(entries[0].year); // 默认展开最近一年
+        }
+      } catch (err) {
+        console.warn('[RealExamList] 拉取年份列表失败：', err);
+      } finally {
+        if (!cancelled) setLoadingYears(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 展开某一年时懒加载该年的套卷内容
+  const loadYearContent = useCallback((year: number) => {
+    setYears((prev) => {
+      const entry = prev.find((e) => e.year === year);
+      if (!entry || (entry.english1 && entry.english2)) return prev;
+      // 触发加载（不 await，加载完成后 setYears 更新）
+      (async () => {
+        try {
+          const [e1, e2] = await Promise.all([
+            getExamSet(year, 'english1').catch((err) => {
+              console.warn(`[RealExamList] 拉取 ${year} english1 失败：`, err);
+              return null as ExamSet | null;
+            }),
+            getExamSet(year, 'english2').catch((err) => {
+              console.warn(`[RealExamList] 拉取 ${year} english2 失败：`, err);
+              return null as ExamSet | null;
+            }),
+          ]);
+          setYears((cur) =>
+            cur.map((e) =>
+              e.year === year
+                ? { ...e, english1: e1 ?? e.english1, english2: e2 ?? e.english2 }
+                : e
+            )
+          );
+        } catch {
+          /* 双拉失败已各自 catch */
+        }
+      })();
+      return prev;
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -46,8 +108,6 @@ export default function RealExamListScreen() {
       })();
     }, [])
   );
-
-  const years = useMemo(() => [...realExams].sort((a, b) => b.year - a.year), []);
 
   // 按 paperId 聚合：最近一次会话得分 + 当前待复习错题数
   const statusByPaper = useMemo(() => {
@@ -109,11 +169,24 @@ export default function RealExamListScreen() {
   const toggleYear = (year: number) => {
     setExpanded(prev => {
       const next = new Set(prev);
-      if (next.has(year)) next.delete(year);
-      else next.add(year);
+      if (next.has(year)) {
+        next.delete(year);
+      } else {
+        next.add(year);
+        loadYearContent(year); // 展开时懒加载套卷内容
+      }
       return next;
     });
   };
+
+  if (loadingYears) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>📚</Text>
+        <Text style={styles.emptyText}>真题加载中…</Text>
+      </View>
+    );
+  }
 
   if (years.length === 0) {
     return (
@@ -127,10 +200,18 @@ export default function RealExamListScreen() {
 
   const renderSet = (
     label: string,
-    set: RealExamYear['english1'],
+    set: RealExamYear['english1'] | null,
     setId: 'english1' | 'english2',
-    yearObj: RealExamYear,
+    yearObj: YearEntry,
   ) => {
+    if (!set) {
+      return (
+        <View style={styles.setGroup}>
+          <Text style={styles.setTitle}>{label}</Text>
+          <Text style={styles.setLoading}>加载中…</Text>
+        </View>
+      );
+    }
     const { reading, cloze, newType, translation, writing } = set;
     return (
       <View style={styles.setGroup}>
@@ -312,6 +393,11 @@ const useStyles = makeStyles(colors => ({
   },
   setGroup: {
     marginBottom: 12,
+  },
+  setLoading: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    marginBottom: 6,
   },
   setTitle: {
     fontSize: 14,

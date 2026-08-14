@@ -1,13 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, FlatList, TouchableOpacity } from 'react-native';
 import { Surface, Text, Chip } from 'react-native-paper';
 import { useAppNavigation } from '../navigation/types';
 import { useAppTheme } from '../theme/theme';
+import { fontFamily } from '../theme/tokens';
 import { makeStyles } from '../utils/useStyles';
-import storiesData from '../data/stories.json';
-import type { StorySeries } from '../types';
-
-const stories = storiesData as StorySeries;
+import { getStorySeries, type StorySeriesMeta } from '../utils/storyContent';
 
 const THEME_LABELS: Record<string, string> = {
   adventure: '冒险',
@@ -56,15 +54,19 @@ const useStyles = makeStyles((colors) => ({
     marginBottom: 6,
   },
   chapterNum: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: fontFamily.serif,
     color: colors.primary,
+    letterSpacing: 0.3,
     minWidth: 56,
   },
   chapterTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '500',
+    fontFamily: fontFamily.serif,
     color: colors.onSurface,
+    letterSpacing: 0.2,
     flex: 1,
   },
   chapterInfo: {
@@ -86,21 +88,40 @@ export default function StoryListScreen() {
   const { colors } = useAppTheme();
   const styles = useStyles();
 
-  const renderChapter = ({ item }: { item: StorySeries['chapters'][number] }) => (
+  const [series, setSeries] = useState<StorySeriesMeta | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await getStorySeries();
+        if (!cancelled) setSeries(s);
+      } catch (err) {
+        console.warn('[StoryList] 拉取故事系列失败：', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const chapters = series?.chapters ?? [];
+
+  const renderChapter = ({ item }: { item: StorySeriesMeta['chapters'][number] }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('StoryDetail', { chapterId: item.id })}
+      onPress={() => navigation.navigate('StoryDetail', { chapterId: item.chapterId })}
       activeOpacity={0.7}
     >
       <Surface style={styles.chapterCard}>
         <View style={styles.chapterRow}>
           <Text style={styles.chapterNum}>
-            第{item.id}章
+            第{item.chapterId}章
           </Text>
           <Text style={styles.chapterTitle} numberOfLines={1}>
             {item.title}
           </Text>
           <View style={styles.chapterInfo}>
-            <Text style={styles.wordCount}>{item.word_count} 词</Text>
+            <Text style={styles.wordCount}>{item.wordCount} 词</Text>
             {item.theme ? (
               <Chip
                 icon="tag"
@@ -119,22 +140,22 @@ export default function StoryListScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={stories.chapters}
+        data={chapters}
         renderItem={renderChapter}
-        keyExtractor={(item) => String(item.id)}
+        keyExtractor={(item) => String(item.chapterId)}
         contentContainerStyle={{ paddingBottom: 80 }}
         ListHeaderComponent={
           <View style={styles.seriesHeader}>
-            <Text style={styles.seriesTitle}>{stories.series_title}</Text>
+            <Text style={styles.seriesTitle}>{series?.seriesTitle ?? '故事系列'}</Text>
             <Text style={styles.seriesMeta}>
-              共 {stories.total_chapters} 章 · {stories.total_words} 个单词
+              共 {series?.totalChapters ?? '?'} 章 · {series?.totalWords ?? '?'} 个单词
             </Text>
           </View>
         }
         ListEmptyComponent={
           <View style={{ padding: 24, alignItems: 'center' }}>
             <Text style={{ color: colors.tertiary, textAlign: 'center', lineHeight: 22 }}>
-              暂无故事章节。{'\n'}请先运行 scripts/generateStories.js 生成故事数据。
+              {series ? '暂无故事章节。' : '故事加载中…'}
             </Text>
           </View>
         }

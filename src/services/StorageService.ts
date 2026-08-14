@@ -946,6 +946,11 @@ class StorageService {
   async _rawRemove(key: string): Promise<void> {
     return AsyncStorage.removeItem(key);
   }
+
+  /** 公共静态内容缓存的完整 key（不带 userId 前缀；词库是全局共享的）。 */
+  contentKey(name: string): string {
+    return `content:${name}`;
+  }
 }
 
 export default StorageService.getInstance();

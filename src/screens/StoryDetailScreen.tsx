@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, ScrollView } from 'react-native';
 import {
   Card,
@@ -13,31 +13,9 @@ import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import { parseArticleContent } from '../utils/storyUtils';
-import storiesData from '../data/stories.json';
-import wordDictData from '../data/worddict.json';
-import type { StorySeries, StoryChapter, Word, WordDictJson } from '../types';
-
-const stories = storiesData as StorySeries;
-const wordDict = wordDictData as WordDictJson;
-
-/**
- * 将 WordDictEntry 转换为 Word 类型，供释义 Modal 使用。
- * 故事场景下没有真实的 Word.id / 学习记录，用空串占位（原先用 0）。
- */
-function dictEntryToWord(wordKey: string): Word | undefined {
-  const entry = wordDict.results[wordKey.toLowerCase()];
-  if (!entry) return undefined;
-  return {
-    id: '',
-    word: wordKey,
-    definitions: entry.definitions || [],
-    etymology: entry.etymology,
-    similar_words: entry.similar_words || [],
-    memory_tip: entry.memoryTip,
-    difficulty: entry.suggestedDifficulty || 3,
-    frequency: entry.examFrequency || 3,
-  };
-}
+import { getLocalWordDictResult } from '../utils/wordUtils';
+import { getStoryChapter, getAdjacentChapterIds, type StoryChapterFull } from '../utils/storyContent';
+import type { Word } from '../types';
 
 /**
  * 判断短文本是否像标题（无句末标点），用于识别英文正文开头多出的章节标题行。
@@ -97,26 +75,71 @@ export default function StoryDetailScreen() {
   const route = useAppRoute<'StoryDetail'>();
   const { chapterId } = route.params as { chapterId: number };
 
-  const chapter: StoryChapter | undefined = useMemo(
-    () => stories.chapters.find((c) => c.id === chapterId),
-    [chapterId]
-  );
+  // 异步拉章节（内存/AsyncStorage/远程/fallback 四层）
+  const [chapter, setChapter] = useState<StoryChapterFull | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [adjacent, setAdjacent] = useState<{ prev?: number; next?: number }>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const [ch, adj] = await Promise.all([
+          getStoryChapter(chapterId),
+          getAdjacentChapterIds(chapterId),
+        ]);
+        if (!cancelled) {
+          setChapter(ch);
+          setAdjacent(adj);
+        }
+      } catch (err) {
+        console.warn(`[StoryDetail] 拉取第 ${chapterId} 章失败：`, err);
+        if (!cancelled) setChapter(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chapterId]);
 
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
   const [showWordModal, setShowWordModal] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
 
-  // 构建目标词的 Word Map
-  const wordMap = useMemo(() => {
-    const map = new Map<string, Word>();
-    if (!chapter) return map;
-    for (const w of chapter.words) {
-      const wordObj = dictEntryToWord(w);
-      if (wordObj) {
-        map.set(w.toLowerCase(), wordObj);
+  // 构建目标词的 Word Map（异步查词库）
+  const [wordMap, setWordMap] = useState<Map<string, Word>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!chapter) {
+        setWordMap(new Map());
+        return;
       }
-    }
-    return map;
+      const map = new Map<string, Word>();
+      for (const w of chapter.words) {
+        const entry = await getLocalWordDictResult(w);
+        if (cancelled) return;
+        if (!entry) continue; // 词库没命中该目标词时跳过（高亮降级为普通文本）
+        map.set(w.toLowerCase(), {
+          id: '',
+          word: w,
+          definitions: entry.definitions || [],
+          etymology: entry.etymology,
+          similar_words: entry.similar_words || [],
+          memory_tip: entry.memoryTip,
+          difficulty: entry.suggestedDifficulty || 3,
+          frequency: entry.examFrequency || 3,
+        });
+      }
+      if (!cancelled) setWordMap(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [chapter]);
 
   // 段落级中英对照：将英文正文与中文译文按段落拆分配对，并为每段英文解析生词片段
@@ -137,6 +160,14 @@ export default function StoryDetailScreen() {
     }
   }, []);
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>章节加载中…</Text>
+      </View>
+    );
+  }
+
   if (!chapter) {
     return (
       <View style={styles.loadingContainer}>
@@ -145,8 +176,8 @@ export default function StoryDetailScreen() {
     );
   }
 
-  const prevChapter = stories.chapters.find((c) => c.id === chapter.id - 1);
-  const nextChapter = stories.chapters.find((c) => c.id === chapter.id + 1);
+  const prevChapter = adjacent.prev;
+  const nextChapter = adjacent.next;
 
   return (
     <View style={styles.container}>
@@ -222,9 +253,9 @@ export default function StoryDetailScreen() {
         <Button
           mode="outlined"
           onPress={() =>
-            prevChapter && navigation.replace('StoryDetail', { chapterId: prevChapter.id })
+            prevChapter !== undefined && navigation.replace('StoryDetail', { chapterId: prevChapter })
           }
-          disabled={!prevChapter}
+          disabled={prevChapter === undefined}
           icon="chevron-left"
           style={styles.bottomButton}
         >
@@ -233,9 +264,9 @@ export default function StoryDetailScreen() {
         <Button
           mode="outlined"
           onPress={() =>
-            nextChapter && navigation.replace('StoryDetail', { chapterId: nextChapter.id })
+            nextChapter !== undefined && navigation.replace('StoryDetail', { chapterId: nextChapter })
           }
-          disabled={!nextChapter}
+          disabled={nextChapter === undefined}
           icon="chevron-right"
           contentStyle={{ flexDirection: 'row-reverse' }}
           style={styles.bottomButton}

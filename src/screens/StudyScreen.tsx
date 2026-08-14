@@ -1057,14 +1057,44 @@ export default function StudyScreen() {
         )}
         {showResult && (
           <View style={styles.resultOverlay}>
-            <Surface style={styles.resultSurface}>
-              <Text style={[
-                styles.resultText,
-                currentResult === 'correct' ? styles.correctColor : styles.incorrectColor
-              ]}>
-                {currentResult === 'correct' ? '✅ 正确！' : '❌ 需要复习'}
+            <View
+              style={[
+                styles.resultSurface,
+                currentResult === 'correct'
+                  ? styles.resultSurfaceCorrect
+                  : styles.resultSurfaceIncorrect,
+              ]}
+            >
+              <View
+                style={[
+                  styles.resultIconBubble,
+                  currentResult === 'correct'
+                    ? styles.resultIconBubbleCorrect
+                    : styles.resultIconBubbleIncorrect,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.resultIconGlyph,
+                    currentResult === 'correct'
+                      ? styles.resultIconGlyphCorrect
+                      : styles.resultIconGlyphIncorrect,
+                  ]}
+                >
+                  {currentResult === 'correct' ? '✓' : '✕'}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.resultText,
+                  currentResult === 'correct'
+                    ? styles.resultTextCorrect
+                    : styles.resultTextIncorrect,
+                ]}
+              >
+                {currentResult === 'correct' ? '认识' : '不认识'}
               </Text>
-            </Surface>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -1073,33 +1103,69 @@ export default function StudyScreen() {
       <Modal
         visible={showExitConfirm}
         onDismiss={() => setShowExitConfirm(false)}
+        contentContainerStyle={styles.exitModalContent}
       >
-        <View style={styles.modalOverlay}>
-          <Surface style={styles.modalContent}>
-            <Text style={styles.modalTitle}>退出学习？</Text>
-            <Text style={styles.modalText}>
-              你已完成 {studyStats.completed} / {studyStats.total} 个单词。
-              {'\n'}
-              准确率: {studyStats.accuracy.toFixed(1)}%
-              {'\n\n'}
-              剩余单词将保留在学习计划中，下次可继续学习。
+        <View style={styles.exitModalIconWrap}>
+          <View style={styles.exitModalIconBubble}>
+            <Text style={styles.exitModalIconGlyph}>↩</Text>
+          </View>
+        </View>
+
+        <Text style={styles.exitModalTitle}>退出学习？</Text>
+
+        <View style={styles.exitModalStatsCard}>
+          <View style={styles.exitModalStatRow}>
+            <Text style={styles.exitModalStatLabel}>已学单词</Text>
+            <Text style={styles.exitModalStatValue}>
+              <Text style={styles.exitModalStatValueNum}>
+                {studyStats.completed}
+              </Text>
+              <Text style={styles.exitModalStatValueSep}> / </Text>
+              <Text style={styles.exitModalStatValueTotal}>
+                {studyStats.total}
+              </Text>
             </Text>
-            <View style={styles.modalButtons}>
-              <Button onPress={() => setShowExitConfirm(false)}>
-                继续学习
-              </Button>
-              <Button
-                mode="contained"
-                onPress={() => {
-                  setShowExitConfirm(false);
-                  navigation.goBack();
-                }}
-                buttonColor={colors.danger}
-              >
-                退出
-              </Button>
-            </View>
-          </Surface>
+          </View>
+          <View style={styles.exitModalStatDivider} />
+          <View style={styles.exitModalStatRow}>
+            <Text style={styles.exitModalStatLabel}>准确率</Text>
+            <Text style={styles.exitModalStatValue}>
+              <Text style={styles.exitModalStatValueNum}>
+                {studyStats.accuracy.toFixed(1)}
+              </Text>
+              <Text style={styles.exitModalStatValuePct}> %</Text>
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.exitModalHint}>
+          剩余单词将保留在学习计划中{'\n'}下次可继续学习
+        </Text>
+
+        <View style={styles.exitModalActions}>
+          <Button
+            mode="text"
+            onPress={() => setShowExitConfirm(false)}
+            style={styles.exitModalCancelBtn}
+            labelStyle={styles.exitModalCancelLabel}
+          >
+            继续学习
+          </Button>
+          <Button
+            mode="contained"
+            onPress={() => {
+              setShowExitConfirm(false);
+              navigation.goBack();
+            }}
+            style={styles.exitModalConfirmBtn}
+            contentStyle={styles.exitModalConfirmContent}
+            labelStyle={styles.exitModalConfirmLabel}
+            buttonColor={palette.danger}
+            textColor={palette.onPrimary}
+            icon="exit-to-app"
+          >
+            确认退出
+          </Button>
         </View>
       </Modal>
 
@@ -1745,40 +1811,147 @@ const useStyles = makeStyles(colors => ({
     borderRadius: 12,
     paddingVertical: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
+  // ---- Exit confirm modal (sibling of ArticleListScreen delete modal) ----
+  exitModalContent: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 32,
+    paddingTop: 28,
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+    borderRadius: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.outline,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  modalContent: {
-    width: 320,
-    padding: 24,
-    borderRadius: 12,
+  exitModalIconWrap: {
+    marginBottom: 14,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  exitModalIconBubble: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.dangerLight,
+  },
+  exitModalIconGlyph: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: palette.danger,
+    lineHeight: 32,
+  },
+  exitModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 12,
+    color: colors.onSurface,
+    marginBottom: 18,
+    letterSpacing: 0.2,
+  },
+  exitModalStatsCard: {
+    width: '100%',
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  exitModalStatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  exitModalStatDivider: {
+    height: 1,
+    backgroundColor: colors.outline,
+    marginVertical: 8,
+  },
+  exitModalStatLabel: {
+    fontSize: 14,
+    color: colors.onSurfaceVariant,
+  },
+  exitModalStatValue: {
+    fontSize: 16,
     color: colors.onSurface,
   },
-  modalText: {
+  exitModalStatValueNum: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.primary,
+    letterSpacing: 0.3,
+  },
+  exitModalStatValueTotal: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.onSurfaceVariant,
+  },
+  exitModalStatValueSep: {
     fontSize: 14,
+    color: colors.onSurfaceVariant,
+    marginHorizontal: 2,
+  },
+  exitModalStatValuePct: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.onSurfaceVariant,
+  },
+  exitModalHint: {
+    fontSize: 13,
+    lineHeight: 20,
     textAlign: 'center',
     color: colors.onSurfaceVariant,
-    marginBottom: 20,
-    lineHeight: 22,
+    marginBottom: 22,
   },
-  modalButtons: {
+  exitModalActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 12,
+  },
+  exitModalCancelBtn: {
+    flex: 1,
+    borderRadius: 10,
+  },
+  exitModalCancelLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.onSurface,
+    letterSpacing: 0.5,
+  },
+  exitModalConfirmBtn: {
+    flex: 1.2,
+    borderRadius: 10,
+  },
+  exitModalConfirmContent: {
+    height: 44,
+  },
+  exitModalConfirmLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: palette.onPrimary,
   },
   resultText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 1.2,
+    color: colors.onSurface,
+  },
+  resultTextCorrect: {
+    color: palette.successDark,
+  },
+  resultTextIncorrect: {
+    color: palette.dangerDark,
   },
   resultOverlay: {
     position: 'absolute',
@@ -1788,19 +1961,53 @@ const useStyles = makeStyles(colors => ({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(15, 17, 16, 0.78)',
     zIndex: 100,
   },
   resultSurface: {
-    padding: 32,
-    borderRadius: 16,
-    elevation: 8,
-    minWidth: 200,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 36,
+    paddingVertical: 28,
+    borderRadius: 18,
+    minWidth: 220,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.outline,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  correctColor: {
+  resultSurfaceCorrect: {
+    borderColor: palette.success,
+  },
+  resultSurfaceIncorrect: {
+    borderColor: palette.danger,
+  },
+  resultIconBubble: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  resultIconBubbleCorrect: {
+    backgroundColor: palette.successLight,
+  },
+  resultIconBubbleIncorrect: {
+    backgroundColor: palette.dangerLight,
+  },
+  resultIconGlyph: {
+    fontSize: 30,
+    fontWeight: '800',
+    lineHeight: 34,
+  },
+  resultIconGlyphCorrect: {
     color: palette.success,
   },
-  incorrectColor: {
+  resultIconGlyphIncorrect: {
     color: palette.danger,
   },
 }));

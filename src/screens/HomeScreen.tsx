@@ -463,12 +463,41 @@ export default function HomeScreen() {
               </View>
             )}
 
+            {/* === 第四段：词库快捷入口（常驻） === */}
+            <View style={{ marginTop: spacing.xl }}>
+              <Pressable
+                onPress={() => navigation.navigate('Dictionary' as any)}
+                style={({ pressed }) => [
+                  styles.todoRow,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.outline,
+                    borderRadius: radius.lg,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <View style={[styles.todoIcon, { backgroundColor: colors.status.active.bg }]}>
+                  <MaterialCommunityIcons name="library" size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.onSurface, fontSize: typography.bodyLg.size, fontWeight: '600' }}>
+                    词库
+                  </Text>
+                  <Text style={{ color: colors.onSurfaceVariant, fontSize: typography.caption.size, marginTop: 2 }}>
+                    浏览全部词库 · 按字母查询单词
+                  </Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.tertiary} />
+              </Pressable>
+            </View>
+
             {/* 最近添加（时间线样式） */}
             {recentWords.length > 0 && (
               <View style={{ marginTop: spacing.xl }}>
                 <SectionHeader
                   title="最近添加"
-                  actionLabel="查看全部"
+                  actionLabel="查看生词本"
                   onAction={() => navigation.navigate('WordList' as any)}
                 />
                 <View

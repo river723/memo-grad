@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Card, Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
@@ -6,16 +6,13 @@ import { makeStyles } from '../utils/useStyles';
 import { generateId } from '../utils/idUtils';
 import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import realExamsRaw from '../data/realExams.json';
+import { getExamSet } from '../utils/realExamContent';
 import type {
-  RealExamYear,
   RealExamNewTypePaper,
   RealExamAnswerItem,
   RealExamOptionLetter,
   RealExamSession,
 } from '../types';
-
-const realExams = realExamsRaw as unknown as RealExamYear[];
 
 const SUBTYPE_LABEL: Record<RealExamNewTypePaper['subtype'], string> = {
   ordering: '段落排序',
@@ -42,10 +39,28 @@ export default function RealExamNewTypeScreen() {
     paperId: string;
   };
 
-  const paper: RealExamNewTypePaper | null = useMemo(() => {
-    const y = realExams.find(x => x.year === year);
-    const set = y?.[setId];
-    return set?.newType && set.newType.id === paperId ? set.newType : null;
+  // 异步拉取套卷
+  const [paper, setPaper] = useState<RealExamNewTypePaper | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const set = await getExamSet(year, setId);
+        const nt = set?.newType && set.newType.id === paperId ? set.newType : null;
+        if (!cancelled) setPaper(nt);
+      } catch (err) {
+        console.warn('[RealExamNewType] 拉取套卷失败：', err);
+        if (!cancelled) setPaper(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [year, setId, paperId]);
 
   // key: 位号(字符串) -> 选中字母
@@ -60,6 +75,14 @@ export default function RealExamNewTypeScreen() {
       if (Object.keys(draft).length > 0) setSelections(draft);
     });
   }, [paper]);
+
+  if (loading) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>真题加载中…</Text>
+      </View>
+    );
+  }
 
   if (!paper) {
     return (

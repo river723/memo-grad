@@ -58,19 +58,26 @@ export default function DictionaryWordDetailScreen() {
   const [showEtymology, setShowEtymology] = useState(true);
   const [showMemoryTip, setShowMemoryTip] = useState(true);
 
-  // 加载词条：从本地词典读取并转成应用内 Word 结构
+  // 加载词条：从词库读取并转成应用内 Word 结构（异步）
   useEffect(() => {
+    let cancelled = false;
     const key = route.params?.word;
     if (!key) {
       setWord(null);
       return;
     }
-    const entry = getLocalWordDictResult(key);
-    if (!entry) {
-      setWord(null);
-      return;
-    }
-    setWord(wordDictEntryToWord(key, entry) as Word);
+    (async () => {
+      const entry = await getLocalWordDictResult(key);
+      if (cancelled) return;
+      if (!entry) {
+        setWord(null);
+        return;
+      }
+      setWord(wordDictEntryToWord(key, entry) as Word);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [route.params]);
 
   // 聚焦时读取生词本与设置，判断当前词是否已在生词本
