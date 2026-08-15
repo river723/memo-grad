@@ -1,0 +1,40 @@
+# 飞牛 NAS 生产部署:只含 MemoGrad 后端应用容器。
+# Postgres 使用 NAS 上已有的实例(DATABASE_URL 在 .env.production 中配置),
+# 后端不连接 Redis(代码未使用),所以这里不编排数据库/缓存容器。
+#
+# 启动: docker compose -f docker-compose.prod.yml up -d --build
+# 日志: docker logs -f memograd-api
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: memograd-server:1.0.0
+    container_name: memograd-api
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      # 宿主机 5667 -> 容器 3000(5666 被飞牛 fnOS 管理面板 nginx 占用)
+      - "5667:3000"
+    # 加入自建网络,通过容器名访问 NAS 上已有的 Postgres 容器。
+    # Postgres 容器需先用 `docker network connect memograd-net postgres` 接入此网络。
+    networks:
+      - memograd-net
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+networks:
+  memograd-net:
+    # 该网络由命令 `docker network create memograd-net` 手动创建,
+    # 并已将已有的 postgres 容器接入(`docker network connect memograd-net postgres`),
+    # 因此标记为 external,让 compose 直接复用而非尝试自建。
+    external: true
+    name: memograd-net

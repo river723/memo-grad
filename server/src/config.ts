@@ -99,6 +99,12 @@ export const config = {
 
   sms: {
     provider: optional('SMS_PROVIDER', 'console'),
+    /**
+     * 是否允许在生产环境使用 console 短信通道。默认 false(安全):生产验证码进日志
+     * 等于任何能读日志的人都能登录。自托管且无真实短信网关时显式置 true,
+     * 从 `docker logs` 取验证码。真实通道接入后保持 false。
+     */
+    allowConsoleInProd: bool('SMS_ALLOW_CONSOLE_IN_PRODUCTION', false),
     /** 开发模式把验证码回显在接口响应里，省掉真实短信通道。生产强制关闭。 */
     devEcho: bool('SMS_DEV_ECHO', false) && !isProduction,
     codeTtlSeconds: int('VERIFICATION_CODE_TTL_SECONDS', 300),

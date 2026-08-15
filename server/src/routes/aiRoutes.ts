@@ -42,7 +42,10 @@ async function chat(messages: any[], maxTokens: number, temperature: number): Pr
     throw ApiError.internal('AI_UPSTREAM_ERROR', `AI上游错误(${res.status}): ${text.slice(0, 200)}`);
   }
 
-  const json = await res.json();
+  // Node 内置 fetch 的 res.json() 类型为 unknown,这里按 OpenAI 兼容响应结构取值
+  const json = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
   return json.choices?.[0]?.message?.content || '';
 }
 

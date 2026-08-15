@@ -16,6 +16,8 @@
  * setCredentials() 注入 token，API 调用纯函数可测试。
  */
 
+import { API_BASE_URL as BASE_URL } from './apiConfig';
+
 export class ApiClientError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -61,8 +63,6 @@ export let setCredentials: CredentialsSetter = (at, rt) => {
   tokenStore.refreshToken = rt;
   setCredentialsFn(at, rt);
 };
-
-const BASE_URL = __DEV__ ? 'http://127.0.0.1:3000' : 'https://api.memograd.cn';
 
 /** 刷新锁：同一时刻只允许一个请求在刷新，其他请求排队等结果。 */
 let refreshPromise: Promise<boolean> | null = null;

@@ -19,9 +19,11 @@ export async function sendVerificationCode(
 ): Promise<SendResult> {
   switch (config.sms.provider) {
     case 'console':
-      // 生产环境绝不能走到这里：验证码进日志等于任何能读日志的人都能登录任意账号
-      if (config.isProduction) {
-        throw new Error('生产环境不允许使用 console 短信通道，请配置真实的 SMS_PROVIDER');
+      // 生产环境绝不能走到这里：验证码进日志等于任何能读日志的人都能登录任意账号。
+      // 自托管无真实短信网关时，可用 SMS_ALLOW_CONSOLE_IN_PRODUCTION=true 显式开启，
+      // 从容器日志取码。
+      if (config.isProduction && !config.sms.allowConsoleInProd) {
+        throw new Error('生产环境不允许使用 console 短信通道，请配置真实的 SMS_PROVIDER 或显式开启 SMS_ALLOW_CONSOLE_IN_PRODUCTION');
       }
       console.log(`[SMS:console] → ${target} 验证码 ${code}（${config.sms.codeTtlSeconds}s 内有效）`);
       return config.sms.devEcho ? { devCode: code } : {};

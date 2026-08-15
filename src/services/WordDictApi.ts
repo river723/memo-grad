@@ -11,7 +11,7 @@
  *                     versions/:version/words}
  */
 
-const BASE_URL = __DEV__ ? 'http://127.0.0.1:3000' : 'https://api.memograd.cn';
+import { API_BASE_URL as BASE_URL } from './apiConfig';
 
 export interface WordDictMeta {
   version: string;

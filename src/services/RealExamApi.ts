@@ -11,7 +11,7 @@
  *                     questions/:questionId}
  */
 
-const BASE_URL = __DEV__ ? 'http://127.0.0.1:3000' : 'https://api.memograd.cn';
+import { API_BASE_URL as BASE_URL } from './apiConfig';
 
 export interface ExamYearsMeta {
   years: Array<{ year: number; english1: boolean; english2: boolean }>;

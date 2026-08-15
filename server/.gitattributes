@@ -1,0 +1,4 @@
+# 容器内执行的 shell 脚本必须用 LF,否则 Linux 里会报
+# "#!/bin/sh^M: bad interpreter"。Dockerfile 同理保持 LF。
+*.sh        text eol=lf
+Dockerfile  text eol=lf
