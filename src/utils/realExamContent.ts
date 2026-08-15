@@ -143,8 +143,12 @@ export async function getExamYears(): Promise<number[]> {
   }
   try {
     const meta = await RealExamApi.getYears();
-    if (meta) {
+    // 远程返回非空年份列表才直接使用；空数组（如库未灌数据）视为无可服务内容，回落本地。
+    if (meta && meta.years.length > 0) {
       return meta.years.map((y) => y.year).sort((a, b) => b - a);
+    }
+    if (meta) {
+      console.warn('[realExamContent] 远程年份列表为空，使用本地 fallback');
     }
   } catch (err) {
     console.warn('[realExamContent] 拉取年份列表失败，使用 fallback：', err);
