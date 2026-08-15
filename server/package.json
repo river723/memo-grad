@@ -5,7 +5,7 @@
   "description": "MemoGrad 网络版后端：认证、订阅、AI 代理、云同步",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "chcp 65001 >nul && tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
