@@ -66,9 +66,12 @@ jobs:
           echo "Detected scheme:    $SCHEME"
 
       # 关键：CODE_SIGNING_ALLOWED=NO 产出未签名 .app
+      # 完整输出存 build.log，失败时由下一步提取真正的 error 行并上传日志
       - name: Build unsigned archive
+        id: xcbuild
         working-directory: ios
         run: |
+          set -o pipefail
           xcodebuild \
             -workspace "${{ steps.detect.outputs.workspace }}" \
             -scheme "${{ steps.detect.outputs.scheme }}" \
@@ -80,7 +83,23 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             ONLY_ACTIVE_ARCH=NO \
-            clean archive
+            clean archive 2>&1 | tee build/xcodebuild.log
+
+      - name: Extract build errors (on failure)
+        if: failure() && steps.xcbuild.outcome == 'failure'
+        working-directory: ios
+        run: |
+          echo "↓↓↓ xcodebuild error lines ↓↓↓"
+          grep -E "error:|fatal error:|❌" build/xcodebuild.log | grep -v "note:" | head -80 || true
+          echo "↑↑↑ end of error lines ↑↑↑"
+
+      - name: Upload build log (on failure)
+        if: failure() && steps.xcbuild.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ios/build/xcodebuild.log
+          retention-days: 7
 
       # 把 .app 装进 Payload/ 再压成 .ipa（Sideloadly 会重签名）
       - name: Package IPA
