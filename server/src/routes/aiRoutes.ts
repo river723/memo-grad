@@ -27,15 +27,32 @@ async function checkQuota(userId: string): Promise<number> {
 }
 
 /** 调用 OpenAI 兼容 AI 上游（默认 DeepSeek，可指向任何兼容服务：智谱/Kimi/Qwen/OpenAI/Ollama/自部署等）。 */
-async function chat(messages: any[], maxTokens: number, temperature: number): Promise<string> {
+async function chat(
+  messages: any[],
+  maxTokens: number,
+  temperature: number,
+  log: import('pino').BaseLogger | { error: (...args: unknown[]) => void } = console,
+): Promise<string> {
   const key = config.ai.apiKey;
   if (!key) throw ApiError.internal('AI_NOT_CONFIGURED', 'AI 服务未配置 API Key');
 
-  const res = await fetch(`${config.ai.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model: config.ai.model, messages, temperature, max_tokens: maxTokens }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${config.ai.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: config.ai.model, messages, temperature, max_tokens: maxTokens }),
+    });
+  } catch (err) {
+    // 网络层失败（DNS/连接/TLS/超时）以及 undici 组装请求时抛的异常
+    // （如 Authorization 头含非 ASCII 字符的 ByteString TypeError）都在这里。
+    // 不包成 ApiError 就会漏到全局兜底，前端只看到含糊的"服务器内部错误"。
+    log.error({ err }, 'AI 上游连接失败');
+    throw ApiError.internal(
+      'AI_UPSTREAM_UNREACHABLE',
+      `无法连接 AI 服务：${(err as Error).message}`,
+    );
+  }
 
   if (!res.ok) {
     const text = await res.text();
@@ -94,7 +111,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         const content = await chat([
           { role: 'system', content: '你是一个专业的考研英语老师。请严格用 JSON 格式回答。' },
           { role: 'user', content: prompt },
-        ], 1000, 0.3);
+        ], 1000, 0.3, request.log);
         result = extractJson(content) || { definitions: [], etymology: '', similar_words: [] };
         break;
       }
@@ -107,7 +124,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         const content = await chat([
           { role: 'system', content: '你是考研英语老师，请用严格 JSON 格式批量分析单词' },
           { role: 'user', content: prompt },
-        ], 8000, 0.3);
+        ], 8000, 0.3, request.log);
         const parsed = extractJson(content);
         result = parsed?.results ? Object.fromEntries(Object.entries(parsed.results)) : {};
         break;
@@ -119,7 +136,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         const content = await chat([
           { role: 'system', content: '你是英语创意写手，请严格用 JSON 格式回答' },
           { role: 'user', content: prompt },
-        ], 4000, 0.7);
+        ], 4000, 0.7, request.log);
         const parsed = extractJson(content) || {};
         result = { title: parsed.title || '无标题', content: parsed.content || content, translation: parsed.translation || '' };
         break;
@@ -132,7 +149,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         const content = await chat([
           { role: 'system', content: '你是考研英语出题老师，请严格用 JSON 格式回答' },
           { role: 'user', content: prompt },
-        ], 4000, 0.5);
+        ], 4000, 0.5, request.log);
         const parsed = extractJson(content);
         result = parsed?.questions || [];
         break;
@@ -145,7 +162,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         const content = await chat([
           { role: 'system', content: '你是考研英语出题老师，请严格用 JSON 格式回答' },
           { role: 'user', content: prompt },
-        ], 4000, 0.5);
+        ], 4000, 0.5, request.log);
         const parsed = extractJson(content);
         result = parsed?.questions || [];
         break;
@@ -158,7 +175,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         result = await chat([
           { role: 'system', content: '你是考研英语老师' },
           { role: 'user', content: prompt },
-        ], 1500, 0.5);
+        ], 1500, 0.5, request.log);
         break;
       }
 
@@ -171,7 +188,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         result = await chat([
           { role: 'system', content: '你是考研英语辅导老师，用中文撰写真题解析' },
           { role: 'user', content: prompt },
-        ], 600, 0.4);
+        ], 600, 0.4, request.log);
         break;
       }
 
@@ -180,7 +197,7 @@ export default async function aiRoutes(app: FastifyInstance) {
         result = await chat([
           { role: 'system', content: '你是考研英语老师，从文本中提取生词。每行一个词，不要其他内容。' },
           { role: 'user', content: `请从以下文本提取考研重点词汇：\n${body.text}` },
-        ], 500, 0.3);
+        ], 500, 0.3, request.log);
         result = (result as string).split('\n').filter((w: string) => w.trim());
         break;
       }

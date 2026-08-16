@@ -67,6 +67,29 @@ function bool(key: string, fallback: boolean): boolean {
   return raw === 'true' || raw === '1';
 }
 
+/**
+ * 断言字符串是纯 ASCII 且不含首尾空白/引号。
+ *
+ * 用于校验 API Key / BaseURL 这类会被塞进 HTTP 头或 URL 的值。
+ * 真实教训：曾有一个 DEEPSEEK_API_KEY 在 `sk-` 后混入了一个中文字符
+ * （U+6C3F），undici 组装 `Authorization` 头时抛
+ * "Cannot convert argument to a ByteString..."，这个 TypeError 没被
+ * 包成 ApiError，前端只看到含糊的"服务器内部错误"。启动时直接 fail-fast
+ * 比让首个请求 500 好定位得多。
+ */
+function assertAscii(key: string, value: string): void {
+  for (let i = 0; i < value.length; i++) {
+    if (value.charCodeAt(i) > 127) {
+      throw new Error(
+        `环境变量 ${key} 含非 ASCII 字符（位置 ${i}，U+${value
+          .charCodeAt(i)
+          .toString(16)
+          .toUpperCase()}），通常是从聊天软件复制时混入了中文/全角字符，请重新手输`
+      );
+    }
+  }
+}
+
 const nodeEnv = optional('NODE_ENV', 'development');
 const isProduction = nodeEnv === 'production';
 
@@ -124,11 +147,17 @@ export const config = {
       optional('AI_MODEL', 'deepseek-v4-flash') ||
       optional('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
   },
-
   quota: {
     freeMonthly: int('FREE_MONTHLY_AI_QUOTA', 0),
     proMonthly: int('PRO_MONTHLY_AI_QUOTA', 300),
   },
 } as const;
+
+// AI 配置只有在填写了 key 时才校验 ASCII；空 key 是合法的（路由会返回
+// AI_NOT_CONFIGURED，由用户决定何时启用），但非空时必须是纯 ASCII，
+// 否则 undici 拼 Authorization 头会抛 ByteString TypeError。
+if (config.ai.apiKey) assertAscii('AI_API_KEY/DEEPSEEK_API_KEY', config.ai.apiKey);
+if (config.ai.baseUrl) assertAscii('AI_BASE_URL/DEEPSEEK_BASE_URL', config.ai.baseUrl);
+if (config.ai.model) assertAscii('AI_MODEL/DEEPSEEK_MODEL', config.ai.model);
 
 export type AppConfig = typeof config;

@@ -21,7 +21,10 @@
       "Read(//c/Users/hewen/**)",
       "Bash(xargs grep -l \"Alert\")",
       "Bash(python3 -c \"import cv2; print\\('OpenCV available'\\)\")",
-      "Bash(cargo build *)"
+      "Bash(cargo build *)",
+      "Bash(curl -s -H \"User-Agent: dev-script\" -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/expo/expo/issues/42525\")",
+      "Bash(curl -s -H \"User-Agent: dev-script\" -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/expo/expo/issues/42525/comments\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{try{const a=JSON.parse\\(d\\);a.forEach\\(c=>console.log\\('---',c.user?.login,'---\\\\n'+\\(c.body||''\\).slice\\(0,1500\\)\\)\\) }catch\\(e\\){console.log\\('PARSE FAIL', d.slice\\(0,500\\)\\)}}\\)\")"
     ]
   }
 }
