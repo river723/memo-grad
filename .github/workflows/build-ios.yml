@@ -1,0 +1,98 @@
+name: Build Unsigned iOS IPA
+
+# 在 Windows 上无 Mac、无付费 Apple 账号时，用 GitHub 托管的 macOS runner
+# 构建「未签名 ipa」，再用 Sideloadly 在本机拿免费 Apple ID 重签名安装。
+# 详见 .claude/plans/ipad-iphone-sprightly-moore.md
+
+on:
+  workflow_dispatch:      # 允许在 Actions 页面手动触发
+  push:
+    branches: [main, NetDict]
+    paths:
+      - 'src/**'
+      - 'App.tsx'
+      - 'app.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'babel.config.js'
+      - 'assets/**'
+      - '.github/workflows/build-ios.yml'
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_API_URL: http://192.168.1.8:5888
+      # CI 环境跳过交互式更新检查
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Expo SDK 55 使用本地 CLI（npx expo），无需全局 expo-cli / eas-cli。
+      # prebuild 会根据 app.json 生成 ios/ 原生工程。
+      - name: Expo prebuild (generate ios/)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install
+
+      # 自动检测 workspace 与 scheme，避免硬编码（app 名是中文，workspace/scheme 名可能被转义或含空格）
+      - name: Detect workspace and scheme
+        id: detect
+        working-directory: ios
+        run: |
+          WORKSPACE=$(ls -d *.xcworkspace | head -1)
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); s=d.get('workspace',{}).get('schemes') or d.get('project',{}).get('schemes') or []; print(s[0] if s else '')")
+          if [ -z "$SCHEME" ]; then echo "::error::No scheme found"; exit 1; fi
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Detected workspace: $WORKSPACE"
+          echo "Detected scheme:    $SCHEME"
+
+      # 关键：CODE_SIGNING_ALLOWED=NO 产出未签名 .app
+      - name: Build unsigned archive
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -workspace "${{ steps.detect.outputs.workspace }}" \
+            -scheme "${{ steps.detect.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$PWD/build/app.xcarchive" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ONLY_ACTIVE_ARCH=NO \
+            clean archive
+
+      # 把 .app 装进 Payload/ 再压成 .ipa（Sideloadly 会重签名）
+      - name: Package IPA
+        working-directory: ios
+        run: |
+          mkdir -p build/Payload
+          cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -r -q ../kaoyan-unsigned.ipa Payload
+          cd ..
+          echo "IPA size: $(du -h kaoyan-unsigned.ipa | cut -f1)"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaoyan-unsigned-ipa
+          path: ios/kaoyan-unsigned.ipa
+          retention-days: 14

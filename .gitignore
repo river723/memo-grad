@@ -17,6 +17,9 @@ web-build/
 *.key
 *.mobileprovision
 
+# iOS 原生工程（由 expo prebuild 生成，每次构建重新创建，不入库）
+/ios/
+
 # Metro
 .metro-health-check*
 
