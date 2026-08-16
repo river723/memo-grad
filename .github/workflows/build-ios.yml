@@ -42,6 +42,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 显式选择最新的 Xcode 16.x。expo-modules-core 55 用到了 Swift 6.1 的
+      # 「隔离一致性」语法（如 `class ... : @MainActor Protocol`），需要 Xcode 16.3+，
+      # 否则报 "unknown attribute 'MainActor'"。不选 Xcode 26 是因为 RN 0.83/Expo 55
+      # 针对 Xcode 16 验证，26 过新。
+      - name: Select Xcode 16
+        run: |
+          XC=$(ls -d /Applications/Xcode_16.*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XC" ]; then echo "::error::No Xcode 16.x found"; ls -d /Applications/Xcode*.app; exit 1; fi
+          echo "Selecting $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          swiftc --version
+
       # Expo SDK 55 使用本地 CLI（npx expo），无需全局 expo-cli / eas-cli。
       # prebuild 会根据 app.json 生成 ios/ 原生工程。
       - name: Expo prebuild (generate ios/)
