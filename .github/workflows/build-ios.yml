@@ -42,14 +42,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 显式选择最新的 Xcode 16.x。expo-modules-core 55 用到了 Swift 6.1 的
-      # 「隔离一致性」语法（如 `class ... : @MainActor Protocol`），需要 Xcode 16.3+，
-      # 否则报 "unknown attribute 'MainActor'"。不选 Xcode 26 是因为 RN 0.83/Expo 55
-      # 针对 Xcode 16 验证，26 过新。
-      - name: Select Xcode 16
+      # 显式选择最新的 Xcode 26.x。Expo SDK 55 的 expo-modules-core 采用 Swift 6
+      # 语言模式，用到了 Xcode 26（Swift 6.2）才转正的「隔离一致性」语法
+      # （`class ... : @MainActor Protocol`），Xcode 15/16 会报
+      # "unknown attribute 'MainActor'" 等 Swift 并发错误。
+      - name: Select Xcode 26
         run: |
-          XC=$(ls -d /Applications/Xcode_16.*.app 2>/dev/null | sort -V | tail -1)
-          if [ -z "$XC" ]; then echo "::error::No Xcode 16.x found"; ls -d /Applications/Xcode*.app; exit 1; fi
+          XC=$(ls -d /Applications/Xcode_26.*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XC" ]; then echo "::error::No Xcode 26.x found"; ls -d /Applications/Xcode*.app; exit 1; fi
           echo "Selecting $XC"
           sudo xcode-select -s "$XC"
           xcodebuild -version
