@@ -4,12 +4,9 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
 import { Platform } from 'react-native';
+import { isTauri, saveFileViaTauri } from './tauriBridge';
 
 export type ExportFileResult = 'shared' | 'downloaded' | 'saved' | 'canceled';
-
-/** Tauri v2 桌面端会注入该内部对象；浏览器/移动端无。 */
-const isTauri = (): boolean =>
-  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 class FileService {
   generateBackupFileName(): string {
@@ -20,20 +17,10 @@ class FileService {
     const compressed = gzipSync(strToU8(jsonContent));
 
     // Tauri 桌面端：弹出原生"另存为"对话框，由用户选择保存位置
+    // （实现在 tauriBridge.ts，iOS/Android 构建会解析到无动态 import 的 native 占位版）
     if (isTauri()) {
       try {
-        // 动态导入仅在 Tauri 桌面端走到；用 webpackIgnore 避免 web 构建试图解析这些模块。
-        const { save } = await import(/* webpackIgnore: true */ '@tauri-apps/plugin-dialog');
-        const { writeFile } = await import(/* webpackIgnore: true */ '@tauri-apps/plugin-fs');
-        const filePath = await save({
-          defaultPath: fileName,
-          filters: [{ name: 'MemoGrad 备份', extensions: ['bk'] }],
-        });
-        if (!filePath) {
-          return 'canceled';
-        }
-        await writeFile(filePath, compressed);
-        return 'saved';
+        return await saveFileViaTauri(fileName, compressed);
       } catch (error) {
         // 插件调用失败时回退到浏览器下载，避免阻断导出
         console.warn('Tauri 导出失败，回退到下载方式:', error);
