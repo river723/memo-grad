@@ -36,6 +36,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "target/release/WebView2Loader.dll": "WebView2Loader.dll"
+    },
     "windows": {
       "wix": {
         "language": ["zh-CN"]

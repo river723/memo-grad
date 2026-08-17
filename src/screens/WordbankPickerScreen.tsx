@@ -30,6 +30,7 @@ import { getLocalWordDictWords } from '../utils/wordUtils';
 import { palette } from '../theme/tokens';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
 
 type WordbankEntry = Omit<Word, 'id' | 'created_at' | 'updated_at'>;
 
@@ -64,17 +65,13 @@ const confirmAction = (
   onConfirm: () => void | Promise<void>,
   confirmText = '确认'
 ) => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-    if (window.confirm(`${title}\n\n${message}`)) {
-      onConfirm();
-    }
-    return;
-  }
-
-  Alert.alert(title, message, [
-    { text: '取消', style: 'cancel' },
-    { text: confirmText, style: 'destructive', onPress: onConfirm },
-  ]);
+  showConfirm(title, message, { confirmText, cancelText: '取消' })
+    .then(yes => {
+      if (yes) {
+        try { onConfirm(); } catch (e) { console.error('[confirmAction] 执行失败:', e); }
+      }
+    })
+    .catch(err => console.error('[confirmAction] 弹窗失败:', err));
 };
 
 // -----------------------------------------------------------------------

@@ -23,6 +23,7 @@ import { useAuth } from '../providers/AuthProvider';
 import { useThemeContext } from '../providers/ThemeProvider';
 import { makeStyles } from '../utils/useStyles';
 import { palette } from '../theme/tokens';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
 
 const BACKUP_FIELDS = [
   'word',
@@ -39,23 +40,12 @@ const BACKUP_FIELDS = [
 ];
 
 const showMessage = (title: string, message: string) => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
-    window.alert(`${title}\n\n${message}`);
-    return;
-  }
-  Alert.alert(title, message);
+  // 复用 confirm dialog 充当单向提示（用户必须点"知道了"才关闭）
+  showConfirm(title, message, { confirmText: '知道了', cancelText: '关闭' }).catch(() => {});
 };
 
 const showConfirmDialog = (title: string, message: string): Promise<boolean> => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-    return Promise.resolve(window.confirm(`${title}\n\n${message}`));
-  }
-  return new Promise(resolve => {
-    Alert.alert(title, message, [
-      { text: '取消', style: 'cancel', onPress: () => resolve(false) },
-      { text: '确定', onPress: () => resolve(true) },
-    ]);
-  });
+  return showConfirm(title, message, { confirmText: '确定', cancelText: '取消' });
 };
 
 const getBackupValidationError = (jsonData: string): string | null => {

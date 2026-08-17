@@ -15,9 +15,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { useAppTheme } from '../theme/theme';
 import { useAuth } from '../providers/AuthProvider';
+import { useAppNavigation } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { api } from '../services/ApiClient';
 import { WEB_APP_URL } from '../constants';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
 
 type Plan = {
   id: string;
@@ -53,6 +55,7 @@ function planLabel(key: string | null | undefined): string {
 export default function SubscriptionScreen() {
   const { colors } = useAppTheme();
   const { isPro, entitlement, refreshEntitlement } = useAuth();
+  const navigation = useAppNavigation();
   const useStyles = makeStyles(() => ({}));
   const styles = useStyles();
 
@@ -67,7 +70,7 @@ export default function SubscriptionScreen() {
       const data = await api.get<Plan[]>('/api/pay/plans');
       setPlans(data);
     } catch (e: any) {
-      Alert.alert('加载失败', e.message || '无法加载套餐列表');
+      showConfirm('加载失败', e.message || '无法加载套餐列表', { confirmText: '知道了' }).catch(() => {});
     } finally {
       setLoading(false);
     }
@@ -86,7 +89,7 @@ export default function SubscriptionScreen() {
       const data = await api.post<Order>('/api/pay/orders', { plan: planId, channel: 'wechat' });
       setOrder(data);
     } catch (e: any) {
-      Alert.alert('下单失败', e.message || '无法创建订单');
+      showConfirm('下单失败', e.message || '无法创建订单', { confirmText: '知道了' }).catch(() => {});
     }
   };
 
@@ -104,16 +107,16 @@ export default function SubscriptionScreen() {
         await new Promise((r) => setTimeout(r, 2000));
         const poll = await api.get<{ status: string }>(`/api/pay/orders/${order.outTradeNo}`);
         if (poll.status === 'paid') {
-          Alert.alert('订阅成功', 'AI 功能已解锁，可以开始使用了！');
+          showConfirm('订阅成功', 'AI 功能已解锁，可以开始使用了！', { confirmText: '知道了' }).catch(() => {});
           setPolling(false);
           setOrder(null);
           await refreshEntitlement();
           return;
         }
       }
-      Alert.alert('支付超时', '请刷新页面查看订单状态，或重新下单');
+      showConfirm('支付超时', '请刷新页面查看订单状态，或重新下单', { confirmText: '知道了' }).catch(() => {});
     } catch (e: any) {
-      Alert.alert('支付确认失败', e.message || '请重试');
+      showConfirm('支付确认失败', e.message || '请重试', { confirmText: '知道了' }).catch(() => {});
     } finally {
       setPolling(false);
     }
@@ -232,12 +235,12 @@ export default function SubscriptionScreen() {
                   try {
                     if (typeof navigator !== 'undefined' && navigator.clipboard) {
                       await navigator.clipboard.writeText(WEB_APP_URL);
-                      Alert.alert('已复制', '订阅链接已复制到剪贴板');
+                      showConfirm('已复制', '订阅链接已复制到剪贴板', { confirmText: '知道了' }).catch(() => {});
                     } else {
-                      Alert.alert('订阅链接', WEB_APP_URL);
+                      showConfirm('订阅链接', WEB_APP_URL, { confirmText: '知道了' }).catch(() => {});
                     }
                   } catch {
-                    Alert.alert('订阅链接', WEB_APP_URL);
+                    showConfirm('订阅链接', WEB_APP_URL, { confirmText: '知道了' }).catch(() => {});
                   }
                 }}
                 style={{ marginTop: 4 }}
@@ -424,6 +427,15 @@ export default function SubscriptionScreen() {
       )}
 
       <Divider style={{ marginVertical: 24 }} />
+
+      <Button
+        mode="outlined"
+        icon="arrow-left"
+        onPress={() => navigation.goBack()}
+        style={{ marginBottom: 16 }}
+      >
+        返回
+      </Button>
 
       <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, textAlign: 'center' }}>
         {isPro

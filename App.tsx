@@ -9,6 +9,7 @@ import StorageService from './src/services/StorageService';
 import { ThemeProvider } from './src/providers/ThemeProvider';
 import AuthProvider from './src/providers/AuthProvider';
 import { AnnouncementProvider } from './src/providers/AnnouncementProvider';
+import { ConfirmDialogProvider } from './src/providers/ConfirmDialogProvider';
 
 // 使用 @expo/vector-icons 替代 react-native-vector-icons
 // react-native-vector-icons 在 Expo SDK 55 + New Architecture 下字体加载可能失败
@@ -110,7 +111,9 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <AnnouncementProvider>
-            <AppNavigator />
+            <ConfirmDialogProvider>
+              <AppNavigator />
+            </ConfirmDialogProvider>
           </AnnouncementProvider>
         </AuthProvider>
       </ThemeProvider>

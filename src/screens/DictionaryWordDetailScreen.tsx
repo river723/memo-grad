@@ -17,6 +17,7 @@ import {
 } from '../utils/wordUtils';
 import { makeStyles } from '../utils/useStyles';
 import { difficultyColor, palette } from '../theme/tokens';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
 
 // Web 平台兼容性处理
 let Speech: any = null;
@@ -34,16 +35,13 @@ const confirmAction = (
   onConfirm: () => void | Promise<void>,
   confirmText = '确认'
 ) => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-    if (window.confirm(`${title}\n\n${message}`)) {
-      onConfirm();
-    }
-    return;
-  }
-  Alert.alert(title, message, [
-    { text: '取消', style: 'cancel' },
-    { text: confirmText, style: 'default', onPress: onConfirm },
-  ]);
+  showConfirm(title, message, { confirmText, cancelText: '取消' })
+    .then(yes => {
+      if (yes) {
+        try { onConfirm(); } catch (e) { console.error('[confirmAction] 执行失败:', e); }
+      }
+    })
+    .catch(err => console.error('[confirmAction] 弹窗失败:', err));
 };
 
 export default function DictionaryWordDetailScreen() {
