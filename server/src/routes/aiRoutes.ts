@@ -8,6 +8,7 @@ import { config } from '../config';
 import { ApiError } from '../errors';
 import { getEntitlement } from '../services/subscriptionService';
 import { prisma } from '../db';
+import { ensureWordHighlight } from '../utils/highlightWord';
 
 /**
  * 配额守卫：调用前校验用户当月是否还有剩余次数。
@@ -158,13 +159,18 @@ export default async function aiRoutes(app: FastifyInstance) {
       case 'generateDefinitionQuestions': {
         if (!Array.isArray(body.words)) throw ApiError.badRequest('INVALID_PARAMS', '缺少 words');
         const wlist = body.words.map((w: any) => `- ${w.word}: ${w.meaning}`).join('\n');
-        const prompt = `为以下单词各生成一个释义单选题：\n${wlist}\n\n返回JSON：{"questions":[{"target_word":"","sentence":"含*word*的句子","options":["释义A","释义B","释义C","释义D"],"correct_definition":"正确释义"}]}`;
+        const prompt = `为以下单词各生成一个释义单选题：\n${wlist}\n\n严格要求：sentence 中必须用一对星号把目标词（或其屈折形式，如 abandoned、making）包裹起来，例如 "The *diligent* student studied all night."，这是划线高亮的唯一依据，绝不能省略。\n返回JSON：{"questions":[{"target_word":"","sentence":"用*word*标记目标词的句子","options":["释义A","释义B","释义C","释义D"],"correct_definition":"正确释义"}]}`;
         const content = await chat([
           { role: 'system', content: '你是考研英语出题老师，请严格用 JSON 格式回答' },
           { role: 'user', content: prompt },
         ], 4000, 0.5, request.log);
         const parsed = extractJson(content);
-        result = parsed?.questions || [];
+        const rawQuestions = Array.isArray(parsed?.questions) ? parsed.questions : [];
+        // AI 可能漏加星号：返回前按目标词（含屈折变体）尽力补标，保证前端能划线
+        result = rawQuestions.map((q: any) => ({
+          ...q,
+          sentence: ensureWordHighlight(q.sentence || '', q.target_word || ''),
+        }));
         break;
       }
 

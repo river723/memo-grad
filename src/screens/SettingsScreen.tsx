@@ -355,7 +355,7 @@ export default function SettingsScreen() {
           <Divider style={styles.divider} />
 
           <View style={styles.settingGroup}>
-            <Text style={styles.settingLabel}>考题练习题数</Text>
+            <Text style={styles.settingLabel}>AI出题练习题数</Text>
             <View style={styles.numberInput}>
               <View style={styles.stepperRow}>
                 <PaperButton

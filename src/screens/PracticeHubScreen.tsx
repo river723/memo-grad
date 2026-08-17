@@ -221,7 +221,7 @@ export default function PracticeHubScreen() {
                   还没有练习记录
                 </Text>
                 <Text style={styles.emptyHint}>
-                  点击上方「开始练习」，AI 将根据你的单词库生成专属考题
+                  点击上方「AI出题练习」，AI 将根据你的单词库生成专属考题
                 </Text>
               </View>
             </Card.Content>

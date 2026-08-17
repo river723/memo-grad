@@ -188,8 +188,8 @@ export default function ArticleGenerateScreen() {
   const handleGenerate = async () => {
     setGenerateError(null);
 
-    if (selectedWords.length < 5) {
-      const msg = `至少需要 5 个生词才能生成文章，当前仅 ${selectedWords.length} 个`;
+    if (selectedWords.length < articleWordCount) {
+      const msg = `需要选够 ${articleWordCount} 个生词才能生成文章，当前仅 ${selectedWords.length} 个`;
       console.log('[ArticleGen]', msg);
       setGenerateError(msg);
       Alert.alert('生词不足', msg);
@@ -402,7 +402,7 @@ export default function ArticleGenerateScreen() {
           {selectMode === 'manual' && (
             <View style={styles.manualArea}>
               <Text style={styles.sectionLabel}>
-                已选 {selectedWords.length}/{articleWordCount} 个（至少 5 个）
+                已选 {selectedWords.length}/{articleWordCount} 个
               </Text>
               <Searchbar
                 placeholder="搜索单词..."
@@ -410,6 +410,7 @@ export default function ArticleGenerateScreen() {
                 value={searchQuery}
                 style={styles.searchBar}
                 inputStyle={styles.searchInput}
+                icon={() => <Text style={{ fontSize: 16 }}>🔍</Text>}
               />
               <View style={styles.wordGrid}>
                 {filteredWords.map(word => {
@@ -421,7 +422,6 @@ export default function ArticleGenerateScreen() {
                     >
                       <View style={styles.manualWordItem}>
                         <Chip
-                          selected={isSelected}
                           style={[
                             styles.manualWordChip,
                             isSelected && styles.manualWordChipSelected,
@@ -479,9 +479,9 @@ export default function ArticleGenerateScreen() {
       {/* 状态提示 */}
       {!generatedArticle && !isGenerating && (
         <View style={styles.statusArea}>
-          {selectedWords.length < 5 ? (
+          {selectedWords.length < articleWordCount ? (
             <Text style={styles.statusWarn}>
-              ⚠ 已选 {selectedWords.length}/5 个生词（不足，请切换手动模式选词或降低生词数）
+              ⚠ 已选 {selectedWords.length}/{articleWordCount} 个生词（不足，请切换手动模式选词或降低生词数）
             </Text>
           ) : null}
           {generateError && (

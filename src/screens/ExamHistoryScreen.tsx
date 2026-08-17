@@ -75,7 +75,7 @@ export default function ExamHistoryScreen() {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>📋</Text>
           <Text style={styles.emptyTitle}>暂无考题记录</Text>
-          <Text style={styles.emptyHint}>完成考题练习后可在此复习</Text>
+          <Text style={styles.emptyHint}>完成AI出题练习后可在此复习</Text>
           <Button
             mode="outlined"
             onPress={() => navigation.navigate('ExamSetup')}

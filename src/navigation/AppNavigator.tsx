@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -133,7 +133,7 @@ function PracticeStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen name="PracticeHub" component={PracticeHubScreen} options={makeTabHeaderOptions('练习', 'puzzle')} />
-      <Stack.Screen name="ExamSetup" component={ExamSetupScreen} options={makeTabHeaderOptions('考题练习', 'puzzle')} />
+      <Stack.Screen name="ExamSetup" component={ExamSetupScreen} options={makeTabHeaderOptions('AI出题练习', 'puzzle')} />
       <Stack.Screen name="ExamAnswer" component={ExamAnswerScreen} options={makeTabHeaderOptions('答题中', 'puzzle')} />
       <Stack.Screen name="ExamResult" component={ExamResultScreen} options={makeTabHeaderOptions('练习结果', 'chart-bar')} />
       <Stack.Screen name="WrongQuestionReview" component={WrongQuestionReviewScreen} options={makeTabHeaderOptions('错题本', 'alert-circle')} />
@@ -158,7 +158,23 @@ function StatsStack() {
       <Stack.Screen name="StatsDetail" component={StatsDetailScreen} options={makeTabHeaderOptions('学习统计', 'chart-line')} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={makeTabHeaderOptions('设置', 'cog')} />
       <Stack.Screen name="Admin" component={AdminScreen} options={makeTabHeaderOptions('后台控制台', 'shield-crown')} />
-      <Stack.Screen name="Subscription" component={SubscriptionScreen} options={makeTabHeaderOptions('订阅方案', 'card-account-details')} />
+      <Stack.Screen
+        name="Subscription"
+        component={SubscriptionScreen}
+        options={({ navigation }) => ({
+          ...makeTabHeaderOptions('订阅方案', 'card-account-details'),
+          headerLeft: () => (
+            <TouchableOpacity
+              accessibilityLabel="返回我的页面"
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={() => navigation.navigate('Stats')}
+              style={{ paddingLeft: 12, paddingRight: 8, paddingVertical: 4 }}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={24} color={palette.onPrimary} />
+            </TouchableOpacity>
+          ),
+        })}
+      />
     </Stack.Navigator>
   );
 }

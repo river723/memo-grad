@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
+import { useAuth } from '../providers/AuthProvider';
 import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
@@ -22,9 +23,25 @@ import { Word, ExamQuestion, ExamQuestionType, DefinitionQuestion, ClozeQuestion
 import { getRecommendedWords } from '../utils/examHelpers';
 import { EXAM_CONFIG } from '../constants';
 
+/**
+ * Fisher–Yates 打乱，返回新数组（不改入参）。
+ * AI 出题时倾向把正确答案放在 options[0]，若不打乱会导致正确项恒为 A。
+ * 判分按选项内容字符串匹配（option === correct_*），故仅打乱 options 顺序即可，
+ * 无需同步移动 correct_answer/correct_definition（它们存内容而非索引）。
+ */
+function shuffleOptions<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export default function ExamSetupScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
+  const { isPro } = useAuth();
   const styles = useStyles();
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
@@ -46,7 +63,8 @@ export default function ExamSetupScreen() {
   const loadData = async () => {
     try {
       const settings = await StorageService.getSettings();
-      setQuestionCount(settings.examQuestionCount || EXAM_CONFIG.DEFAULT_QUESTION_COUNT);
+      const count = settings.examQuestionCount || EXAM_CONFIG.DEFAULT_QUESTION_COUNT;
+      setQuestionCount(count);
 
       const words = await StorageService.getWords();
       setAllWords(words);
@@ -76,7 +94,7 @@ export default function ExamSetupScreen() {
       setLastStudyDate(lastStudyMap);
 
       if (selectMode === 'smart') {
-        const recommended = getRecommendedWords(words, cov, accMap, questionCount, lastStudyMap);
+        const recommended = getRecommendedWords(words, cov, accMap, count, lastStudyMap);
         setSelectedWords(recommended);
       }
     } catch (error) {
@@ -125,8 +143,12 @@ export default function ExamSetupScreen() {
   };
 
   const handleStartExam = async () => {
-    if (selectedWords.length < EXAM_CONFIG.MIN_QUESTION_COUNT) {
-      Alert.alert('生词不足', `至少需要 ${EXAM_CONFIG.MIN_QUESTION_COUNT} 个生词才能出题`);
+    if (!isPro) {
+      subscriptionPrompt(navigation, 'AI 出题功能需要会员订阅，是否前往订阅页？');
+      return;
+    }
+    if (selectedWords.length < questionCount) {
+      Alert.alert('生词不足', `需要选够 ${questionCount} 个生词才能出题（当前已选 ${selectedWords.length} 个）`);
       return;
     }
     setIsGenerating(true);
@@ -154,7 +176,7 @@ export default function ExamSetupScreen() {
             word: q.target_word,
             sentence: q.sentence,
             correct_definition: q.correct_definition,
-            options: q.options,
+            options: shuffleOptions(q.options),
           } as DefinitionQuestion;
         });
       } else {
@@ -167,7 +189,7 @@ export default function ExamSetupScreen() {
             target_word: q.target_word,
             sentence: q.sentence,
             chinese_hint: q.chinese_hint,
-            options: q.options,
+            options: shuffleOptions(q.options),
             correct_answer: q.correct_answer,
           } as ClozeQuestion;
         });
@@ -198,7 +220,7 @@ export default function ExamSetupScreen() {
     w.word.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const canStart = selectedWords.length >= EXAM_CONFIG.MIN_QUESTION_COUNT;
+  const canStart = selectedWords.length >= questionCount;
 
   const questionTypeLabel = questionType === 'definition' ? '释义单选' : '完形选词';
 
@@ -340,7 +362,7 @@ export default function ExamSetupScreen() {
           {selectMode === 'manual' && (
             <View style={styles.manualArea}>
               <Text style={styles.sectionLabel}>
-                已选 {selectedWords.length}/{questionCount} 个（至少 {EXAM_CONFIG.MIN_QUESTION_COUNT} 个）
+                已选 {selectedWords.length}/{questionCount} 个
               </Text>
               <Searchbar
                 placeholder="搜索单词..."
@@ -348,6 +370,7 @@ export default function ExamSetupScreen() {
                 value={searchQuery}
                 style={styles.searchBar}
                 inputStyle={styles.searchInput}
+                icon={() => <Text style={{ fontSize: 16 }}>🔍</Text>}
               />
               <View style={styles.wordGrid}>
                 {filteredWords.map(word => {
@@ -394,7 +417,7 @@ export default function ExamSetupScreen() {
         disabled={!canStart || isGenerating}
         icon="play-circle"
       >
-        {isGenerating ? '正在出题...' : '开始练习'}
+        {isGenerating ? '正在出题...' : 'AI出题'}
       </Button>
 
       {isGenerating && (

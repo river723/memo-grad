@@ -31,6 +31,7 @@ type TodayStats = {
   wrongQuestionCount: number;
   difficultWordIds: string[];
   difficultWordCount: number;
+  unstudiedNewWordCount: number;
 };
 
 type SuggestionRoute =
@@ -59,6 +60,7 @@ const DEFAULT_TODAY_STATS: TodayStats = {
   wrongQuestionCount: 0,
   difficultWordIds: [],
   difficultWordCount: 0,
+  unstudiedNewWordCount: 0,
 };
 
 const DEFAULT_SUGGESTION: TodaySuggestion = {
@@ -118,6 +120,16 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       route: { tab: 'Home', screen: 'Study' },
     };
   }
+  if (stats.todayPending === 0 && stats.unstudiedNewWordCount > 0) {
+    const done = stats.todayTotal > 0;
+    return {
+      title: done ? '今日任务已完成' : '词库还有新词',
+      description: done ? '状态不错，再背一批新词继续推进。' : '还有未学过的新词，开始背吧。',
+      actionLabel: '继续学习',
+      icon: 'book-open-page-variant',
+      route: { tab: 'Home', screen: 'Study' },
+    };
+  }
   if (stats.todayStudyCount >= 3 && stats.accuracy < 0.6) {
     const has = stats.difficultWordIds.length > 0;
     return {
@@ -154,7 +166,7 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
     return {
       title: '今日任务已完成',
       description: '学习节奏不错，可以做一组考题巩固。',
-      actionLabel: '考题练习',
+      actionLabel: 'AI出题练习',
       icon: 'puzzle',
       route: { tab: 'Practice', screen: 'ExamSetup' },
     };
@@ -196,6 +208,8 @@ export default function HomeScreen() {
       const todayPending = todayPendingPlans.length;
       const todayCorrectCount = todayRecords.filter((r) => r.result === 1).length;
       const accuracy = todayRecords.length > 0 ? todayCorrectCount / todayRecords.length : 0;
+      const studiedWordIds = new Set(allRecords.map((r) => r.word_id));
+      const unstudiedNewWordCount = allWords.filter((w) => !studiedWordIds.has(w.id)).length;
       const baseStats: TodayStats = {
         totalWords: allWords.length,
         todayTotal: todayPlans.length,
@@ -208,6 +222,7 @@ export default function HomeScreen() {
         wrongQuestionCount: wrongQuestions.length,
         difficultWordIds: [],
         difficultWordCount: 0,
+        unstudiedNewWordCount,
       };
       let nextStats = baseStats;
       if (needsDifficultWords(baseStats)) {
@@ -347,7 +362,7 @@ export default function HomeScreen() {
             </Animated.View>
 
             {/* 主 CTA */}
-            <View style={{ marginTop: spacing.lg }}>
+            <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
               <AppButton
                 title={todaySuggestion.actionLabel}
                 onPress={handleSuggestionPress}
@@ -356,6 +371,21 @@ export default function HomeScreen() {
                 fullWidth
                 leftIcon={<MaterialCommunityIcons name={todaySuggestion.icon as any} size={20} color={colors.onPrimary} />}
               />
+              {todaySuggestion.actionLabel === '继续学习' && todayStats.wrongQuestionCount > 0 && (
+                <AppButton
+                  title="复习错题"
+                  onPress={() =>
+                    navigation.navigate('Main' as any, {
+                      screen: 'Practice' as any,
+                      params: { screen: 'WrongQuestionReview' as any },
+                    })
+                  }
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  leftIcon={<MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.primary} />}
+                />
+              )}
             </View>
 
             {/* === 第二段：3 metric 横向条 === */}

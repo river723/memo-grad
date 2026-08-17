@@ -192,7 +192,9 @@ export default function StudyScreen() {
 
       if (customWordIds.length > 0) {
         const customIdSet = new Set(customWordIds);
-        studyWords = allWords.filter(w => typeof w.id === 'number' && customIdSet.has(w.id));
+        // Word.id 在网络版已从自增数字迁移为客户端生成的 UUID（string），
+        // 这里必须按 string 匹配，否则 customIdSet 永远命中不了 → 误报"暂无可复习单词"。
+        studyWords = allWords.filter(w => typeof w.id === 'string' && customIdSet.has(w.id));
 
         setWords(studyWords);
         setWordTypeCounts({ newCount: 0, reviewCount: studyWords.length });

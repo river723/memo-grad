@@ -366,14 +366,15 @@ function parseWordHighlight(sentence: string, word: string): { text: string; isW
     parts.push({ text: sentence.substring(lastIndex), isWord: false });
   }
 
-  // 如果 AI 没有用 * 标记，退化处理：直接按 word 查找
+  // 如果 AI 没有用 * 标记，退化处理：先精确匹配，再按前缀匹配屈折形式
+  // （如目标词 abandon，句子里出现 abandoned/abandoning 也能定位到）
   if (parts.length === 0) {
-    const idx = sentence.toLowerCase().indexOf(word.toLowerCase());
-    if (idx >= 0) {
-      if (idx > 0) parts.push({ text: sentence.substring(0, idx), isWord: false });
-      parts.push({ text: sentence.substring(idx, idx + word.length), isWord: true });
-      if (idx + word.length < sentence.length) {
-        parts.push({ text: sentence.substring(idx + word.length), isWord: false });
+    const range = findWordRange(sentence, word);
+    if (range) {
+      if (range.start > 0) parts.push({ text: sentence.substring(0, range.start), isWord: false });
+      parts.push({ text: sentence.substring(range.start, range.end), isWord: true });
+      if (range.end < sentence.length) {
+        parts.push({ text: sentence.substring(range.end), isWord: false });
       }
     } else {
       parts.push({ text: sentence, isWord: false });
@@ -381,6 +382,49 @@ function parseWordHighlight(sentence: string, word: string): { text: string; isW
   }
 
   return parts;
+}
+
+/**
+ * 在句子里定位目标词的字符区间：先精确匹配（词边界），
+ * 找不到再按目标词为前缀匹配更长的屈折形式（abandon -> abandoned）。
+ * 找不到返回 null。匹配不区分大小写。
+ */
+function findWordRange(sentence: string, word: string): { start: number; end: number } | null {
+  if (!sentence || !word) return null;
+  const lower = sentence.toLowerCase();
+  const w = word.trim().toLowerCase();
+  if (!w) return null;
+
+  const isWordChar = (ch: string) => /[A-Za-z0-9_]/.test(ch);
+  const atBoundary = (i: number) => i <= 0 || i >= lower.length || !isWordChar(lower[i]);
+
+  // 1. 精确匹配
+  let from = 0;
+  let idx: number;
+  while ((idx = lower.indexOf(w, from)) >= 0) {
+    if (atBoundary(idx) && atBoundary(idx + w.length)) {
+      return { start: idx, end: idx + w.length };
+    }
+    from = idx + 1;
+  }
+
+  // 2. 前缀匹配屈折形式：找以目标词开头、后续仍为字母的最长连续串
+  if (w.length >= 3) {
+    from = 0;
+    while ((idx = lower.indexOf(w, from)) >= 0) {
+      if (atBoundary(idx)) {
+        let end = idx + w.length;
+        // 向后延伸常见屈折后缀字母，直到非字母字符
+        while (end < lower.length && isWordChar(lower[end])) end++;
+        if (end > idx + w.length && atBoundary(end)) {
+          return { start: idx, end };
+        }
+      }
+      from = idx + 1;
+    }
+  }
+
+  return null;
 }
 
 function getCorrectAnswer(question: ExamQuestion): string {

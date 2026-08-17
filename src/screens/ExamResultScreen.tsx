@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, ScrollView } from 'react-native';
 import {
   Card,
@@ -23,7 +23,11 @@ export default function ExamResultScreen() {
   const answers: ExamAnswerType[] = route.params?.answers || [];
   const questionType: ExamQuestionType = route.params?.questionType || 'definition';
   const sessionId: string | undefined = route.params?.sessionId;
-  const [saved, setSaved] = useState(false);
+  // 用 ref 而非 state 做防重入守卫：persist 是长 async 链，setSaved(true) 要等
+  // 一串 await 跑完才置位；React Navigation 在开发模式下会对屏幕双挂载，第二次
+  // effect 在两个 await 之间进入时 state 守卫仍是 false，会再存一条一模一样的
+  // session。ref 在 effect 函数体顶部同步置位即可堵住重入。
+  const savedRef = useRef(false);
   const [hasWrongQuestions, setHasWrongQuestions] = useState(false);
 
   const total = questions.length;
@@ -34,7 +38,8 @@ export default function ExamResultScreen() {
 
   // 保存 ExamSession + 更新错题本
   useEffect(() => {
-    if (saved || total === 0) return;
+    if (savedRef.current || total === 0) return;
+    savedRef.current = true; // 同步置位，防止双挂载/重入导致重复保存
     const persist = async () => {
       try {
         // 1. 保存本次练习记录（新建或覆盖）
@@ -82,13 +87,12 @@ export default function ExamResultScreen() {
         }
 
         setHasWrongQuestions(anyWrong);
-        setSaved(true);
       } catch (error) {
         console.error('Failed to persist exam result:', error);
       }
     };
     persist();
-  }, [saved]);
+  }, []);
 
   const getAccuracyColor = (rate: number) => {
     if (rate >= 0.8) return palette.success;
