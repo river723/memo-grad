@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -230,7 +230,14 @@ export default function AppNavigator() {
   const { dark, colors } = useAppTheme();
   const { user, loading } = useAuth();
 
+  // web/桌面端专用：原生 RN 没有 document，直接跳过。
+  // 此前未加判断，iOS/Android 启动即抛 ReferenceError（document is not defined）：
+  // Release 下未捕获 JS 异常会走 ExceptionsManager.reportFatalException → RCTFatal → abort，
+  // 表现为启动后约 200ms 在 com.meta.react.turbomodulemanager.queue 上闪退。
   useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
     document.title = '考研英语生词本AI版';
     const interval = setInterval(() => {
       if (document.title !== '考研英语生词本AI版') {

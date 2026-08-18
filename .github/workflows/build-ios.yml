@@ -29,16 +29,11 @@ jobs:
       EXPO_PUBLIC_API_URL: http://192.168.1.8:5888
       # CI 环境跳过交互式更新检查
       CI: true
-      # 关闭新架构（New Architecture / Fabric / TurboModule）。
-      # 崩溃日志显示 App 在 com.meta.react.turbomodulemanager.queue 上 JS fatal 后 abort：
-      # 启动后极短时间即崩，为新架构下某原生模块初始化失败。
-      # Expo SDK 55 + RN 0.83 新架构在 Xcode 26 预览 toolchain 下不稳定，旧架构（Paper）更可靠。
-      # React-RCTAppDelegate.podspec 的判定是 `ENV["RCT_NEW_ARCH_ENABLED"] != "0"`，
-      # 即未设置时新架构默认开启，因此必须显式设为 "0" 才能真正关闭。
-      RCT_NEW_ARCH_ENABLED: "0"
-      USE_FABRIC: "0"
-      EXPO_USE_FABRIC: "0"
-      EXPO_USE_NEW_ARCH: "0"
+      # 注意：不要设置 RCT_NEW_ARCH_ENABLED=0 之类变量试图关闭新架构——
+      # RN 0.82 起旧架构已移除，new_architecture.rb 中 new_arch_enabled 硬编码返回 true，
+      # pod install 只会打印 "NEW ARCH ONLY" 警告，应用仍以新架构运行。
+      # 之前的启动闪退根因是 JS 未捕获异常（AppNavigator 中 web 专用的 document.title
+      # 在原生端抛 ReferenceError），已在 App.tsx/AppNavigator.tsx 修复并加了全局兜底。
     steps:
       - name: Checkout
         uses: actions/checkout@v4

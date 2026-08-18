@@ -101,6 +101,29 @@ class StorageService {
     return this.key(this.KEYS.LAST_SYNC_AT);
   }
 
+  /** 持久化未捕获异常记录（App.tsx 全局兜底调用，尽力而为，不抛错）。 */
+  async persistFatalError(record: unknown): Promise<void> {
+    try {
+      await AsyncStorage.setItem(this.key(this.KEYS.LAST_FATAL_ERROR), JSON.stringify(record));
+    } catch {
+      // 记录失败不影响兜底展示
+    }
+  }
+
+  /** 读取并清除上次未捕获异常记录（读一次即删，避免每次启动都弹旧错误）。 */
+  async takeFatalError(): Promise<{ message: string; stack?: string; at: string } | null> {
+    try {
+      const raw = await AsyncStorage.getItem(this.key(this.KEYS.LAST_FATAL_ERROR));
+      if (!raw) {
+        return null;
+      }
+      await AsyncStorage.removeItem(this.key(this.KEYS.LAST_FATAL_ERROR));
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * 清除当前用户所有同步相关数据（不含 token/settings）。
    * 用于登录切换或重置缓存场景，确保下个用户拿到干净的本地环境。
@@ -136,6 +159,7 @@ class StorageService {
     SCHEMA_VERSION: 'kaoyan_schema_version',
     MIGRATION_BACKUP: 'kaoyan_migration_backup_v1',
     LAST_SYNC_AT: 'kaoyan_last_sync_at',
+    LAST_FATAL_ERROR: 'kaoyan_last_fatal_error',
   };
 
   /** 迁移只跑一次，用一个共享 Promise 让并发调用方都等同一次执行。 */
