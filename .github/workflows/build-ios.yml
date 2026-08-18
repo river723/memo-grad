@@ -29,6 +29,16 @@ jobs:
       EXPO_PUBLIC_API_URL: http://192.168.1.8:5888
       # CI 环境跳过交互式更新检查
       CI: true
+      # 关闭新架构（New Architecture / Fabric / TurboModule）。
+      # 崩溃日志显示 App 在 com.meta.react.turbomodulemanager.queue 上 JS fatal 后 abort：
+      # 启动后极短时间即崩，为新架构下某原生模块初始化失败。
+      # Expo SDK 55 + RN 0.83 新架构在 Xcode 26 预览 toolchain 下不稳定，旧架构（Paper）更可靠。
+      # React-RCTAppDelegate.podspec 的判定是 `ENV["RCT_NEW_ARCH_ENABLED"] != "0"`，
+      # 即未设置时新架构默认开启，因此必须显式设为 "0" 才能真正关闭。
+      RCT_NEW_ARCH_ENABLED: "0"
+      USE_FABRIC: "0"
+      EXPO_USE_FABRIC: "0"
+      EXPO_USE_NEW_ARCH: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
