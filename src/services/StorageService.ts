@@ -1,4 +1,4 @@
-import { Word, StudyRecord, StudyPlan, Article, ExamSession, WrongQuestion, AppSettings, AIProviderId, RealExamSession, RealExamWrongQuestion, RealExamReadingPassage, RealExamClozePaper, RealExamNewTypePaper, RealExamLetter, RealExamOptionLetter } from '../types';
+import { Word, StudyRecord, StudyPlan, Article, ExamSession, ExamDraft, WrongQuestion, AppSettings, AIProviderId, RealExamSession, RealExamWrongQuestion, RealExamReadingPassage, RealExamClozePaper, RealExamNewTypePaper, RealExamLetter, RealExamOptionLetter } from '../types';
 import { AI_PROVIDERS, WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 import { generateId, nowIso, excludeDeleted } from '../utils/idUtils';
 import { migrateToUuidSchema, MigrationResult, CURRENT_SCHEMA_VERSION } from './migrations';
@@ -132,6 +132,7 @@ class StorageService {
     REAL_EXAM_SESSIONS: 'kaoyan_real_exam_sessions',
     REAL_EXAM_WRONG_QUESTIONS: 'kaoyan_real_exam_wrong_questions',
     REAL_EXAM_DRAFTS: 'kaoyan_real_exam_drafts',
+    EXAM_DRAFT: 'kaoyan_exam_draft',
     SCHEMA_VERSION: 'kaoyan_schema_version',
     MIGRATION_BACKUP: 'kaoyan_migration_backup_v1',
     LAST_SYNC_AT: 'kaoyan_last_sync_at',
@@ -468,6 +469,27 @@ class StorageService {
       sessions[index] = { ...session, id, updated_at: nowIso(), deleted_at: null, dirty: true };
       await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(sessions));
     }
+  }
+
+  // ==================== AI 出题答题草稿（中途暂存，重进可恢复）====================
+  // 单份存储（AI 同时只会有一个进行中练习）。存整套题 + 已答答案 + 当前题号；
+  // 答完进结果页落 ExamSession 后由 ExamResultScreen 清除。不进 sync、不带 dirty。
+  async getExamDraft(): Promise<ExamDraft | null> {
+    try {
+      const data = await AsyncStorage.getItem(this.key(this.KEYS.EXAM_DRAFT));
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Get exam draft error:', error);
+      return null;
+    }
+  }
+
+  async saveExamDraft(draft: ExamDraft): Promise<void> {
+    await AsyncStorage.setItem(this.key(this.KEYS.EXAM_DRAFT), JSON.stringify(draft));
+  }
+
+  async clearExamDraft(): Promise<void> {
+    await AsyncStorage.removeItem(this.key(this.KEYS.EXAM_DRAFT));
   }
 
   // 错题本操作

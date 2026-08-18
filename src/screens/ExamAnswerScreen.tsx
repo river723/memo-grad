@@ -33,6 +33,8 @@ export default function ExamAnswerScreen() {
   const [isRevealed, setIsRevealed] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(true);
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 草稿 createdAt 透传：mount 从草稿恢复时取草稿原值，新生成时取生成时刻。
+  const draftCreatedAtRef = useRef<string>(new Date().toISOString());
 
   const currentQuestion = questions[currentIndex];
   const isLastQuestion = currentIndex >= questions.length - 1;
@@ -49,6 +51,32 @@ export default function ExamAnswerScreen() {
     StorageService.getSettings().then(s => setAutoAdvance(s.examAutoAdvance ?? true));
   }, []);
 
+  // 恢复草稿：仅在「本屏题目与草稿同源」时取回 answers/currentIndex。
+  // 同源判定用 JSON.stringify 等价——重做历史题路径传入的 questions 与草稿
+  // 内容不同，即便长度/题型巧合一致也不会误恢复。
+  useEffect(() => {
+    (async () => {
+      const draft = await StorageService.getExamDraft();
+      if (!draft || draft.questions.length !== questions.length || draft.questionType !== questionType) return;
+      if (JSON.stringify(draft.questions) !== JSON.stringify(questions)) return;
+      draftCreatedAtRef.current = draft.createdAt;
+      setAnswers(draft.answers);
+      setCurrentIndex(Math.min(Math.max(draft.currentIndex, 0), questions.length - 1));
+    })();
+  }, []);
+
+  // 落草稿：答一题/跳过/翻页时同步整套题 + 已答答案 + 当前题号。
+  const persistDraft = async (nextAnswers: ExamAnswerType[], nextIndex: number) => {
+    await StorageService.saveExamDraft({
+      questions,
+      answers: nextAnswers,
+      questionType,
+      currentIndex: nextIndex,
+      createdAt: draftCreatedAtRef.current,
+      version: 1,
+    });
+  };
+
   const handleSelect = (option: string) => {
     if (isRevealed) return;
 
@@ -64,14 +92,17 @@ export default function ExamAnswerScreen() {
       selected_answer: option,
       is_correct: isCorrect,
     };
-    setAnswers(prev => [...prev, newAnswer]);
+    const finalAnswers = [...answers, newAnswer];
+    setAnswers(finalAnswers);
 
-    // 自动跳转关闭时，不设定时器，等用户手动点"下一题"
-    if (!autoAdvance) return;
+    // 自动跳转关闭时，不设定时器，等用户手动点"下一题"。答案已落草稿。
+    if (!autoAdvance) {
+      persistDraft(finalAnswers, currentIndex);
+      return;
+    }
 
     autoAdvanceTimer.current = setTimeout(() => {
       if (isLastQuestion) {
-        const finalAnswers = [...answers, newAnswer];
         navigation.navigate('ExamResult', {
           questions,
           answers: finalAnswers,
@@ -79,9 +110,11 @@ export default function ExamAnswerScreen() {
           sessionId,
         });
       } else {
-        setCurrentIndex(prev => prev + 1);
+        const nextIndex = currentIndex + 1;
+        setCurrentIndex(nextIndex);
         setSelectedOption(null);
         setIsRevealed(false);
+        persistDraft(finalAnswers, nextIndex);
       }
     }, EXAM_CONFIG.AUTO_ADVANCE_DELAY);
   };
@@ -112,9 +145,11 @@ export default function ExamAnswerScreen() {
         sessionId,
       });
     } else {
-      setCurrentIndex(prev => prev + 1);
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
       setSelectedOption(null);
       setIsRevealed(false);
+      persistDraft(updatedAnswers, nextIndex);
     }
   };
 
@@ -128,9 +163,11 @@ export default function ExamAnswerScreen() {
         sessionId,
       });
     } else {
-      setCurrentIndex(prev => prev + 1);
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
       setSelectedOption(null);
       setIsRevealed(false);
+      persistDraft(answers, nextIndex);
     }
   };
 

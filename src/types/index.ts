@@ -177,6 +177,17 @@ export interface ExamSession extends SyncMeta {
   created_at: string;
 }
 
+// AI 出题答题中途草稿（transient，不进 sync）：存整套题 + 已答答案 + 当前题号，
+// 退出可续答；答完进结果页落 ExamSession 后由 ExamResultScreen 清除。
+export interface ExamDraft {
+  questions: ExamQuestion[];
+  answers: ExamAnswer[];        // 已答的，随答随长
+  questionType: ExamQuestionType;
+  currentIndex: number;
+  createdAt: string;           // ISO，用于「N/M 题未完成」提示
+  version: number;              // 形状变更时 bump；load 时版本不符才恢复
+}
+
 // 错题本条目
 export interface WrongQuestion extends SyncMeta {
   id: string;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import {
   Card,
@@ -19,6 +19,7 @@ import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
 import { Word, ExamQuestion, ExamQuestionType, DefinitionQuestion, ClozeQuestion } from '../types';
 import { getRecommendedWords } from '../utils/examHelpers';
 import { EXAM_CONFIG } from '../constants';
@@ -53,12 +54,43 @@ export default function ExamSetupScreen() {
   const [questionType, setQuestionType] = useState<ExamQuestionType>('definition');
   const [questionCount, setQuestionCount] = useState(EXAM_CONFIG.DEFAULT_QUESTION_COUNT);
   const [isGenerating, setIsGenerating] = useState(false);
+  // 防止 useFocusEffect 重入时叠弹多个续答框（focus 可被多次触发）。
+  const resumeCheckingRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
+      checkResumeDraft();
     }, [])
   );
+
+  // 检测残留的 AI 出题草稿：有则弹「继续答题 / 放弃」。
+  // ExamAnswer 每答一题落草稿；中途返回到此屏 focus 时触发恢复提示。
+  const checkResumeDraft = async () => {
+    if (resumeCheckingRef.current) return;
+    resumeCheckingRef.current = true;
+    try {
+      const draft = await StorageService.getExamDraft();
+      if (!draft || draft.questions.length === 0) return;
+      const answered = draft.answers.length;
+      const total = draft.questions.length;
+      const confirmed = await showConfirm(
+        '继续未完成的练习',
+        `检测到上次有未完成的${draft.questionType === 'definition' ? '释义单选' : '完形选词'}练习（${answered}/${total} 题），是否继续答题？`,
+        { confirmText: '继续答题', cancelText: '放弃' }
+      ).catch(() => false);
+      if (confirmed) {
+        navigation.navigate('ExamAnswer', {
+          questions: draft.questions,
+          questionType: draft.questionType,
+        });
+      } else {
+        await StorageService.clearExamDraft();
+      }
+    } finally {
+      resumeCheckingRef.current = false;
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -200,6 +232,16 @@ export default function ExamSetupScreen() {
         setIsGenerating(false);
         return;
       }
+
+      // 生成即落草稿（整套题 + 空答案）：答到一半退出可在 ExamSetup 续答恢复。
+      await StorageService.saveExamDraft({
+        questions: allQuestions,
+        answers: [],
+        questionType,
+        currentIndex: 0,
+        createdAt: new Date().toISOString(),
+        version: 1,
+      });
 
       navigation.navigate('ExamAnswer', {
         questions: allQuestions,

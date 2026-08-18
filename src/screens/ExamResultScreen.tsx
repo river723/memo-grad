@@ -56,6 +56,10 @@ export default function ExamResultScreen() {
           await StorageService.saveExamSession(sessionData);
         }
 
+        // session 已落库，清除 AI 出题草稿（中途退出可恢复的临时态）。
+        // 放在 saveExamSession 之后：若上面抛错则保留草稿待下次重试。
+        await StorageService.clearExamDraft();
+
         // 2. 更新错题本
         let anyWrong = false;
         for (const answer of answers) {
