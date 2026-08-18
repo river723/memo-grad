@@ -76,10 +76,12 @@ export default async function paymentRoutes(app: FastifyInstance) {
       },
     });
 
-    // 开发模式：直接返回模拟支付链接（跳过真实扫码）
+    // 开发模式：直接返回模拟支付链接（跳过真实扫码）。
+    // 链接用请求的 Host 头拼接——客户端从哪个地址调 API，确认请求就回哪个地址，
+    // 避免写死 127.0.0.1:3000 导致局域网/打包客户端（如 NAS 部署）确认不到订单。
     const isDev = !config.isProduction;
     const qrCode = isDev
-      ? `${config.isProduction ? 'https://api.memograd.cn' : 'http://127.0.0.1:3000'}/api/pay/webhooks/confirm?outTradeNo=${outTradeNo}&userId=${userId}`
+      ? `http://${request.headers.host}/api/pay/webhooks/confirm?outTradeNo=${outTradeNo}&userId=${userId}`
       : `weixin://wxpay/bizpayurl?pr=${outTradeNo}`;
 
     return {
