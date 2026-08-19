@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, useColorScheme } from 'react-native';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
+import { View, ScrollView, useColorScheme } from 'react-native';
 import { Provider as PaperProvider, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -17,6 +17,44 @@ const paperSettings = {
   icon: (props: any) => <MaterialCommunityIcons {...props} />,
 };
 
+// —— 原生端未捕获异常兜底 ——
+// RN Release 构建中未捕获 JS 异常会直接崩溃（ExceptionsManager.reportFatalException
+// → RCTFatal → abort），设备上无任何提示、只能事后分析 .ips。这里尽早接管全局异常：
+// - Release：捕获后渲染到 ErrorFallback，并持久化一条记录供下次启动排查
+// - 开发态：交还默认处理器，保留红盒（LogBox）行为
+let startupFatal: { message: string; stack?: string; at: string } | null = null;
+let renderFatal: ((error: Error) => void) | null = null;
+
+const g = globalThis as any;
+if (g.ErrorUtils && typeof g.ErrorUtils.setGlobalHandler === 'function') {
+  const prevHandler = g.ErrorUtils.getGlobalHandler();
+  g.ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+    try {
+      const record = {
+        message: String((error && error.message) || error),
+        stack: error && error.stack ? String(error.stack) : undefined,
+        at: new Date().toISOString(),
+      };
+      if (__DEV__) {
+        prevHandler(error, isFatal);
+        return;
+      }
+      startupFatal = record;
+      // 尽力持久化（fire-and-forget），失败不影响兜底展示
+      StorageService.persistFatalError({ ...record, isFatal }).catch(() => {});
+      const e = new Error(record.message);
+      if (record.stack) {
+        e.stack = record.stack;
+      }
+      if (renderFatal) {
+        renderFatal(e);
+      }
+    } catch {
+      // 兜底处理器自身绝不能抛错
+    }
+  });
+}
+
 // 错误边界组件
 function ErrorFallback({ error, theme }: { error: Error; theme: MD3Theme }) {
   const c = theme.colors as any;
@@ -26,6 +64,11 @@ function ErrorFallback({ error, theme }: { error: Error; theme: MD3Theme }) {
       <Text style={{ fontSize: 14, color: c.onSurfaceVariant, textAlign: 'center' }}>
         {error?.message || '未知错误'}
       </Text>
+      {error?.stack ? (
+        <ScrollView style={{ alignSelf: 'stretch', maxHeight: 260, marginTop: 12 }} contentContainerStyle={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 11, color: c.tertiary, lineHeight: 16 }}>{error.stack}</Text>
+        </ScrollView>
+      ) : null}
       <Text style={{ fontSize: 12, color: c.tertiary, marginTop: 10 }}>
         请刷新页面或重启应用
       </Text>
@@ -34,13 +77,48 @@ function ErrorFallback({ error, theme }: { error: Error; theme: MD3Theme }) {
 }
 
 export default function App() {
-  const [hasError, setHasError] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  // 挂载前（import 阶段等）已发生的未捕获异常：直接进入错误页
+  const [hasError, setHasError] = useState(startupFatal != null);
+  const [error, setError] = useState<Error | null>(() => {
+    if (!startupFatal) {
+      return null;
+    }
+    const e = new Error(startupFatal.message);
+    if (startupFatal.stack) {
+      e.stack = startupFatal.stack;
+    }
+    return e;
+  });
   const [isLoading, setIsLoading] = useState(true);
+
+  // 在子组件 effect 之前注册兜底 setter（useLayoutEffect 先于所有子组件的被动 effect 执行，
+  // 这样即使子组件 useEffect 抛错，也能把错误渲染到错误页而不是停在加载页）。
+  useLayoutEffect(() => {
+    renderFatal = (e: Error) => {
+      setError(e);
+      setHasError(true);
+      setIsLoading(false);
+    };
+    return () => {
+      renderFatal = null;
+    };
+  }, []);
 
   // 启动时读取已保存的主题偏好
   useEffect(() => {
     console.log('App 组件开始加载...');
+
+    // layout effect 注册前的窗口期（子组件 layout effect 抛错等）：此处补一次检查
+    if (startupFatal) {
+      const e = new Error(startupFatal.message);
+      if (startupFatal.stack) {
+        e.stack = startupFatal.stack;
+      }
+      setError(e);
+      setHasError(true);
+      setIsLoading(false);
+      return;
+    }
 
     const handleError = (error: ErrorEvent) => {
       console.error('全局错误:', error);

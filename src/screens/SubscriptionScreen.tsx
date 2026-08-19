@@ -96,11 +96,24 @@ export default function SubscriptionScreen() {
   // 开发模式：一键确认支付
   const handleDevConfirm = async () => {
     if (!order) return;
+    // 生产模式服务端返回的是 weixin:// 支付链接，没有 dev 确认链接可 fetch；
+    // 直接 fetch 非 http(s) 协议会抛 TypeError("Failed to fetch")，误导排查。
+    if (!/^https?:\/\//.test(order.qrCode)) {
+      showConfirm(
+        '当前服务端为生产模式',
+        '一键确认支付仅在开发模式服务端可用，请通过正式支付渠道完成付款。',
+        { confirmText: '知道了' }
+      ).catch(() => {});
+      return;
+    }
     setPolling(true);
     try {
-      // 打开确认链接
-      if (typeof window !== 'undefined') {
-        window.open(order.qrCode, '_blank');
+      // 直接 fetch 确认链接触发支付。不用 window.open：Tauri 的 WebView2
+      // 会拦截新窗口请求（无 on_new_window 处理器/allow-create 权限），
+      // window.open 静默失败导致确认从未发出、订单一直 pending。
+      const confirmRes = await fetch(order.qrCode, { method: 'GET' });
+      if (!confirmRes.ok) {
+        throw new Error(`确认失败（HTTP ${confirmRes.status}）`);
       }
       // 轮询订单状态（每 2 秒一次，最多 60 秒）
       for (let i = 0; i < 30; i++) {
