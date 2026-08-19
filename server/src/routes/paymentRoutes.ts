@@ -77,9 +77,13 @@ export default async function paymentRoutes(app: FastifyInstance) {
     });
 
     // 开发模式：直接返回模拟支付链接（跳过真实扫码）
+    // 使用请求 Host 头动态构建，避免硬编码 127.0.0.1:3000 导致 Tauri/NAS 部署时链接失效
     const isDev = !config.isProduction;
+    const proto = request.protocol || 'http';
+    const forwardedHost = request.headers['x-forwarded-host'] || request.headers['host'];
+    const host = Array.isArray(forwardedHost) ? forwardedHost[0] : (forwardedHost as string) || '127.0.0.1:3000';
     const qrCode = isDev
-      ? `${config.isProduction ? 'https://api.memograd.cn' : 'http://127.0.0.1:3000'}/api/pay/webhooks/confirm?outTradeNo=${outTradeNo}&userId=${userId}`
+      ? `${proto}://${host}/api/pay/webhooks/confirm?outTradeNo=${outTradeNo}&userId=${userId}`
       : `weixin://wxpay/bizpayurl?pr=${outTradeNo}`;
 
     return {

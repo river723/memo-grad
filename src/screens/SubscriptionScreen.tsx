@@ -102,19 +102,26 @@ export default function SubscriptionScreen() {
       if (typeof window !== 'undefined') {
         window.open(order.qrCode, '_blank');
       }
-      // 轮询订单状态
+      // 轮询订单状态（每 2 秒一次，最多 60 秒）
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 2000));
-        const poll = await api.get<{ status: string }>(`/api/pay/orders/${order.outTradeNo}`);
-        if (poll.status === 'paid') {
-          showConfirm('订阅成功', 'AI 功能已解锁，可以开始使用了！', { confirmText: '知道了' }).catch(() => {});
-          setPolling(false);
-          setOrder(null);
-          await refreshEntitlement();
-          return;
+        try {
+          const poll = await api.get<{ status: string }>(`/api/pay/orders/${order.outTradeNo}`);
+          if (poll.status === 'paid') {
+            showConfirm('订阅成功', 'AI 功能已解锁，可以开始使用了！', { confirmText: '知道了' }).catch(() => {});
+            setPolling(false);
+            setOrder(null);
+            await refreshEntitlement();
+            return;
+          }
+        } catch (pollErr: any) {
+          // 轮询期间网络错误，不立即退出，等待下一次轮询
+          console.warn('[dev confirm] poll error:', pollErr.message);
         }
       }
-      showConfirm('支付超时', '请刷新页面查看订单状态，或重新下单', { confirmText: '知道了' }).catch(() => {});
+      showConfirm('支付超时', '等待 60 秒未收到支付确认，请检查网络连接或刷新页面查看订单状态。', {
+        confirmText: '知道了',
+      }).catch(() => {});
     } catch (e: any) {
       showConfirm('支付确认失败', e.message || '请重试', { confirmText: '知道了' }).catch(() => {});
     } finally {

@@ -2,3 +2,6 @@
 # "#!/bin/sh^M: bad interpreter"。Dockerfile 同理保持 LF。
 *.sh        text eol=lf
 Dockerfile  text eol=lf
+# Windows 批处理必须用 CRLF,否则 cmd 解析 for/if 括号块会
+# 把多行拆成碎片当命令执行(LF 时的典型故障)。
+*.bat       text eol=crlf
