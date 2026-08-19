@@ -9,6 +9,11 @@ yarn-error.log*
 dist/
 web-build/
 
+# 构建产物（APK/AAB/IPA）——EAS Build 下载的客户端二进制不入库
+*.apk
+*.aab
+*.ipa
+
 # Native
 *.orig.*
 *.jks
