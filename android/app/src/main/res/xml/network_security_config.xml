@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 默认拒绝所有明文流量（Android 9+ targetSdk 28+ 的安全默认值） -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- 仅对以下内网地址放行明文 HTTP：后端部署在飞牛 NAS 局域网
+         http://192.168.1.8:5888。上架/公网部署时应改用 HTTPS 并移除本节。
+         127.0.0.1 用于开发态本机后端调试。 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.8</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
