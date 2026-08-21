@@ -1,5 +1,9 @@
+// 必须在所有其它 import 之前：@react-navigation/stack 底层依赖 react-native-gesture-handler，
+// 新架构下若未在入口顶部引入并安装，渲染手势组件时会在原生层直接 abort（双端启动闪退）。
+import 'react-native-gesture-handler';
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { View, ScrollView, useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as PaperProvider, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -134,7 +138,10 @@ export default function App() {
       setIsLoading(false);
     };
 
-    if (typeof window !== 'undefined') {
+    // window.addEventListener 是浏览器 DOM API：React Native 里 global.window 虽存在，
+    // 但并没有 addEventListener 方法，直接调用会抛 "undefined is not a function"
+    // 并在 effect 挂载阶段导致原生端致命崩溃。仅在真正支持的 web 环境注册。
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('error', handleError);
       window.addEventListener('unhandledrejection', handleUnhandledRejection);
     }
@@ -158,7 +165,7 @@ export default function App() {
 
     return () => {
       cancelled = true;
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('error', handleError);
         window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       }
@@ -186,15 +193,17 @@ export default function App() {
 
   try {
     return (
-      <ThemeProvider>
-        <AuthProvider>
-          <AnnouncementProvider>
-            <ConfirmDialogProvider>
-              <AppNavigator />
-            </ConfirmDialogProvider>
-          </AnnouncementProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider>
+          <AuthProvider>
+            <AnnouncementProvider>
+              <ConfirmDialogProvider>
+                <AppNavigator />
+              </ConfirmDialogProvider>
+            </AnnouncementProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </GestureHandlerRootView>
     );
   } catch (err) {
     console.error('App 渲染错误:', err);
