@@ -137,7 +137,23 @@ function PracticeStack() {
       <Stack.Screen name="ExamSetup" component={ExamSetupScreen} options={makeTabHeaderOptions('AI出题练习', 'puzzle')} />
       <Stack.Screen name="ExamAnswer" component={ExamAnswerScreen} options={makeTabHeaderOptions('答题中', 'puzzle')} />
       <Stack.Screen name="ExamResult" component={ExamResultScreen} options={makeTabHeaderOptions('练习结果', 'chart-bar')} />
-      <Stack.Screen name="WrongQuestionReview" component={WrongQuestionReviewScreen} options={makeTabHeaderOptions('错题本', 'alert-circle')} />
+      <Stack.Screen
+        name="WrongQuestionReview"
+        component={WrongQuestionReviewScreen}
+        options={({ navigation }) => ({
+          ...makeTabHeaderOptions('错题本', 'alert-circle'),
+          headerLeft: () => (
+            <TouchableOpacity
+              accessibilityLabel="返回练习页面"
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={() => navigation.navigate('PracticeHub')}
+              style={{ paddingLeft: 12, paddingRight: 8, paddingVertical: 4 }}
+            >
+              <AppIcon name="arrow-left" size={24} color={palette.onPrimary} />
+            </TouchableOpacity>
+          ),
+        })}
+      />
       <Stack.Screen name="ExamHistory" component={ExamHistoryScreen} options={makeTabHeaderOptions('练习历史', 'history')} />
       <Stack.Screen name="RealExamList" component={RealExamListScreen} options={makeTabHeaderOptions('真题练习', 'book-open-page-variant')} />
       <Stack.Screen name="RealExamReading" component={RealExamReadingScreen} options={makeTabHeaderOptions('阅读理解', 'book-open-page-variant')} />

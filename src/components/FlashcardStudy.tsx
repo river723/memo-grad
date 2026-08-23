@@ -6,7 +6,6 @@
  * - 三按钮：再想想 / 不认识（赭石）/ 认识（墨绿）
  * - 答对飘 +1 绿点（spring 上飘 + 淡出）
  * - 答错横向 shake 4px × 3
- * - 顶部进度条 + 计数（不阻断学习节奏）
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -34,8 +33,6 @@ interface FlashcardStudyProps {
   onEnhance?: () => void;
   enhancing?: boolean;
   appSettings: AppSettings | null;
-  progressCurrent: number;
-  progressTotal: number;
 }
 
 export default function FlashcardStudy({
@@ -46,8 +43,6 @@ export default function FlashcardStudy({
   onEnhance,
   enhancing,
   appSettings,
-  progressCurrent,
-  progressTotal,
 }: FlashcardStudyProps) {
   const { colors } = useAppTheme();
   const typography = colors.typography;
@@ -111,43 +106,8 @@ export default function FlashcardStudy({
   const backOpacity = rotate.interpolate({ inputRange: [0, 0.5, 0.51, 1], outputRange: [0, 0, 1, 1] });
   const shakeX = shake.interpolate({ inputRange: [-1, 0, 1], outputRange: [-4, 0, 4] });
 
-  const progress = progressTotal > 0 ? progressCurrent / progressTotal : 0;
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* 顶部进度条 + 计数 */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.md,
-          paddingBottom: spacing.sm,
-          gap: spacing.md,
-        }}
-      >
-        <View style={{ flex: 1, height: 3, backgroundColor: colors.outline, borderRadius: 2, overflow: 'hidden' }}>
-          <View
-            style={{
-              height: '100%',
-              width: `${Math.round(progress * 100)}%`,
-              backgroundColor: colors.primary,
-            }}
-          />
-        </View>
-        <Text
-          style={{
-            color: colors.onSurfaceVariant,
-            fontSize: typography.caption.size,
-            fontWeight: '500',
-            minWidth: 50,
-            textAlign: 'right',
-          }}
-        >
-          {progressCurrent} / {progressTotal}
-        </Text>
-      </View>
-
       {/* 卡片区（剧场式） */}
       <View style={{ flex: 1, padding: spacing.lg, justifyContent: 'center' }}>
         <Animated.View
@@ -163,6 +123,7 @@ export default function FlashcardStudy({
             },
             colors.shadow.card,
           ]}
+          pointerEvents={flipped ? 'none' : 'auto'}
         >
           <Pressable
             onPress={() => !flipped && setFlipped(true)}
@@ -306,41 +267,57 @@ export default function FlashcardStudy({
             },
             colors.shadow.card,
           ]}
-          onLayout={(e) => {
-            const h = e.nativeEvent.layout.height - 32; // 减去 padding
-            // 不主动测量，让 onContentSizeChange 决定
-          }}
+          pointerEvents={flipped ? 'auto' : 'none'}
         >
-          <Pressable onPress={() => flipped && setFlipped(false)} style={{ flex: 1 }}>
-            <View
+          <View
+            style={{ flex: 1 }}
+            onLayout={(e) => {
+              const cardH = e.nativeEvent.layout.height;
+              if (cardH > 0) setBackMaxHeight(cardH);
+            }}
+          >
+            <ScrollView
               style={{ flex: 1 }}
-              onLayout={(e) => {
-                const cardH = e.nativeEvent.layout.height;
-                if (cardH > 0) setBackMaxHeight(cardH);
+              contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              onContentSizeChange={(_w, h) => {
+                setBackOverflow(h > backMaxHeight - 32);
               }}
             >
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}
-                showsVerticalScrollIndicator={false}
-                onContentSizeChange={(_w, h) => {
-                  setBackOverflow(h > backMaxHeight - 32);
+              {/* 返回单词面 */}
+              <Pressable
+                onPress={() => setFlipped(false)}
+                hitSlop={8}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  alignSelf: 'flex-start',
+                  marginBottom: spacing.md,
+                  paddingVertical: 4,
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <MaterialCommunityIcons name="arrow-left" size={18} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>
+                  返回单词面
+                </Text>
+              </Pressable>
+              {/* 单词缩到 28px 左对齐 */}
+              <Text
+                style={{
+                  color: colors.onSurface,
+                  fontSize: 26,
+                  lineHeight: 32,
+                  fontWeight: '700',
+                  fontFamily: 'SourceSerif4, Georgia, serif',
+                  letterSpacing: -0.5,
+                  marginBottom: 4,
                 }}
               >
-                {/* 单词缩到 28px 左对齐 */}
-                <Text
-                  style={{
-                    color: colors.onSurface,
-                    fontSize: 26,
-                    lineHeight: 32,
-                    fontWeight: '700',
-                    fontFamily: 'SourceSerif4, Georgia, serif',
-                    letterSpacing: -0.5,
-                    marginBottom: 4,
-                  }}
-                >
-                  {currentWord.word}
-                </Text>
+                {currentWord.word}
+              </Text>
                 {(currentWord.pronunciation_uk || currentWord.pronunciation_us) && (
                   <Text
                     style={{
@@ -495,8 +472,7 @@ export default function FlashcardStudy({
                   }}
                 />
               )}
-            </View>
-          </Pressable>
+          </View>
         </Animated.View>
       </View>
 

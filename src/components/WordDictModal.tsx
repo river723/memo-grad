@@ -43,8 +43,8 @@ export default function WordDictModal({ visible, onClose, word, testID }: WordDi
                 styles.title,
                 {
                   color: colors.primary,
-                  fontSize: typography.headline.size,
-                  lineHeight: typography.headline.lineHeight,
+                  fontSize: t.headline.size,
+                  lineHeight: t.headline.lineHeight,
                 },
               ]}
             >
