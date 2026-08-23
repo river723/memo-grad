@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, TouchableOpacity, FlatList, Modal } from 'react-native';
 import {
-  Card,
   Text,
   TextInput,
   Button as PaperButton,
@@ -13,7 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
-import { palette } from '../theme/tokens';
+import { palette, radius } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { Word } from '../types';
 import SortPicker, { SortOption } from '../components/SortPicker';
@@ -151,7 +150,7 @@ export default function WordListScreen() {
       }}
       activeOpacity={0.7}
     >
-      <Surface style={styles.wordItem}>
+      <View style={styles.wordItem}>
         <View style={styles.wordItemHeader}>
           <Text style={styles.wordText}>{item.word}</Text>
           <Text style={styles.difficultyText}>
@@ -198,7 +197,7 @@ export default function WordListScreen() {
             }]} />
           </View>
         </View>
-      </Surface>
+      </View>
     </TouchableOpacity>
   ), [navigation, handleDelete, getDifficultyStars]);
 
@@ -211,7 +210,7 @@ export default function WordListScreen() {
       </View>
 
       {/* 搜索栏 */}
-      <Card style={styles.searchCard}>
+      <View style={styles.searchCard}>
         <TextInput
           mode="flat"
           placeholder="搜索单词..."
@@ -222,7 +221,7 @@ export default function WordListScreen() {
           style={styles.searchInput}
           autoCapitalize="none"
         />
-      </Card>
+      </View>
 
       {/* 筛选与排序 */}
       <View style={styles.filterRow}>
@@ -338,8 +337,6 @@ const useStyles = makeStyles(colors => ({
   searchCard: {
     marginHorizontal: 16,
     marginTop: -10,
-    elevation: 4,
-    borderRadius: 12,
   },
   searchInput: {
     backgroundColor: colors.surface,
@@ -361,9 +358,11 @@ const useStyles = makeStyles(colors => ({
   },
   wordItem: {
     marginBottom: 10,
-    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
     padding: 14,
-    elevation: 1,
   },
   wordItemHeader: {
     flexDirection: 'row',
