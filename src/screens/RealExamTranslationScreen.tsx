@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import { Card, Text, Button, Surface } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
@@ -106,12 +106,12 @@ export default function RealExamTranslationScreen() {
                     <Text style={styles.itemEn}>{item.en}</Text>
                   </>
                 ) : null}
-                <TouchableOpacity onPress={() => toggle(item.index)} activeOpacity={0.7}>
+                <Pressable onPress={() => toggle(item.index)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
                   <View style={styles.revealHeader}>
                     <Text style={styles.revealLabel}>参考译文</Text>
                     <Text style={styles.revealToggle}>{open ? '收起 ▲' : '查看 ▼'}</Text>
                   </View>
-                </TouchableOpacity>
+                </Pressable>
                 {open ? (
                   <Surface style={styles.zhBox}>
                     <Text style={styles.zhText}>{item.zh}</Text>
@@ -141,8 +141,8 @@ const useStyles = makeStyles(colors => ({
   },
   emptyText: { fontSize: 16, color: colors.tertiary, marginBottom: 16 },
   content: { padding: 16, paddingBottom: 32 },
-  dirCard: { borderRadius: 12, elevation: 1, marginBottom: 12, backgroundColor: colors.surface },
-  passageCard: { borderRadius: 12, elevation: 2, marginBottom: 16 },
+  dirCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, marginBottom: 12, backgroundColor: colors.surface },
+  passageCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface, marginBottom: 16 },
   sectionTag: {
     alignSelf: 'flex-start', backgroundColor: colors.primaryContainer,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 10,
@@ -152,7 +152,7 @@ const useStyles = makeStyles(colors => ({
   subjectiveHint: { fontSize: 12, color: colors.tertiary, marginTop: 8, lineHeight: 18 },
   passageText: { fontSize: 15, color: colors.onSurface, lineHeight: 25 },
   reviewTitle: { fontSize: 15, fontWeight: '700', color: colors.onSurface, marginBottom: 8 },
-  itemCard: { borderRadius: 12, elevation: 1, marginBottom: 10 },
+  itemCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface, marginBottom: 10 },
   itemIndex: { fontSize: 14, fontWeight: '700', color: colors.primary, marginBottom: 6 },
   itemEn: { fontSize: 14, color: colors.onSurface, lineHeight: 22, marginBottom: 10 },
   revealHeader: {

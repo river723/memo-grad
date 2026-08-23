@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AppIcon, { type IconName } from '../components/ds/AppIcon';
 import { useAppTheme, lightNavTheme, darkNavTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import { useAuth } from '../providers/AuthProvider';
@@ -66,7 +67,7 @@ const RootStack = createStackNavigator<RootStackParamList>();
  * - 字号走 typography.title token
  * - 隐藏底部 1px hairline（headerShadowVisible: false）
  */
-function makeTabHeaderOptions(title: string, icon: string) {
+function makeTabHeaderOptions(title: string, icon: IconName) {
   return {
     headerTitle: () => {
       // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -74,7 +75,7 @@ function makeTabHeaderOptions(title: string, icon: string) {
       const typography = colors.typography;
       return (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <MaterialCommunityIcons name={icon as any} size={20} color={colors.onPrimary} />
+          <AppIcon name={icon} size={20} color={colors.onPrimary} />
           <Text
             style={{
               color: colors.onPrimary,
@@ -155,7 +156,23 @@ function StatsStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen name="Stats" component={StatsScreen} options={makeTabHeaderOptions('我的', 'account')} />
-      <Stack.Screen name="StatsDetail" component={StatsDetailScreen} options={makeTabHeaderOptions('学习统计', 'chart-line')} />
+      <Stack.Screen
+        name="StatsDetail"
+        component={StatsDetailScreen}
+        options={({ navigation }) => ({
+          ...makeTabHeaderOptions('学习统计', 'chart-line'),
+          headerLeft: () => (
+            <TouchableOpacity
+              accessibilityLabel="返回我的页面"
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={() => navigation.navigate('Stats')}
+              style={{ paddingLeft: 12, paddingRight: 8, paddingVertical: 4 }}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={24} color={palette.onPrimary} />
+            </TouchableOpacity>
+          ),
+        })}
+      />
       <Stack.Screen name="Settings" component={SettingsScreen} options={makeTabHeaderOptions('设置', 'cog')} />
       <Stack.Screen name="Admin" component={AdminScreen} options={makeTabHeaderOptions('后台控制台', 'shield-crown')} />
       <Stack.Screen
@@ -180,7 +197,7 @@ function StatsStack() {
 }
 
 // ==================== 主 Tab 导航器 ====================
-const TAB_ICONS: Record<string, string> = {
+const TAB_ICONS: Record<string, IconName> = {
   Home: 'book-open-page-variant',
   Read: 'book-open-page-variant-outline',
   Practice: 'puzzle',
@@ -194,8 +211,8 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color, size }) => (
-          <MaterialCommunityIcons
-            name={TAB_ICONS[route.name] as any}
+          <AppIcon
+            name={TAB_ICONS[route.name]}
             size={size}
             color={color}
           />

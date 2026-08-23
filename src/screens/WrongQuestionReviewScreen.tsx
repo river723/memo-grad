@@ -1,14 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import {
-  Card,
-  Text,
-  Button,
-  Divider,
-  Surface,
-  SegmentedButtons,
-  IconButton,
-} from 'react-native-paper';
+import { View, ScrollView, Pressable } from 'react-native';
+import { Text, SegmentedButtons, ActivityIndicator } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
@@ -19,20 +12,18 @@ import { WrongQuestion, ExamQuestion, ExamQuestionType, RealExamWrongQuestion, R
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
+import { radius, spacing } from '../theme/tokens';
+import AppButton from '../components/ds/AppButton';
+import EmptyState from '../components/ds/EmptyState';
 
 const LETTERS: RealExamOptionLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 type Tab = 'word' | 'real';
 
-/**
- * 错题中心：顶部 Tab 切换「单词错题」与「真题错题」，消除原先"单词错题本里嵌套真题入口"的层级。
- * - 单词错题：基于生词本 AI 出题的错题，可"重做全部"（复用 ExamAnswer）。
- * - 真题错题：真题练习中做错的题，点击整卡跳回原卷重做，右上角可手动移除。
- * 两套错题独立存储，做对 N 次（WRONG_QUESTION_MASTERY_THRESHOLD）后自动移除。
- */
 export default function WrongQuestionReviewScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
+  const typography = colors.typography;
   const styles = useStyles();
   const [wrongQuestions, setWrongQuestions] = useState<WrongQuestion[]>([]);
   const [realWrong, setRealWrong] = useState<RealExamWrongQuestion[]>([]);
@@ -59,7 +50,6 @@ export default function WrongQuestionReviewScreen() {
     setRealWrong(real);
   };
 
-  // 单词错题筛选：题型 + 累计错误次数，用于分批重做
   const filteredWrong = wrongQuestions.filter(wq => {
     if (typeFilter !== 'all' && wq.question.type !== typeFilter) return false;
     if (wrongCountFilter === 'ge2' && wq.wrong_count < 2) return false;
@@ -89,7 +79,6 @@ export default function WrongQuestionReviewScreen() {
     loadAll();
   };
 
-  // AI 补全解析：生成后回写到真题错题本，下次无需重新生成
   const handleExplain = async (wq: RealExamWrongQuestion) => {
     if (explLoading[wq.questionId]) return;
     setExplLoading(prev => ({ ...prev, [wq.questionId]: true }));
@@ -109,7 +98,7 @@ export default function WrongQuestionReviewScreen() {
         subscriptionPrompt(navigation, 'AI 解析功能需要会员订阅，是否前往订阅页？');
         return;
       }
-      Alert.alert('生成失败', error.message || '解析生成失败');
+      console.warn('[WrongQuestion] AI 解析失败：', error);
     } finally {
       setExplLoading(prev => ({ ...prev, [wq.questionId]: false }));
     }
@@ -144,8 +133,15 @@ export default function WrongQuestionReviewScreen() {
   const realReading = realWrong.filter(w => w.mode === 'reading').length;
   const realClozeCount = realWrong.filter(w => w.mode === 'cloze').length;
 
+  const surface = {
+    backgroundColor: colors.surface,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  } as const;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['2xl'] }}>
       <SegmentedButtons
         value={tab}
         onValueChange={(v) => setTab(v as Tab)}
@@ -153,30 +149,30 @@ export default function WrongQuestionReviewScreen() {
           { value: 'word', label: `单词错题 (${wordTotal})` },
           { value: 'real', label: `真题错题 (${realTotal})` },
         ]}
-        style={styles.filter}
       />
 
       {tab === 'word' ? (
         <>
-          <Surface style={styles.statsBar}>
-            <Text style={styles.statsText}>单词错题 · 共 {wordTotal} 题</Text>
-            <Text style={styles.statsDetail}>
+          <View style={[surface, { padding: spacing.md, marginTop: spacing.md }, colors.shadow.hairline]}>
+            <Text style={{ fontSize: typography.title.size, fontWeight: '700', color: colors.onSurface, marginBottom: 4 }}>
+              单词错题 · 共 {wordTotal} 题
+            </Text>
+            <Text style={{ fontSize: typography.caption.size, color: colors.onSurfaceVariant }}>
               释义单选 {wordDef} · 完形选词 {wordCloze} · 掌握 {WRONG_QUESTION_MASTERY_THRESHOLD} 次后自动移除
             </Text>
-          </Surface>
+          </View>
 
           {wordTotal === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>🎉</Text>
-              <Text style={styles.emptyTitle}>太棒了！没有错题</Text>
-              <Text style={styles.emptyHint}>继续保持，多加练习</Text>
-              <Button mode="outlined" onPress={() => navigation.navigate('ExamSetup')} style={styles.emptyButton}>
-                去做一组练习
-              </Button>
-            </View>
+            <EmptyState
+              icon="party-popper"
+              title="太棒了！没有错题"
+              description="继续保持，多做练习巩固。"
+              actionLabel="去做一组练习"
+              onAction={() => navigation.navigate('ExamSetup')}
+            />
           ) : (
             <>
-              <View style={styles.filterRow}>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
                 <SegmentedButtons
                   value={typeFilter}
                   onValueChange={(v) => setTypeFilter(v as 'all' | 'definition' | 'cloze')}
@@ -185,7 +181,7 @@ export default function WrongQuestionReviewScreen() {
                     { value: 'definition', label: '释义' },
                     { value: 'cloze', label: '完形' },
                   ]}
-                  style={styles.filterSeg}
+                  style={{ flex: 1 }}
                 />
                 <SegmentedButtons
                   value={wrongCountFilter}
@@ -195,121 +191,152 @@ export default function WrongQuestionReviewScreen() {
                     { value: 'ge2', label: '错≥2' },
                     { value: 'ge3', label: '错≥3' },
                   ]}
-                  style={styles.filterSeg}
+                  style={{ flex: 1 }}
                 />
               </View>
-              <Button mode="contained" onPress={handleStartReview} style={styles.reviewButton} icon="play-circle" disabled={filteredWrong.length === 0}>
-                重做（{filteredWrong.length} 题）
-              </Button>
+
+              <View style={{ marginTop: spacing.md }}>
+                <AppButton
+                  title={`重做（${filteredWrong.length} 题）`}
+                  onPress={handleStartReview}
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  disabled={filteredWrong.length === 0}
+                  leftIcon={<MaterialCommunityIcons name="play-circle" size={20} color={colors.onPrimary} />}
+                />
+              </View>
+
               {filteredWrong.map(wq => (
-                <Card key={wq.id} style={styles.reviewCard}>
-                  <Card.Content>
-                    <View style={styles.cardHeader}>
-                      <View style={[styles.typeTag, { backgroundColor: wq.question.type === 'definition' ? colors.primaryContainer : colors.secondaryContainer }]}>
-                        <Text style={[styles.typeTagText, { color: wq.question.type === 'definition' ? colors.onPrimaryContainer : colors.onSurface }]}>
-                          {wq.question.type === 'definition' ? '释义单选' : '完形选词'}
-                        </Text>
-                      </View>
-                      <View style={styles.attemptInfo}>
-                        <Text style={styles.attemptText}>错 {wq.wrong_count} 次</Text>
-                        {wq.correct_count > 0 && (
-                          <Text style={styles.correctCountText}>对 {wq.correct_count}/{WRONG_QUESTION_MASTERY_THRESHOLD}</Text>
-                        )}
-                      </View>
+                <View key={wq.id} style={[surface, { padding: spacing.md, marginTop: spacing.sm }, colors.shadow.hairline]}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.typeTag, { backgroundColor: wq.question.type === 'definition' ? colors.primaryContainer : colors.secondaryContainer }]}>
+                      <Text style={[styles.typeTagText, { color: wq.question.type === 'definition' ? colors.primary : colors.secondary }]}>
+                        {wq.question.type === 'definition' ? '释义单选' : '完形选词'}
+                      </Text>
                     </View>
-                    <Divider style={styles.divider} />
-                    {renderWordQuestionContent(wq)}
-                  </Card.Content>
-                </Card>
+                    <View style={styles.attemptInfo}>
+                      <Text style={styles.attemptText}>错 {wq.wrong_count} 次</Text>
+                      {wq.correct_count > 0 && (
+                        <Text style={styles.correctCountText}>对 {wq.correct_count}/{WRONG_QUESTION_MASTERY_THRESHOLD}</Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.divider} />
+                  {renderWordQuestionContent(wq)}
+                </View>
               ))}
             </>
           )}
         </>
       ) : (
         <>
-          <Surface style={styles.statsBar}>
-            <Text style={styles.statsText}>真题错题 · 共 {realTotal} 题</Text>
-            <Text style={styles.statsDetail}>
+          <View style={[surface, { padding: spacing.md, marginTop: spacing.md }, colors.shadow.hairline]}>
+            <Text style={{ fontSize: typography.title.size, fontWeight: '700', color: colors.onSurface, marginBottom: 4 }}>
+              真题错题 · 共 {realTotal} 题
+            </Text>
+            <Text style={{ fontSize: typography.caption.size, color: colors.onSurfaceVariant }}>
               阅读 {realReading} · 完形 {realClozeCount} · 掌握 {WRONG_QUESTION_MASTERY_THRESHOLD} 次后自动移除
             </Text>
-          </Surface>
+          </View>
 
           {realTotal === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>🎉</Text>
-              <Text style={styles.emptyTitle}>没有真题错题</Text>
-              <Text style={styles.emptyHint}>去真题练习那边做一套试试</Text>
-              <Button mode="outlined" onPress={() => navigation.navigate('RealExamList')} style={styles.emptyButton}>
-                去做真题
-              </Button>
-            </View>
+            <EmptyState
+              icon="party-popper"
+              title="没有真题错题"
+              description="去真题练习做一套试试。"
+              actionLabel="去做真题"
+              onAction={() => navigation.navigate('RealExamList')}
+            />
           ) : (
             realWrong.map(wq => (
-              <TouchableOpacity key={wq.questionId} activeOpacity={0.7} onPress={() => handleOpenPaper(wq)}>
-                <Card style={styles.reviewCard}>
-                  <Card.Content>
-                    <View style={styles.cardHeader}>
-                      <View style={styles.metaRow}>
-                        <View style={[styles.typeTag, { backgroundColor: wq.mode === 'reading' ? colors.primaryContainer : colors.secondaryContainer }]}>
-                          <Text style={[styles.typeTagText, { color: wq.mode === 'reading' ? colors.onPrimaryContainer : colors.onSurface }]}>
-                            {wq.mode === 'reading' ? '阅读' : wq.mode === 'newtype' ? '新题型' : '完形'}
-                          </Text>
-                        </View>
-                        <Text style={styles.metaText}>
-                          {wq.year} · {wq.setId === 'english1' ? '英语一' : '英语二'}
-                          {wq.paperTitle ? ` · ${wq.paperTitle}` : ''}
-                          {wq.blankIndex != null ? ` · [${wq.blankIndex}]` : ''}
-                        </Text>
+              <Pressable
+                key={wq.questionId}
+                onPress={() => handleOpenPaper(wq)}
+                style={({ pressed }) => [
+                  surface,
+                  { padding: spacing.md, marginTop: spacing.sm, opacity: pressed ? 0.85 : 1 },
+                  colors.shadow.hairline,
+                ]}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={styles.metaRow}>
+                    <View style={[styles.typeTag, { backgroundColor: wq.mode === 'reading' ? colors.primaryContainer : colors.secondaryContainer }]}>
+                      <Text style={[styles.typeTagText, { color: wq.mode === 'reading' ? colors.primary : colors.secondary }]}>
+                        {wq.mode === 'reading' ? '阅读' : wq.mode === 'newtype' ? '新题型' : '完形'}
+                      </Text>
+                    </View>
+                    <Text style={styles.metaText}>
+                      {wq.year} · {wq.setId === 'english1' ? '英语一' : '英语二'}
+                      {wq.paperTitle ? ` · ${wq.paperTitle}` : ''}
+                      {wq.blankIndex != null ? ` · [${wq.blankIndex}]` : ''}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleRemove(wq.questionId)}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.deleteBtn,
+                      { backgroundColor: pressed ? colors.errorContainer : 'transparent' },
+                    ]}
+                  >
+                    <MaterialCommunityIcons name="delete-outline" size={16} color={colors.tertiary} />
+                  </Pressable>
+                </View>
+
+                {wq.stem ? <Text style={styles.qStem}>{wq.stem}</Text> : null}
+                {wq.options.map((opt, oIdx) => {
+                  const letter = LETTERS[oIdx];
+                  return (
+                    <ReviewOption
+                      key={letter}
+                      letter={letter}
+                      option={opt}
+                      isCorrect={letter === wq.correctAnswer}
+                      isSelected={letter === wq.userAnswer}
+                    />
+                  );
+                })}
+
+                {(() => {
+                  const expl = explOverride[wq.questionId] ?? wq.explanation;
+                  if (expl) {
+                    return (
+                      <View style={styles.explanationBox}>
+                        <Text style={styles.explanationLabel}>解析</Text>
+                        <Text style={styles.explanationText}>{expl}</Text>
                       </View>
-                      <IconButton icon="delete-outline" size={18} onPress={() => handleRemove(wq.questionId)} accessibilityLabel="移除该错题" />
-                    </View>
-                    {wq.stem ? <Text style={styles.qStem}>{wq.stem}</Text> : null}
-                    {wq.options.map((opt, oIdx) => {
-                      const letter = LETTERS[oIdx];
-                      return (
-                        <ReviewOption
-                          key={letter}
-                          letter={letter}
-                          option={opt}
-                          isCorrect={letter === wq.correctAnswer}
-                          isSelected={letter === wq.userAnswer}
-                        />
-                      );
-                    })}
-                    {(() => {
-                      const expl = explOverride[wq.questionId] ?? wq.explanation;
-                      if (expl) {
-                        return (
-                          <Surface style={styles.explanationBox}>
-                            <Text style={styles.explanationLabel}>解析</Text>
-                            <Text style={styles.explanationText}>{expl}</Text>
-                          </Surface>
-                        );
-                      }
-                      return (
-                        <Button
-                          mode="outlined"
-                          compact
-                          icon="lightbulb-outline"
-                          onPress={() => handleExplain(wq)}
-                          loading={!!explLoading[wq.questionId]}
-                          disabled={!!explLoading[wq.questionId]}
-                          style={styles.explainBtn}
-                        >
-                          {explLoading[wq.questionId] ? '生成中...' : 'AI 解析'}
-                        </Button>
-                      );
-                    })()}
-                    <View style={styles.counters}>
-                      <Text style={styles.attemptText}>错 {wq.wrong_count} 次</Text>
-                      {wq.correct_count > 0 && (
-                        <Text style={styles.correctCountText}>对 {wq.correct_count}/{WRONG_QUESTION_MASTERY_THRESHOLD}</Text>
+                    );
+                  }
+                  return (
+                    <Pressable
+                      onPress={() => handleExplain(wq)}
+                      disabled={!!explLoading[wq.questionId]}
+                      style={({ pressed }) => [
+                        styles.explainBtn,
+                        { borderColor: colors.primary, opacity: explLoading[wq.questionId] ? 0.6 : pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      {explLoading[wq.questionId] ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <MaterialCommunityIcons name="lightbulb-outline" size={16} color={colors.primary} />
                       )}
-                      <Text style={styles.hintTap}>点击重做本套 -&gt;</Text>
-                    </View>
-                  </Card.Content>
-                </Card>
-              </TouchableOpacity>
+                      <Text style={styles.explainBtnText}>
+                        {explLoading[wq.questionId] ? '生成中...' : 'AI 解析'}
+                      </Text>
+                    </Pressable>
+                  );
+                })()}
+
+                <View style={styles.counters}>
+                  <Text style={styles.attemptText}>错 {wq.wrong_count} 次</Text>
+                  {wq.correct_count > 0 && (
+                    <Text style={styles.correctCountText}>对 {wq.correct_count}/{WRONG_QUESTION_MASTERY_THRESHOLD}</Text>
+                  )}
+                  <Text style={styles.hintTap}>点击重做本套 →</Text>
+                </View>
+              </Pressable>
             ))
           )}
         </>
@@ -320,39 +347,43 @@ export default function WrongQuestionReviewScreen() {
 
 const useStyles = makeStyles(colors => ({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, paddingBottom: 40 },
-  filter: { marginBottom: 16 },
-  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  filterSeg: { flex: 1 },
-  statsBar: { padding: 16, borderRadius: 12, marginBottom: 16, backgroundColor: colors.surface, elevation: 2 },
-  statsText: { fontSize: 16, fontWeight: '700', color: colors.onSurface, marginBottom: 4 },
-  statsDetail: { fontSize: 12, color: colors.onSurfaceVariant },
-  reviewButton: { marginBottom: 16, borderRadius: 12, paddingVertical: 6 },
-  reviewCard: { borderRadius: 12, elevation: 2, marginBottom: 10 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  typeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  typeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   typeTagText: { fontSize: 11, fontWeight: '600' },
   attemptInfo: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  attemptText: { fontSize: 12, color: colors.error, fontWeight: '500' },
+  attemptText: { fontSize: 12, color: colors.danger, fontWeight: '500' },
   correctCountText: { fontSize: 12, color: colors.success, fontWeight: '500' },
-  divider: { marginVertical: 10, backgroundColor: colors.outline },
+  divider: { height: 1, backgroundColor: colors.outline, marginVertical: 10, opacity: 0.5 },
   qSentence: { fontSize: 15, color: colors.onSurfaceVariant, lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
   qWordTag: { fontSize: 13, color: colors.primary, fontWeight: '600', marginBottom: 4 },
   qHint: { fontSize: 12, color: colors.tertiary, marginBottom: 6 },
   qCorrectAnswer: { fontSize: 14, color: colors.success, fontWeight: '500', marginTop: 4 },
-  qWrongAnswer: { fontSize: 14, color: colors.error, marginTop: 2 },
+  qWrongAnswer: { fontSize: 14, color: colors.danger, marginTop: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
   metaText: { fontSize: 12, color: colors.onSurfaceVariant, flexShrink: 1 },
   qStem: { fontSize: 14, color: colors.onSurface, lineHeight: 20, marginBottom: 10 },
-  explanationBox: { marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: colors.surfaceVariant, elevation: 0 },
+  explanationBox: { marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: colors.surfaceVariant },
   explanationLabel: { fontSize: 12, fontWeight: '700', color: colors.onSurfaceVariant, marginBottom: 4 },
   explanationText: { fontSize: 13, color: colors.onSurface, lineHeight: 20 },
-  explainBtn: { alignSelf: 'flex-start', marginTop: 8, borderRadius: 8 },
+  explainBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  explainBtnText: { fontSize: 13, fontWeight: '600', color: colors.primary },
   counters: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
   hintTap: { fontSize: 11, color: colors.primary, marginLeft: 'auto' },
-  emptyContainer: { alignItems: 'center', paddingVertical: 64 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: colors.onSurface, marginBottom: 8 },
-  emptyHint: { fontSize: 14, color: colors.tertiary, marginBottom: 24 },
-  emptyButton: { borderRadius: 12 },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
 }));

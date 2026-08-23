@@ -1,27 +1,22 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import {
-  Card,
-  Text,
-  Button,
-  Chip,
-  ActivityIndicator,
-  Surface,
-  Searchbar,
-  SegmentedButtons,
-} from 'react-native-paper';
+import { View, ScrollView, Pressable } from 'react-native';
+import { Text, Searchbar, SegmentedButtons, ActivityIndicator } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
-import { palette } from '../theme/tokens';
+import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
-import { Word, Article, AppSettings } from '../types';
+import { Word, Article } from '../types';
 import { getRecommendedWords } from '../utils/examHelpers';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
+import AppButton from '../components/ds/AppButton';
+import SectionHeader from '../components/ds/SectionHeader';
+import EmptyState from '../components/ds/EmptyState';
 
-// 将文章内容中的目标单词高亮
 interface PreviewSegment {
   text: string;
   isWord: boolean;
@@ -31,16 +26,13 @@ function parsePreviewContent(content: string, targetWords: string[]): PreviewSeg
   if (!content || targetWords.length === 0) {
     return [{ text: content || '', isWord: false }];
   }
-
   const escapedWords = targetWords
     .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .sort((a, b) => b.length - a.length);
   const pattern = new RegExp(`\\b(${escapedWords.join('|')})\\b`, 'gi');
-
   const segments: PreviewSegment[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
-
   while ((match = pattern.exec(content)) !== null) {
     if (match.index > lastIndex) {
       segments.push({ text: content.substring(lastIndex, match.index), isWord: false });
@@ -48,27 +40,84 @@ function parsePreviewContent(content: string, targetWords: string[]): PreviewSeg
     segments.push({ text: match[0], isWord: true });
     lastIndex = pattern.lastIndex;
   }
-
   if (lastIndex < content.length) {
     segments.push({ text: content.substring(lastIndex), isWord: false });
   }
-
   return segments;
 }
 
 const THEMES = [
-  { key: 'random', label: '随机', icon: 'shuffle' },
-  { key: 'technology', label: '科技', icon: 'devices' },
-  { key: 'life', label: '生活', icon: 'home' },
-  { key: 'history', label: '历史', icon: 'history' },
-  { key: 'nature', label: '自然', icon: 'nature' },
-  { key: 'science', label: '科学', icon: 'flask' },
+  { key: 'random', label: '随机', icon: 'shuffle' as const },
+  { key: 'technology', label: '科技', icon: 'devices' as const },
+  { key: 'life', label: '生活', icon: 'home' as const },
+  { key: 'history', label: '历史', icon: 'history' as const },
+  { key: 'nature', label: '自然', icon: 'nature' as const },
+  { key: 'science', label: '科学', icon: 'flask' as const },
 ];
+
+// 步进器（轻量内联组件，避免重复）
+function Stepper({
+  label,
+  value,
+  unit,
+  min,
+  max,
+  step,
+  onDec,
+  onInc,
+  colors,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+  onDec: () => void;
+  onInc: () => void;
+  colors: ReturnType<typeof useAppTheme>['colors'];
+}) {
+  const t = colors.typography;
+  const decDisabled = value <= min;
+  const incDisabled = value >= max;
+  const stepBtn = (onPress: () => void, disabled: boolean, glyph: string) => (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        {
+          width: 32,
+          height: 32,
+          borderRadius: radius.md,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.primaryContainer,
+          opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Text style={{ fontSize: 16, fontWeight: '700', color: colors.primary }}>{glyph}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.xs }}>
+      <Text style={{ fontSize: t.bodySm.size, color: colors.onSurface }}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        {stepBtn(onDec, decDisabled, '−')}
+        <Text style={{ fontSize: t.body.size, fontWeight: '700', color: colors.primary, minWidth: 56, textAlign: 'center' }}>
+          {value} {unit}
+        </Text>
+        {stepBtn(onInc, incDisabled, '+')}
+      </View>
+    </View>
+  );
+}
 
 export default function ArticleGenerateScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
   const styles = useStyles();
+  const typography = colors.typography;
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [selectedWords, setSelectedWords] = useState<Word[]>([]);
   const [coverage, setCoverage] = useState<Map<string, number>>(new Map());
@@ -78,14 +127,9 @@ export default function ArticleGenerateScreen() {
   const [selectedTheme, setSelectedTheme] = useState('random');
   const [articleWordCount, setArticleWordCount] = useState(10);
   const [articleLength, setArticleLength] = useState(200);
-  const [aiSettings, setAiSettings] = useState<AppSettings | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
-  const [generatedArticle, setGeneratedArticle] = useState<{
-    title: string;
-    content: string;
-    translation: string;
-  } | null>(null);
+  const [generatedArticle, setGeneratedArticle] = useState<{ title: string; content: string; translation: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useFocusEffect(
@@ -96,27 +140,22 @@ export default function ArticleGenerateScreen() {
 
   const loadData = async () => {
     try {
-      // 加载设置
       const settings = await StorageService.getSettings();
       setArticleWordCount(settings.articleWordCount || 10);
       setArticleLength(settings.articleLength || 200);
-      setAiSettings(settings);
 
-      // 加载单词
       const words = await StorageService.getWords();
       setAllWords(words);
 
-      // 加载覆盖度
       const cov = await StorageService.getWordArticleCoverage();
       setCoverage(cov);
 
-      // 计算每个单词的正确率
       const records = await StorageService.getStudyRecords();
       const accMap = new Map<string, number>();
       for (const word of words) {
         const wordRecords = records.filter(r => r.word_id === word.id);
         if (wordRecords.length === 0) {
-          accMap.set(word.id, 1); // 无记录，默认正确（新词）
+          accMap.set(word.id, 1);
         } else {
           const correctCount = wordRecords.filter(r => r.result === 1).length;
           accMap.set(word.id, correctCount / wordRecords.length);
@@ -124,24 +163,16 @@ export default function ArticleGenerateScreen() {
       }
       setWordAccuracy(accMap);
 
-      // 智能推荐模式：自动选取单词
       if (selectMode === 'smart') {
-        const recommended = selectRecommendedWords(words, cov, accMap);
-        setSelectedWords(recommended);
+        setSelectedWords(getRecommendedWords(words, cov, accMap, settings.articleWordCount || 10));
       }
     } catch (error) {
       console.error('Failed to load data:', error);
     }
   };
 
-  // 覆盖度优先级算法 —— 委托给共享工具函数
-  const selectRecommendedWords = (
-    words: Word[],
-    cov: Map<string, number>,
-    acc: Map<string, number>
-  ): Word[] => {
-    return getRecommendedWords(words, cov, acc, articleWordCount);
-  };
+  const selectRecommended = (count: number) =>
+    setSelectedWords(getRecommendedWords(allWords, coverage, wordAccuracy, count));
 
   const getCoverageLabel = (wordId: string): string => {
     const count = coverage.get(wordId) || 0;
@@ -170,37 +201,27 @@ export default function ArticleGenerateScreen() {
   };
 
   const replaceWord = (removeWord: Word) => {
-    // 从候补池中找下一个词
     const selectedIds = new Set(selectedWords.map(w => w.id));
-    const candidate = allWords.find(
-      w => w.id !== removeWord.id && !selectedIds.has(w.id)
-    );
+    const candidate = allWords.find(w => w.id !== removeWord.id && !selectedIds.has(w.id));
     if (candidate) {
-      setSelectedWords(prev =>
-        prev.map(w => (w.id === removeWord.id ? candidate : w))
-      );
+      setSelectedWords(prev => prev.map(w => (w.id === removeWord.id ? candidate : w)));
     } else {
-      // 没有候补，直接移除
       setSelectedWords(prev => prev.filter(w => w.id !== removeWord.id));
     }
   };
 
   const handleGenerate = async () => {
     setGenerateError(null);
-
     if (selectedWords.length < articleWordCount) {
       const msg = `需要选够 ${articleWordCount} 个生词才能生成文章，当前仅 ${selectedWords.length} 个`;
-      console.log('[ArticleGen]', msg);
       setGenerateError(msg);
-      Alert.alert('生词不足', msg);
       return;
     }
     setIsGenerating(true);
     setGeneratedArticle(null);
     try {
-      const wordStrings = selectedWords.map(w => w.word);
       const result = await AIService.generateFunArticle(
-        wordStrings,
+        selectedWords.map(w => w.word),
         selectedTheme,
         articleLength
       );
@@ -212,7 +233,6 @@ export default function ArticleGenerateScreen() {
       }
       const msg = error.message || '文章生成失败，请重试';
       setGenerateError(msg);
-      Alert.alert('生成失败', msg);
     } finally {
       setIsGenerating(false);
     }
@@ -235,7 +255,7 @@ export default function ArticleGenerateScreen() {
       await StorageService.saveArticle(articleData);
       navigation.navigate('ReadHome');
     } catch (error) {
-      Alert.alert('保存失败', '请重试');
+      showConfirm('保存失败', '请重试', { confirmText: '知道了', cancelText: '关闭' }).catch(() => {});
     } finally {
       setIsSaving(false);
     }
@@ -245,414 +265,319 @@ export default function ArticleGenerateScreen() {
     w.word.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* 参数设置 */}
-      <Surface style={styles.settingsBar}>
-        <View style={styles.stepperRow}>
-          <Text style={styles.stepperLabel}>每篇生词</Text>
-          <View style={styles.countStepper}>
-            <Button
-              mode="text"
-              compact
-              onPress={() => {
-                const newCount = Math.max(5, articleWordCount - 1);
-                if (newCount !== articleWordCount) {
-                  setArticleWordCount(newCount);
-                  if (selectMode === 'smart') {
-                    setSelectedWords(
-                      getRecommendedWords(allWords, coverage, wordAccuracy, newCount)
-                    );
-                  }
-                }
-              }}
-              disabled={articleWordCount <= 5}
-              labelStyle={styles.countStepperBtn}
-            >
-              −
-            </Button>
-            <Text style={styles.countText}>{articleWordCount} 个</Text>
-            <Button
-              mode="text"
-              compact
-              onPress={() => {
-                const newCount = Math.min(30, articleWordCount + 1);
-                if (newCount !== articleWordCount) {
-                  setArticleWordCount(newCount);
-                  if (selectMode === 'smart') {
-                    setSelectedWords(
-                      getRecommendedWords(allWords, coverage, wordAccuracy, newCount)
-                    );
-                  }
-                }
-              }}
-              disabled={articleWordCount >= 30}
-              labelStyle={styles.countStepperBtn}
-            >
-              +
-            </Button>
-          </View>
-        </View>
-        <View style={styles.stepperDivider} />
-        <View style={styles.stepperRow}>
-          <Text style={styles.stepperLabel}>目标词数</Text>
-          <View style={styles.countStepper}>
-            <Button
-              mode="text"
-              compact
-              onPress={() => {
-                const newCount = Math.max(100, articleLength - 50);
-                if (newCount !== articleLength) {
-                  setArticleLength(newCount);
-                }
-              }}
-              disabled={articleLength <= 100}
-              labelStyle={styles.countStepperBtn}
-            >
-              −
-            </Button>
-            <Text style={styles.countText}>{articleLength} 词</Text>
-            <Button
-              mode="text"
-              compact
-              onPress={() => {
-                const newCount = Math.min(1000, articleLength + 50);
-                if (newCount !== articleLength) {
-                  setArticleLength(newCount);
-                }
-              }}
-              disabled={articleLength >= 1000}
-              labelStyle={styles.countStepperBtn}
-            >
-              +
-            </Button>
-          </View>
-        </View>
-      </Surface>
+  // 空词库
+  if (allWords.length === 0) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <EmptyState
+          icon="book-open-page-variant"
+          title="生词本为空"
+          description="先在学习页添加或从词库选词，再来生成专属阅读文章。"
+          actionLabel="去学习"
+          onAction={() => navigation.navigate('ReadHome')}
+        />
+      </View>
+    );
+  }
 
-      {/* 选词模式切换 */}
-      <Card style={styles.card}>
-        <Card.Title title="选择生词" titleStyle={styles.cardTitle} />
-        <Card.Content>
+  const surface = {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderColor: colors.outline,
+    borderWidth: 1,
+  } as const;
+
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}>
+      {/* Hero + 参数 */}
+      <View style={[styles.hero, { backgroundColor: colors.primary, borderRadius: radius.xl }, colors.shadow.card]}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.caption.size, letterSpacing: 0.6 }}>
+            生成文章
+          </Text>
+          <Text style={{ color: colors.onPrimary, fontSize: typography.headline.size, lineHeight: typography.headline.lineHeight, fontWeight: '700', letterSpacing: -0.3 }}>
+            AI 趣味阅读
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: typography.bodySm.size, marginTop: 2 }}>
+            用你的生词生成语境短文，加深记忆
+          </Text>
+        </View>
+        <View style={styles.heroIcon}>
+          <MaterialCommunityIcons name="creation" size={24} color={colors.onPrimary} />
+        </View>
+      </View>
+
+      {/* 参数卡 */}
+      <View style={{ marginTop: spacing.lg }}>
+        <SectionHeader title="文章参数" icon="tune" compact />
+        <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+          <Stepper
+            label="每篇生词"
+            value={articleWordCount}
+            unit="个"
+            min={5}
+            max={30}
+            step={1}
+            colors={colors}
+            onDec={() => {
+              const n = Math.max(5, articleWordCount - 1);
+              if (n !== articleWordCount) {
+                setArticleWordCount(n);
+                if (selectMode === 'smart') selectRecommended(n);
+              }
+            }}
+            onInc={() => {
+              const n = Math.min(30, articleWordCount + 1);
+              if (n !== articleWordCount) {
+                setArticleWordCount(n);
+                if (selectMode === 'smart') selectRecommended(n);
+              }
+            }}
+          />
+          <View style={{ height: 1, backgroundColor: colors.outline, marginVertical: spacing.xs, opacity: 0.5 }} />
+          <Stepper
+            label="目标词数"
+            value={articleLength}
+            unit="词"
+            min={100}
+            max={1000}
+            step={50}
+            colors={colors}
+            onDec={() => setArticleLength(Math.max(100, articleLength - 50))}
+            onInc={() => setArticleLength(Math.min(1000, articleLength + 50))}
+          />
+        </View>
+      </View>
+
+      {/* 选词 */}
+      <View style={{ marginTop: spacing.lg }}>
+        <SectionHeader title="选择生词" icon="book-open-variant" compact />
+        <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
           <SegmentedButtons
             value={selectMode}
             onValueChange={(val) => {
               setSelectMode(val as 'smart' | 'manual');
-              if (val === 'smart') {
-                const recommended = selectRecommendedWords(allWords, coverage, wordAccuracy);
-                setSelectedWords(recommended);
-              }
+              if (val === 'smart') selectRecommended(articleWordCount);
             }}
             buttons={[
               { value: 'smart', label: '智能推荐' },
               { value: 'manual', label: '手动选择' },
             ]}
-            style={styles.segmentButtons}
           />
 
-          {/* 智能推荐模式 */}
+          <Text style={{ fontSize: typography.bodySm.size, color: colors.onSurfaceVariant, marginTop: spacing.md, marginBottom: spacing.sm }}>
+            已选 {selectedWords.length}/{articleWordCount} 个
+          </Text>
+
           {selectMode === 'smart' && (
-            <View style={styles.selectedArea}>
-              <Text style={styles.sectionLabel}>
-                已选 {selectedWords.length}/{articleWordCount} 个
-              </Text>
-              {selectedWords.length === 0 && allWords.length > 0 && (
-                <Text style={styles.noWordsHint}>
+            <View>
+              {selectedWords.length === 0 && (
+                <Text style={{ fontSize: typography.bodySm.size, color: colors.warning, marginBottom: spacing.sm }}>
                   单词本中的词都已覆盖 ≥3 次，可切换手动选择
                 </Text>
               )}
               <View style={styles.wordGrid}>
                 {selectedWords.map(word => (
                   <View key={word.id} style={styles.wordItem}>
-                    <Chip
-                      style={styles.selectedWordChip}
-                      textStyle={styles.wordChipText}
-                      onClose={() => replaceWord(word)}
-                      closeIcon={({color, size}) => (
-                        <Text style={{color, fontSize: size, lineHeight: size}}>✕</Text>
-                      )}
-                    >
-                      {word.word}
-                    </Chip>
-                    <Text
-                      style={[
-                        styles.coverageBadge,
-                        { color: getCoverageColor(word.id) },
-                      ]}
-                    >
+                    <View style={styles.selectedWordChip}>
+                      <Text style={styles.selectedWordChipText}>{word.word}</Text>
+                      <Pressable onPress={() => replaceWord(word)} hitSlop={6} style={styles.chipClose}>
+                        <Text style={styles.chipCloseText}>✕</Text>
+                      </Pressable>
+                    </View>
+                    <Text style={[styles.coverageBadge, { color: getCoverageColor(word.id) }]}>
                       {getCoverageLabel(word.id)}
                     </Text>
                   </View>
                 ))}
               </View>
-              <Button
-                mode="text"
-                onPress={() => {
-                  const recommended = selectRecommendedWords(allWords, coverage, wordAccuracy);
-                  setSelectedWords(recommended);
-                }}
-                icon="refresh"
+              <Pressable
+                onPress={() => selectRecommended(articleWordCount)}
+                style={({ pressed }) => [styles.textActionRow, { opacity: pressed ? 0.7 : 1 }]}
               >
-                重新推荐
-              </Button>
+                <MaterialCommunityIcons name="refresh" size={16} color={colors.primary} />
+                <Text style={styles.textActionLabel}>重新推荐</Text>
+              </Pressable>
             </View>
           )}
 
-          {/* 手动选择模式 */}
           {selectMode === 'manual' && (
-            <View style={styles.manualArea}>
-              <Text style={styles.sectionLabel}>
-                已选 {selectedWords.length}/{articleWordCount} 个
-              </Text>
+            <View>
               <Searchbar
                 placeholder="搜索单词..."
                 onChangeText={setSearchQuery}
                 value={searchQuery}
-                style={styles.searchBar}
-                inputStyle={styles.searchInput}
-                icon={() => <Text style={{ fontSize: 16 }}>🔍</Text>}
+                style={[styles.searchBar, { backgroundColor: colors.background, borderColor: colors.outline }]}
+                inputStyle={{ fontSize: typography.bodySm.size, minHeight: 0 }}
+                icon={() => <MaterialCommunityIcons name="magnify" size={18} color={colors.tertiary} />}
               />
               <View style={styles.wordGrid}>
                 {filteredWords.map(word => {
                   const isSelected = selectedWords.some(w => w.id === word.id);
                   return (
-                    <TouchableOpacity
-                      key={word.id}
-                      onPress={() => toggleWordSelection(word)}
-                    >
-                      <View style={styles.manualWordItem}>
-                        <Chip
-                          style={[
-                            styles.manualWordChip,
-                            isSelected && styles.manualWordChipSelected,
-                          ]}
-                          textStyle={[
-                            styles.wordChipText,
-                            isSelected && styles.wordChipTextSelected,
-                          ]}
-                        >
-                          {word.word}
-                        </Chip>
-                        <Text
-                          style={[
-                            styles.coverageBadge,
-                            { color: getCoverageColor(word.id) },
-                          ]}
-                        >
+                    <Pressable key={word.id} onPress={() => toggleWordSelection(word)}>
+                      <View style={styles.wordItem}>
+                        <View style={[styles.manualWordChip, isSelected && { backgroundColor: colors.primary }]}>
+                          <Text style={[styles.manualWordChipText, isSelected && { color: colors.onPrimary }]}>
+                            {word.word}
+                          </Text>
+                        </View>
+                        <Text style={[styles.coverageBadge, { color: getCoverageColor(word.id) }]}>
                           {getCoverageLabel(word.id)}
                         </Text>
                       </View>
-                    </TouchableOpacity>
+                    </Pressable>
                   );
                 })}
               </View>
             </View>
           )}
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
 
-      {/* 主题选择 */}
-      <Card style={styles.card}>
-        <Card.Title title="文章主题" titleStyle={styles.cardTitle} />
-        <Card.Content>
+      {/* 主题 */}
+      <View style={{ marginTop: spacing.lg }}>
+        <SectionHeader title="文章主题" icon="palette-outline" compact />
+        <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
           <View style={styles.themeGrid}>
-            {THEMES.map(theme => (
-              <Chip
-                key={theme.key}
-                selected={selectedTheme === theme.key}
-                showSelectedCheck={false}
-                onPress={() => setSelectedTheme(theme.key)}
-                style={[
-                  styles.themeChip,
-                  selectedTheme === theme.key && styles.themeChipSelected,
-                ]}
-                showSelectedOverlay
-                icon={theme.icon}
-              >
-                {theme.label}
-              </Chip>
-            ))}
+            {THEMES.map(theme => {
+              const isSelected = selectedTheme === theme.key;
+              return (
+                <Pressable
+                  key={theme.key}
+                  onPress={() => setSelectedTheme(theme.key)}
+                  style={({ pressed }) => [
+                    styles.themeChip,
+                    {
+                      backgroundColor: isSelected ? colors.primary : colors.surfaceVariant,
+                      borderColor: isSelected ? colors.primary : colors.outline,
+                      opacity: pressed ? 0.85 : 1,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons name={theme.icon} size={15} color={isSelected ? colors.onPrimary : colors.onSurfaceVariant} />
+                  <Text style={{ fontSize: typography.bodySm.size, fontWeight: '600', color: isSelected ? colors.onPrimary : colors.onSurface }}>
+                    {theme.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
 
       {/* 状态提示 */}
-      {!generatedArticle && !isGenerating && (
-        <View style={styles.statusArea}>
-          {selectedWords.length < articleWordCount ? (
-            <Text style={styles.statusWarn}>
-              ⚠ 已选 {selectedWords.length}/{articleWordCount} 个生词（不足，请切换手动模式选词或降低生词数）
+      {!generatedArticle && !isGenerating && (selectedWords.length < articleWordCount || generateError) && (
+        <View style={{ marginTop: spacing.md, alignItems: 'center' }}>
+          {selectedWords.length < articleWordCount && (
+            <Text style={{ fontSize: typography.bodySm.size, color: colors.warning, textAlign: 'center', lineHeight: 20 }}>
+              ⚠ 已选 {selectedWords.length}/{articleWordCount} 个生词（不足，请切换手动模式或降低生词数）
             </Text>
-          ) : null}
+          )}
           {generateError && (
-            <Text style={styles.statusError}>{generateError}</Text>
+            <Text style={{ fontSize: typography.bodySm.size, color: colors.danger, textAlign: 'center', marginTop: 4 }}>
+              {generateError}
+            </Text>
           )}
         </View>
       )}
 
-      {/* 生成按钮 */}
+      {/* 生成按钮 / loading */}
       {!generatedArticle && (
-        <Button
-          mode="contained"
-          onPress={handleGenerate}
-          style={styles.generateButton}
-          loading={isGenerating}
-          disabled={isGenerating}
-          icon="auto-fix"
-        >
-          {isGenerating ? '正在生成...' : '生成文章'}
-        </Button>
-      )}
-
-      {/* 加载状态 */}
-      {isGenerating && (
-        <View style={styles.loadingArea}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>AI 正在为你创作文章...</Text>
-          <Text style={styles.loadingHint}>这可能需要 10-30 秒</Text>
+        <View style={{ marginTop: spacing.md }}>
+          <AppButton
+            title={isGenerating ? '正在生成...' : '生成文章'}
+            onPress={handleGenerate}
+            variant="primary"
+            size="lg"
+            fullWidth
+            loading={isGenerating}
+            disabled={isGenerating}
+            leftIcon={<MaterialCommunityIcons name="creation" size={20} color={colors.onPrimary} />}
+          />
+          {isGenerating && (
+            <View style={{ alignItems: 'center', paddingVertical: spacing.lg, gap: 6 }}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={{ fontSize: typography.body.size, color: colors.onSurfaceVariant, marginTop: spacing.sm }}>
+                AI 正在为你创作文章...
+              </Text>
+              <Text style={{ fontSize: typography.caption.size, color: colors.tertiary }}>
+                这可能需要 10-30 秒
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
-      {/* 生成结果预览 */}
+      {/* 预览 */}
       {generatedArticle && !isGenerating && (
-        <Card style={styles.previewCard}>
-          <Card.Title
-            title={generatedArticle.title}
-            titleStyle={styles.previewTitle}
-          />
-          <Card.Content>
-            <ScrollView style={styles.previewScroll} nestedScrollEnabled>
+        <View style={{ marginTop: spacing.lg }}>
+          <SectionHeader title="预览" icon="eye-outline" compact />
+          <View style={[surface, { padding: spacing.md }, colors.shadow.card]}>
+            <Text style={{ fontSize: typography.title.size, fontWeight: '700', color: colors.onSurface, marginBottom: spacing.sm }}>
+              {generatedArticle.title}
+            </Text>
+            <ScrollView style={{ maxHeight: 280 }} nestedScrollEnabled>
               <Text style={styles.previewContent}>
-                {parsePreviewContent(
-                  generatedArticle.content,
-                  selectedWords.map(w => w.word)
-                ).map((seg, index) => {
+                {parsePreviewContent(generatedArticle.content, selectedWords.map(w => w.word)).map((seg, index) => {
                   if (seg.isWord) {
-                    return (
-                      <Text key={index} style={styles.previewHighlightedWord}>
-                        {seg.text}
-                      </Text>
-                    );
+                    return <Text key={index} style={styles.previewHighlightedWord}>{seg.text}</Text>;
                   }
                   return <Text key={index}>{seg.text}</Text>;
                 })}
               </Text>
               {generatedArticle.translation ? (
-                <>
-                  <View style={styles.translationDivider} />
-                  <Text style={styles.translationLabel}>中文翻译</Text>
-                  <Text style={styles.translationContent}>
-                    {generatedArticle.translation}
+                <View>
+                  <View style={{ height: 1, backgroundColor: colors.outline, marginVertical: spacing.md }} />
+                  <Text style={{ fontSize: typography.bodySm.size, fontWeight: '600', color: colors.primary, marginBottom: spacing.sm }}>
+                    中文翻译
                   </Text>
-                </>
+                  <Text style={styles.translationContent}>{generatedArticle.translation}</Text>
+                </View>
               ) : null}
             </ScrollView>
-          </Card.Content>
-          <Card.Actions style={styles.previewActions}>
-            <Button
-              mode="outlined"
+          </View>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+            <AppButton
+              title="重新生成"
               onPress={handleGenerate}
-              icon="refresh"
-            >
-              重新生成
-            </Button>
-            <Button
-              mode="contained"
+              variant="secondary"
+              size="lg"
+              style={{ flex: 1 }}
+              leftIcon={<MaterialCommunityIcons name="refresh" size={20} color={colors.primary} />}
+            />
+            <AppButton
+              title="保存文章"
               onPress={handleSave}
+              variant="primary"
+              size="lg"
               loading={isSaving}
               disabled={isSaving}
-              icon="content-save"
-            >
-              保存文章
-            </Button>
-          </Card.Actions>
-        </Card>
+              style={{ flex: 1 }}
+              leftIcon={<MaterialCommunityIcons name="content-save" size={20} color={colors.onPrimary} />}
+            />
+          </View>
+        </View>
       )}
     </ScrollView>
   );
 }
 
 const useStyles = makeStyles(colors => ({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  settingsBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginBottom: 12,
-    backgroundColor: colors.primaryContainer,
-    elevation: 1,
-  },
-  stepperRow: {
+  hero: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 2,
+    padding: 20,
+    minHeight: 96,
+    gap: 12,
   },
-  stepperLabel: {
-    fontSize: 13,
-    color: colors.primary,
-  },
-  stepperDivider: {
-    height: 1,
-    backgroundColor: colors.primaryContainer,
-    marginVertical: 6,
-  },
-  countStepper: {
-    flexDirection: 'row',
+  heroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
-    gap: 2,
-  },
-  countStepperBtn: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  countText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.primary,
-    minWidth: 44,
-    textAlign: 'center',
-  },
-  card: {
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  segmentButtons: {
-    marginBottom: 16,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    color: colors.onSurfaceVariant,
-    marginBottom: 10,
-  },
-  selectedArea: {
-    marginTop: 4,
-  },
-  manualArea: {
-    marginTop: 4,
-  },
-  searchBar: {
-    marginBottom: 12,
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    elevation: 0,
-    height: 40,
-  },
-  searchInput: {
-    fontSize: 13,
-    minHeight: 0,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   wordGrid: {
     flexDirection: 'row',
@@ -663,36 +588,67 @@ const useStyles = makeStyles(colors => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+    marginBottom: 4,
   },
   selectedWordChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
     backgroundColor: colors.primaryContainer,
   },
-  wordChipText: {
+  selectedWordChipText: {
     fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
   },
-  wordChipTextSelected: {
-    color: colors.surface,
+  chipClose: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipCloseText: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '700',
   },
   coverageBadge: {
     fontSize: 10,
     fontWeight: '500',
     marginLeft: 2,
   },
-  noWordsHint: {
-    fontSize: 13,
-    color: palette.accent,
-    marginBottom: 10,
+  manualWordChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.outline,
   },
-  manualWordItem: {
+  manualWordChipText: {
+    fontSize: 12,
+    color: colors.onSurface,
+  },
+  textActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 6,
+    marginTop: spacing.md,
   },
-  manualWordChip: {
-    backgroundColor: colors.background,
+  textActionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
   },
-  manualWordChipSelected: {
-    backgroundColor: colors.primary,
+  searchBar: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    elevation: 0,
+    height: 40,
+    marginBottom: spacing.sm,
   },
   themeGrid: {
     flexDirection: 'row',
@@ -700,65 +656,18 @@ const useStyles = makeStyles(colors => ({
     gap: 8,
   },
   themeChip: {
-    backgroundColor: colors.background,
-  },
-  themeChipSelected: {
-    backgroundColor: colors.primary,
-  },
-  generateButton: {
-    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
-  },
-  loadingArea: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  loadingText: {
-    fontSize: 15,
-    color: colors.onSurfaceVariant,
-    marginTop: 16,
-  },
-  loadingHint: {
-    fontSize: 12,
-    color: colors.tertiary,
-    marginTop: 4,
-  },
-  statusArea: {
-    marginTop: 8,
-    alignItems: 'center',
-  },
-  statusWarn: {
-    fontSize: 13,
-    color: palette.accent,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  statusError: {
-    fontSize: 13,
-    color: palette.danger,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  previewCard: {
-    marginTop: 12,
-    borderRadius: 12,
-    elevation: 3,
-    maxHeight: 500,
-  },
-  previewTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.onSurface,
-  },
-  previewScroll: {
-    maxHeight: 280,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   previewContent: {
     fontSize: 15,
     color: colors.onSurfaceVariant,
     lineHeight: 24,
-    fontFamily: undefined,
   },
   previewHighlightedWord: {
     color: colors.primary,
@@ -766,22 +675,6 @@ const useStyles = makeStyles(colors => ({
     textDecorationLine: 'underline',
     textDecorationColor: colors.primary,
     textDecorationStyle: 'solid',
-  },
-  previewActions: {
-    justifyContent: 'flex-end',
-    gap: 8,
-    paddingTop: 8,
-  },
-  translationDivider: {
-    height: 1,
-    backgroundColor: colors.outline,
-    marginVertical: 16,
-  },
-  translationLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 8,
   },
   translationContent: {
     fontSize: 15,

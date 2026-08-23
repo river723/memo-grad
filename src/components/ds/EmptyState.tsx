@@ -13,13 +13,13 @@
  */
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AppIcon, { type IconName } from './AppIcon';
 import { useAppTheme } from '../../theme/theme';
 import { spacing } from '../../theme/tokens';
 import AppButton from './AppButton';
 
 export interface EmptyStateProps {
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap | string;
+  icon?: IconName;
   title: string;
   description?: string;
   actionLabel?: string;
@@ -55,8 +55,8 @@ export default function EmptyState({
           },
         ]}
       >
-        <MaterialCommunityIcons
-          name={icon as any}
+        <AppIcon
+          name={icon}
           size={compact ? 32 : 40}
           color={colors.primary}
         />

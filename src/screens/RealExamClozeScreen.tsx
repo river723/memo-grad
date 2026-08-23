@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { Card, Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
 import { generateId } from '../utils/idUtils';
-import { palette } from '../theme/tokens';
 import { stripLetterPrefix } from '../components/ReviewOption';
 import { getExamSet } from '../utils/realExamContent';
 import StorageService from '../services/StorageService';
@@ -25,6 +25,7 @@ const LETTERS: RealExamLetter[] = ['A', 'B', 'C', 'D'];
 export default function RealExamClozeScreen() {
   const navigation = useAppNavigation();
   const route = useAppRoute<'RealExamCloze'>();
+  const { colors } = useAppTheme();
   const styles = useStyles();
 
   const { year, setId, paperId } = (route.params || {}) as { year: number; setId: 'english1' | 'english2'; paperId: string };
@@ -142,7 +143,7 @@ export default function RealExamClozeScreen() {
           <Text style={styles.progressText}>{year} · Cloze</Text>
           <Text style={styles.progressCount}>已答 {answeredCount} / {total}</Text>
         </View>
-        <ProgressBar progress={progress} color={palette.primary} style={styles.bar} />
+        <ProgressBar progress={progress} color={colors.primary} style={styles.bar} />
       </Surface>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -170,11 +171,10 @@ export default function RealExamClozeScreen() {
                     const letter = LETTERS[oIdx];
                     const isSelected = selected === letter;
                     return (
-                      <TouchableOpacity
+                      <Pressable
                         key={letter}
-                        activeOpacity={0.7}
                         onPress={() => handleSelect(b.index, letter)}
-                        style={styles.optionPressable}
+                        style={({ pressed }) => [styles.optionPressable, pressed && { opacity: 0.7 }]}
                       >
                         <View style={[styles.optionButton, isSelected && styles.optionSelected]}>
                           <Text style={[styles.optionIndex, isSelected && styles.optionIndexSelected]}>
@@ -187,7 +187,7 @@ export default function RealExamClozeScreen() {
                             {stripLetterPrefix(opt, letter)}
                           </Text>
                         </View>
-                      </TouchableOpacity>
+                      </Pressable>
                     );
                   })}
                 </View>
@@ -229,7 +229,8 @@ const useStyles = makeStyles(colors => ({
     paddingTop: 12,
     paddingBottom: 8,
     backgroundColor: colors.surface,
-    elevation: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -242,7 +243,7 @@ const useStyles = makeStyles(colors => ({
   bar: { height: 6, borderRadius: 3 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 24 },
-  passageCard: { borderRadius: 12, elevation: 2, marginBottom: 16 },
+  passageCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface, marginBottom: 16 },
   sectionTag: {
     alignSelf: 'flex-start',
     backgroundColor: colors.primaryContainer,
@@ -260,7 +261,7 @@ const useStyles = makeStyles(colors => ({
     marginBottom: 8,
     marginTop: 4,
   },
-  blankCard: { borderRadius: 12, elevation: 1, marginBottom: 8 },
+  blankCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface, marginBottom: 8 },
   blankIndex: { fontSize: 15, fontWeight: '700', color: colors.primary, marginBottom: 8 },
   optionsRow: {
     flexDirection: 'row',
@@ -296,7 +297,8 @@ const useStyles = makeStyles(colors => ({
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: colors.surface,
-    elevation: 4,
+    borderTopWidth: 1,
+    borderTopColor: colors.outline,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

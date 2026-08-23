@@ -52,6 +52,11 @@ export default function FlashcardStudy({
   const { colors } = useAppTheme();
   const typography = colors.typography;
   const [flipped, setFlipped] = useState(false);
+
+  // 正面单词字号按长度自适应，避免长单词在窄屏换行
+  const wordLen = currentWord.word?.length || 0;
+  const frontWordSize = wordLen <= 6 ? 56 : wordLen <= 8 ? 46 : wordLen <= 11 ? 38 : 30;
+  const frontWordSpacing = frontWordSize >= 46 ? -1.2 : -0.6;
   const [showResult, setShowResult] = useState<'correct' | 'incorrect' | null>(null);
   const [backOverflow, setBackOverflow] = useState(false);
   const [backMaxHeight, setBackMaxHeight] = useState(0);
@@ -190,13 +195,16 @@ export default function FlashcardStudy({
             <Text
               style={{
                 color: colors.onSurface,
-                fontSize: 64,
-                lineHeight: 72,
+                fontSize: frontWordSize,
+                lineHeight: frontWordSize + 8,
                 fontWeight: '700',
-                letterSpacing: -1.2,
+                letterSpacing: frontWordSpacing,
                 textAlign: 'center',
                 fontFamily: 'SourceSerif4, Georgia, serif',
+                width: '100%',
               }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
             >
               {currentWord.word}
             </Text>
@@ -240,6 +248,31 @@ export default function FlashcardStudy({
               </View>
             </Animated.View>
 
+            {/* 右上角发音按钮 */}
+            <Pressable
+              onPress={() => speechEnabled && speakWord(currentWord.word)}
+              disabled={!speechEnabled}
+              hitSlop={12}
+              style={({ pressed }) => ({
+                position: 'absolute',
+                top: spacing.md,
+                right: spacing.md,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.primaryContainer,
+                opacity: speechEnabled ? (pressed ? 0.7 : 1) : 0.4,
+              })}
+            >
+              <MaterialCommunityIcons
+                name={speechEnabled ? 'volume-high' : 'volume-off'}
+                size={26}
+                color={speechEnabled ? colors.primary : colors.tertiary}
+              />
+            </Pressable>
+
             <View
               style={{
                 position: 'absolute',
@@ -249,12 +282,6 @@ export default function FlashcardStudy({
                 gap: 6,
               }}
             >
-              <MaterialCommunityIcons
-                name={speechEnabled ? 'volume-high' : 'volume-off'}
-                size={16}
-                color={speechEnabled ? colors.primary : colors.tertiary}
-                onPress={() => speechEnabled && speakWord(currentWord.word)}
-              />
               <Text style={{ color: colors.tertiary, fontSize: typography.caption.size }}>点击翻释义</Text>
             </View>
           </Pressable>

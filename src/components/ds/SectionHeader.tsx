@@ -11,7 +11,7 @@
  */
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AppIcon, { type IconName } from './AppIcon';
 import { useAppTheme } from '../../theme/theme';
 import { spacing, fontWeight } from '../../theme/tokens';
 
@@ -20,7 +20,7 @@ export interface SectionHeaderProps {
   subtitle?: string;
   actionLabel?: string;
   onAction?: () => void;
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap | string;
+  icon?: IconName;
   compact?: boolean;
 }
 
@@ -46,8 +46,8 @@ export default function SectionHeader({
     >
       <View style={styles.left}>
         {icon ? (
-          <MaterialCommunityIcons
-            name={icon as any}
+          <AppIcon
+            name={icon}
             size={18}
             color={colors.onSurfaceVariant}
             style={{ marginRight: 8 }}

@@ -1,21 +1,18 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import {
-  Card,
   Text,
-  Button,
-  Chip,
   ActivityIndicator,
-  Surface,
-  Searchbar,
   SegmentedButtons,
+  Searchbar,
 } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { useAuth } from '../providers/AuthProvider';
-import { palette } from '../theme/tokens';
+import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
@@ -23,13 +20,9 @@ import { showConfirm } from '../providers/ConfirmDialogProvider';
 import { Word, ExamQuestion, ExamQuestionType, DefinitionQuestion, ClozeQuestion } from '../types';
 import { getRecommendedWords } from '../utils/examHelpers';
 import { EXAM_CONFIG } from '../constants';
+import AppButton from '../components/ds/AppButton';
+import SectionHeader from '../components/ds/SectionHeader';
 
-/**
- * Fisher–Yates 打乱，返回新数组（不改入参）。
- * AI 出题时倾向把正确答案放在 options[0]，若不打乱会导致正确项恒为 A。
- * 判分按选项内容字符串匹配（option === correct_*），故仅打乱 options 顺序即可，
- * 无需同步移动 correct_answer/correct_definition（它们存内容而非索引）。
- */
 function shuffleOptions<T>(arr: T[]): T[] {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -42,6 +35,7 @@ function shuffleOptions<T>(arr: T[]): T[] {
 export default function ExamSetupScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
+  const typography = colors.typography;
   const { isPro } = useAuth();
   const styles = useStyles();
   const [allWords, setAllWords] = useState<Word[]>([]);
@@ -54,7 +48,6 @@ export default function ExamSetupScreen() {
   const [questionType, setQuestionType] = useState<ExamQuestionType>('definition');
   const [questionCount, setQuestionCount] = useState(EXAM_CONFIG.DEFAULT_QUESTION_COUNT);
   const [isGenerating, setIsGenerating] = useState(false);
-  // 防止 useFocusEffect 重入时叠弹多个续答框（focus 可被多次触发）。
   const resumeCheckingRef = useRef(false);
 
   useFocusEffect(
@@ -65,7 +58,6 @@ export default function ExamSetupScreen() {
   );
 
   // 检测残留的 AI 出题草稿：有则弹「继续答题 / 放弃」。
-  // ExamAnswer 每答一题落草稿；中途返回到此屏 focus 时触发恢复提示。
   const checkResumeDraft = async () => {
     if (resumeCheckingRef.current) return;
     resumeCheckingRef.current = true;
@@ -117,7 +109,6 @@ export default function ExamSetupScreen() {
       }
       setWordAccuracy(accMap);
 
-      // 聚合每个词的最近学习日期，供"今天到期复习"优先级判断
       const lastStudyMap = new Map<string, string>();
       for (const r of records) {
         const cur = lastStudyMap.get(r.word_id);
@@ -180,7 +171,11 @@ export default function ExamSetupScreen() {
       return;
     }
     if (selectedWords.length < questionCount) {
-      Alert.alert('生词不足', `需要选够 ${questionCount} 个生词才能出题（当前已选 ${selectedWords.length} 个）`);
+      showConfirm(
+        '生词不足',
+        `需要选够 ${questionCount} 个生词才能出题（当前已选 ${selectedWords.length} 个）`,
+        { confirmText: '知道了', cancelText: '关闭' }
+      ).catch(() => {});
       return;
     }
     setIsGenerating(true);
@@ -190,7 +185,6 @@ export default function ExamSetupScreen() {
         meaning: w.definitions.find(d => d.is_core)?.meaning || w.definitions[0]?.meaning || '',
       }));
 
-      // 按单词文本回查原始 Word，避免 AI 返回条数/顺序与入参不一致时 word_id 错配
       const wordByText = new Map<string, typeof selectedWords[number]>();
       selectedWords.forEach(w => wordByText.set(w.word.toLowerCase(), w));
       const resolveWord = (targetWord: string, i: number) =>
@@ -228,12 +222,11 @@ export default function ExamSetupScreen() {
       }
 
       if (allQuestions.length === 0) {
-        Alert.alert('出题失败', '未能生成任何题目，请重试');
+        showConfirm('出题失败', '未能生成任何题目，请重试', { confirmText: '知道了', cancelText: '关闭' }).catch(() => {});
         setIsGenerating(false);
         return;
       }
 
-      // 生成即落草稿（整套题 + 空答案）：答到一半退出可在 ExamSetup 续答恢复。
       await StorageService.saveExamDraft({
         questions: allQuestions,
         answers: [],
@@ -252,7 +245,7 @@ export default function ExamSetupScreen() {
         subscriptionPrompt(navigation, 'AI 出题功能需要会员订阅，是否前往订阅页？');
         return;
       }
-      Alert.alert('出题失败', error.message || '题目生成失败，请重试');
+      showConfirm('出题失败', error.message || '题目生成失败，请重试', { confirmText: '知道了', cancelText: '关闭' }).catch(() => {});
     } finally {
       setIsGenerating(false);
     }
@@ -263,63 +256,85 @@ export default function ExamSetupScreen() {
   );
 
   const canStart = selectedWords.length >= questionCount;
-
   const questionTypeLabel = questionType === 'definition' ? '释义单选' : '完形选词';
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* 题数调节 */}
-      <Surface style={styles.settingsBar}>
-        <Text style={styles.settingsText}>
-          题型: {questionTypeLabel}
-        </Text>
-        <View style={styles.countStepper}>
-          <Button
-            mode="text"
-            compact
-            onPress={async () => {
-              const newCount = Math.max(EXAM_CONFIG.MIN_QUESTION_COUNT, questionCount - 1);
-              if (newCount !== questionCount) {
-                setQuestionCount(newCount);
-                await StorageService.saveSettings({ examQuestionCount: newCount });
-                if (selectMode === 'smart') {
-                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, newCount, lastStudyDate);
-                  setSelectedWords(recommended);
-                }
-              }
-            }}
-            disabled={questionCount <= EXAM_CONFIG.MIN_QUESTION_COUNT}
-            labelStyle={styles.countStepperBtn}
-          >
-            −
-          </Button>
-          <Text style={styles.countText}>{questionCount} 题</Text>
-          <Button
-            mode="text"
-            compact
-            onPress={async () => {
-              const newCount = Math.min(EXAM_CONFIG.MAX_QUESTION_COUNT, questionCount + 1);
-              if (newCount !== questionCount) {
-                setQuestionCount(newCount);
-                await StorageService.saveSettings({ examQuestionCount: newCount });
-                if (selectMode === 'smart') {
-                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, newCount, lastStudyDate);
-                  setSelectedWords(recommended);
-                }
-              }
-            }}
-            disabled={questionCount >= EXAM_CONFIG.MAX_QUESTION_COUNT}
-            labelStyle={styles.countStepperBtn}
-          >
-            +
-          </Button>
-        </View>
-      </Surface>
+  const surface = {
+    backgroundColor: colors.surface,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  } as const;
 
-      {/* 题型选择 */}
-      <Card style={styles.card}>
-        <Card.Title title="选择题型" titleStyle={styles.cardTitle} />
-        <Card.Content>
+  // 题数步进器
+  const renderCountStepper = () => {
+    const decDisabled = questionCount <= EXAM_CONFIG.MIN_QUESTION_COUNT;
+    const incDisabled = questionCount >= EXAM_CONFIG.MAX_QUESTION_COUNT;
+    const stepBtn = (onPress: () => void, disabled: boolean, glyph: string) => (
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        style={({ pressed }) => [
+          styles.stepperBtn,
+          { backgroundColor: colors.primaryContainer, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
+        ]}
+      >
+        <Text style={styles.stepperGlyph}>{glyph}</Text>
+      </Pressable>
+    );
+    return (
+      <View style={styles.stepperRow}>
+        <Text style={styles.stepperLabel}>题数</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {stepBtn(async () => {
+            const n = Math.max(EXAM_CONFIG.MIN_QUESTION_COUNT, questionCount - 1);
+            if (n !== questionCount) {
+              setQuestionCount(n);
+              await StorageService.saveSettings({ examQuestionCount: n });
+              if (selectMode === 'smart') {
+                setSelectedWords(getRecommendedWords(allWords, coverage, wordAccuracy, n, lastStudyDate));
+              }
+            }
+          }, decDisabled, '−')}
+          <View style={styles.numberBadge}>
+            <Text style={styles.numberText}>{questionCount}</Text>
+          </View>
+          {stepBtn(async () => {
+            const n = Math.min(EXAM_CONFIG.MAX_QUESTION_COUNT, questionCount + 1);
+            if (n !== questionCount) {
+              setQuestionCount(n);
+              await StorageService.saveSettings({ examQuestionCount: n });
+              if (selectMode === 'smart') {
+                setSelectedWords(getRecommendedWords(allWords, coverage, wordAccuracy, n, lastStudyDate));
+              }
+            }
+          }, incDisabled, '+')}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}>
+      {/* Hero + 题数 */}
+      <View style={[styles.hero, { backgroundColor: colors.primary, borderRadius: radius.xl }, colors.shadow.card]}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.caption.size, letterSpacing: 0.6 }}>
+            AI 出题练习
+          </Text>
+          <Text style={{ color: colors.onPrimary, fontSize: typography.headline.size, lineHeight: typography.headline.lineHeight, fontWeight: '700', letterSpacing: -0.3 }}>
+            {questionTypeLabel} · {questionCount} 题
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: typography.bodySm.size, marginTop: 2 }}>
+            {isPro ? '由云端 DeepSeek 根据你的生词出题' : '需订阅解锁 AI 出题'}
+          </Text>
+        </View>
+        {renderCountStepper()}
+      </View>
+
+      {/* 题型 */}
+      <View style={{ marginTop: spacing.lg }}>
+        <SectionHeader title="选择题型" icon="format-list-bulleted" compact />
+        <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
           <SegmentedButtons
             value={questionType}
             onValueChange={(val) => setQuestionType(val as ExamQuestionType)}
@@ -327,41 +342,39 @@ export default function ExamSetupScreen() {
               { value: 'definition', label: '释义单选' },
               { value: 'cloze', label: '完形选词' },
             ]}
-            style={styles.segmentButtons}
           />
           <Text style={styles.typeHint}>
             {questionType === 'definition'
               ? '给定含有生词的英文句子，选择正确的英文释义（AI 出题）'
               : '给定含空白的句子，选择正确的单词填入（AI 出题）'}
           </Text>
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
 
       {/* 选词 */}
-      <Card style={styles.card}>
-        <Card.Title title="选择生词" titleStyle={styles.cardTitle} />
-        <Card.Content>
+      <View style={{ marginTop: spacing.lg }}>
+        <SectionHeader title="选择生词" icon="book-open-variant" compact />
+        <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
           <SegmentedButtons
             value={selectMode}
             onValueChange={(val) => {
               setSelectMode(val as 'smart' | 'manual');
               if (val === 'smart') {
-                const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, questionCount, lastStudyDate);
-                setSelectedWords(recommended);
+                setSelectedWords(getRecommendedWords(allWords, coverage, wordAccuracy, questionCount, lastStudyDate));
               }
             }}
             buttons={[
               { value: 'smart', label: '智能推荐' },
               { value: 'manual', label: '手动选择' },
             ]}
-            style={styles.segmentButtons}
           />
 
+          <Text style={styles.sectionLabel}>
+            已选 {selectedWords.length}/{questionCount} 个
+          </Text>
+
           {selectMode === 'smart' && (
-            <View style={styles.selectedArea}>
-              <Text style={styles.sectionLabel}>
-                已选 {selectedWords.length}/{questionCount} 个
-              </Text>
+            <View>
               {selectedWords.length === 0 && allWords.length > 0 && (
                 <Text style={styles.noWordsHint}>
                   单词本中的词都已覆盖 ≥3 次，可切换手动选择
@@ -370,145 +383,230 @@ export default function ExamSetupScreen() {
               <View style={styles.wordGrid}>
                 {selectedWords.map(word => (
                   <View key={word.id} style={styles.wordItem}>
-                    <Chip
-                      style={styles.selectedWordChip}
-                      textStyle={styles.wordChipText}
-                      onClose={() => replaceWord(word)}
-                      closeIcon={({color, size}: any) => (
-                        <Text style={{color, fontSize: size, lineHeight: size}}>✕</Text>
-                      )}
-                    >
-                      {word.word}
-                    </Chip>
-                    <Text
-                      style={[styles.coverageBadge, { color: getCoverageColor(word.id) }]}
-                    >
+                    <View style={styles.selectedWordChip}>
+                      <Text style={styles.selectedWordChipText}>{word.word}</Text>
+                      <Pressable onPress={() => replaceWord(word)} hitSlop={6} style={styles.chipClose}>
+                        <Text style={styles.chipCloseText}>✕</Text>
+                      </Pressable>
+                    </View>
+                    <Text style={[styles.coverageBadge, { color: getCoverageColor(word.id) }]}>
                       {getCoverageLabel(word.id)}
                     </Text>
                   </View>
                 ))}
               </View>
-              <Button
-                mode="text"
-                onPress={() => {
-                  const recommended = getRecommendedWords(allWords, coverage, wordAccuracy, questionCount, lastStudyDate);
-                  setSelectedWords(recommended);
-                }}
-                icon="refresh"
+              <Pressable
+                onPress={() => setSelectedWords(getRecommendedWords(allWords, coverage, wordAccuracy, questionCount, lastStudyDate))}
+                style={({ pressed }) => [styles.textActionRow, { opacity: pressed ? 0.7 : 1 }]}
               >
-                重新推荐
-              </Button>
+                <MaterialCommunityIcons name="refresh" size={16} color={colors.primary} />
+                <Text style={styles.textActionLabel}>重新推荐</Text>
+              </Pressable>
             </View>
           )}
 
           {selectMode === 'manual' && (
-            <View style={styles.manualArea}>
-              <Text style={styles.sectionLabel}>
-                已选 {selectedWords.length}/{questionCount} 个
-              </Text>
+            <View>
               <Searchbar
                 placeholder="搜索单词..."
                 onChangeText={setSearchQuery}
                 value={searchQuery}
-                style={styles.searchBar}
-                inputStyle={styles.searchInput}
-                icon={() => <Text style={{ fontSize: 16 }}>🔍</Text>}
+                style={[styles.searchBar, { backgroundColor: colors.background, borderColor: colors.outline }]}
+                inputStyle={{ fontSize: typography.bodySm.size, minHeight: 0 }}
+                icon={() => <MaterialCommunityIcons name="magnify" size={18} color={colors.tertiary} />}
               />
               <View style={styles.wordGrid}>
                 {filteredWords.map(word => {
                   const isSelected = selectedWords.some(w => w.id === word.id);
                   return (
-                    <TouchableOpacity
-                      key={word.id}
-                      onPress={() => toggleWordSelection(word)}
-                    >
-                      <View style={styles.manualWordItem}>
-                        <Chip
-                          style={[
-                            styles.manualWordChip,
-                            isSelected && styles.manualWordChipSelected,
-                          ]}
-                          textStyle={[
-                            styles.wordChipText,
-                            isSelected && styles.wordChipTextSelected,
-                          ]}
-                        >
-                          {word.word}
-                        </Chip>
-                        <Text
-                          style={[styles.coverageBadge, { color: getCoverageColor(word.id) }]}
-                        >
+                    <Pressable key={word.id} onPress={() => toggleWordSelection(word)}>
+                      <View style={styles.wordItem}>
+                        <View style={[styles.manualWordChip, isSelected && { backgroundColor: colors.primary }]}>
+                          <Text style={[styles.manualWordChipText, isSelected && { color: colors.onPrimary }]}>
+                            {word.word}
+                          </Text>
+                        </View>
+                        <Text style={[styles.coverageBadge, { color: getCoverageColor(word.id) }]}>
                           {getCoverageLabel(word.id)}
                         </Text>
                       </View>
-                    </TouchableOpacity>
+                    </Pressable>
                   );
                 })}
               </View>
             </View>
           )}
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
 
       {/* 开始按钮 */}
-      <Button
-        mode="contained"
-        onPress={handleStartExam}
-        style={[styles.startButton, !canStart && styles.startButtonDisabled]}
-        loading={isGenerating}
-        disabled={!canStart || isGenerating}
-        icon="play-circle"
-      >
-        {isGenerating ? '正在出题...' : 'AI出题'}
-      </Button>
-
-      {isGenerating && (
-        <View style={styles.loadingArea}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>AI 正在为你生成题目...</Text>
-          <Text style={styles.loadingHint}>这可能需要 10-30 秒</Text>
-        </View>
-      )}
+      <View style={{ marginTop: spacing.md }}>
+        <AppButton
+          title={isGenerating ? '正在出题...' : 'AI 出题'}
+          onPress={handleStartExam}
+          variant="primary"
+          size="lg"
+          fullWidth
+          loading={isGenerating}
+          disabled={!canStart || isGenerating}
+          leftIcon={<MaterialCommunityIcons name="creation" size={20} color={colors.onPrimary} />}
+        />
+        {isGenerating && (
+          <View style={styles.loadingArea}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>AI 正在为你生成题目...</Text>
+            <Text style={styles.loadingHint}>这可能需要 10-30 秒</Text>
+          </View>
+        )}
+      </View>
     </ScrollView>
   );
 }
 
 const useStyles = makeStyles(colors => ({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, paddingBottom: 40 },
-  settingsBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, marginBottom: 12,
-    backgroundColor: colors.primaryContainer, elevation: 1,
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    minHeight: 110,
+    gap: 12,
   },
-  settingsText: { fontSize: 13, color: colors.primary },
-  countStepper: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
+  stepperRow: {
+    alignItems: 'center',
+    gap: 6,
   },
-  countStepperBtn: { fontSize: 18, fontWeight: 'bold' },
-  countText: { fontSize: 14, fontWeight: 'bold', color: colors.primary, minWidth: 44, textAlign: 'center' },
-  card: { marginBottom: 12, borderRadius: 12, elevation: 2 },
-  cardTitle: { fontSize: 16, fontWeight: '600' },
-  segmentButtons: { marginBottom: 12 },
-  typeHint: { fontSize: 12, color: colors.tertiary, marginTop: 4, lineHeight: 18 },
-  sectionLabel: { fontSize: 14, color: colors.onSurfaceVariant, marginBottom: 10 },
-  selectedArea: { marginTop: 4 },
-  manualArea: { marginTop: 4 },
-  searchBar: { marginBottom: 12, backgroundColor: colors.background, borderRadius: 8, elevation: 0, height: 40 },
-  searchInput: { fontSize: 13, minHeight: 0 },
-  wordGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  wordItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  selectedWordChip: { backgroundColor: colors.primaryContainer },
-  wordChipText: { fontSize: 12 },
-  wordChipTextSelected: { color: colors.surface },
-  coverageBadge: { fontSize: 10, fontWeight: '500', marginLeft: 2 },
-  noWordsHint: { fontSize: 13, color: palette.accent, marginBottom: 10 },
-  manualWordItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  manualWordChip: { backgroundColor: colors.background },
-  manualWordChipSelected: { backgroundColor: colors.primary },
-  startButton: { marginTop: 8, paddingVertical: 8, borderRadius: 12 },
-  startButtonDisabled: { opacity: 0.5 },
-  loadingArea: { alignItems: 'center', paddingVertical: 32 },
-  loadingText: { fontSize: 15, color: colors.onSurfaceVariant, marginTop: 16 },
-  loadingHint: { fontSize: 12, color: colors.tertiary, marginTop: 4 },
+  stepperLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.78)',
+    letterSpacing: 0.6,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperGlyph: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  numberBadge: {
+    minWidth: 44,
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  numberText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  typeHint: {
+    fontSize: 12,
+    color: colors.tertiary,
+    marginTop: 10,
+    lineHeight: 18,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  noWordsHint: {
+    fontSize: 13,
+    color: colors.warning,
+    marginBottom: 10,
+  },
+  wordGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  wordItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginBottom: 4,
+  },
+  selectedWordChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.primaryContainer,
+  },
+  selectedWordChipText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  chipClose: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipCloseText: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  coverageBadge: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginLeft: 2,
+  },
+  manualWordChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  manualWordChipText: {
+    fontSize: 12,
+    color: colors.onSurface,
+  },
+  textActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 14,
+  },
+  textActionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  searchBar: {
+    borderRadius: 8,
+    borderWidth: 1,
+    elevation: 0,
+    height: 40,
+    marginBottom: 10,
+  },
+  loadingArea: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 6,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: colors.onSurfaceVariant,
+    marginTop: 12,
+  },
+  loadingHint: {
+    fontSize: 12,
+    color: colors.tertiary,
+  },
 }));

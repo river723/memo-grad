@@ -1,21 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, ScrollView } from 'react-native';
-import {
-  Card,
-  Text,
-  Button,
-  Divider,
-} from 'react-native-paper';
+import { View, ScrollView, Pressable } from 'react-native';
+import { Text } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
-import { palette } from '../theme/tokens';
+import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { ExamQuestion, ExamAnswer as ExamAnswerType, ExamQuestionType } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
+import AppButton from '../components/ds/AppButton';
 
 export default function ExamResultScreen() {
   const { colors } = useAppTheme();
+  const typography = colors.typography;
   const styles = useStyles();
   const navigation = useAppNavigation();
   const route = useAppRoute<'ExamResult'>();
@@ -39,10 +37,9 @@ export default function ExamResultScreen() {
   // 保存 ExamSession + 更新错题本
   useEffect(() => {
     if (savedRef.current || total === 0) return;
-    savedRef.current = true; // 同步置位，防止双挂载/重入导致重复保存
+    savedRef.current = true;
     const persist = async () => {
       try {
-        // 1. 保存本次练习记录（新建或覆盖）
         const sessionData = {
           questions,
           answers,
@@ -55,12 +52,8 @@ export default function ExamResultScreen() {
         } else {
           await StorageService.saveExamSession(sessionData);
         }
-
-        // session 已落库，清除 AI 出题草稿（中途退出可恢复的临时态）。
-        // 放在 saveExamSession 之后：若上面抛错则保留草稿待下次重试。
         await StorageService.clearExamDraft();
 
-        // 2. 更新错题本
         let anyWrong = false;
         for (const answer of answers) {
           await StorageService.addOrUpdateWrongQuestion(
@@ -71,7 +64,6 @@ export default function ExamResultScreen() {
           if (!answer.is_correct) anyWrong = true;
         }
 
-        // 3. 清理已掌握的错题（correct_count ≥ 3）
         const wrongQs = await StorageService.getWrongQuestions();
         for (const wq of wrongQs) {
           if (wq.correct_count >= WRONG_QUESTION_MASTERY_THRESHOLD) {
@@ -79,7 +71,6 @@ export default function ExamResultScreen() {
           }
         }
 
-        // 4. 保存 StudyRecord（每个答到的单词）
         const today = new Date().toISOString().split('T')[0];
         for (const answer of answers) {
           await StorageService.addStudyRecord({
@@ -99,28 +90,35 @@ export default function ExamResultScreen() {
   }, []);
 
   const getAccuracyColor = (rate: number) => {
-    if (rate >= 0.8) return palette.success;
-    if (rate >= 0.6) return palette.accent;
-    return palette.danger;
+    if (rate >= 0.8) return colors.success;
+    if (rate >= 0.6) return colors.warning;
+    return colors.danger;
   };
 
   const typeLabel = questionType === 'definition' ? '释义单选' : '完形选词';
 
+  const surface = {
+    backgroundColor: colors.surface,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  } as const;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}>
       {/* 总览卡片 */}
-      <Card style={styles.summaryCard}>
-        <Card.Content style={styles.summaryContent}>
-          <Text style={styles.summaryLabel}>练习完成! · {typeLabel}</Text>
-          <Text style={[styles.summaryAccuracy, { color: getAccuracyColor(accuracy) }]}>
-            {accuracyPercent}%
-          </Text>
-          <Text style={styles.summaryDetail}>
-            共 {total} 题，答对 {correctCount} 题，答错 {wrongAnswers.length} 题
-            {answers.length < total ? `，未答 ${total - answers.length} 题` : ''}
-          </Text>
-        </Card.Content>
-      </Card>
+      <View style={[surface, { padding: spacing.xl, alignItems: 'center' }, colors.shadow.card]}>
+        <Text style={{ fontSize: typography.bodyLg.size, color: colors.onSurfaceVariant, marginBottom: spacing.sm }}>
+          练习完成! · {typeLabel}
+        </Text>
+        <Text style={[{ fontSize: typography.numeralXl.size, lineHeight: typography.numeralXl.lineHeight, fontWeight: '800', marginBottom: spacing.sm }, { color: getAccuracyColor(accuracy) }]}>
+          {accuracyPercent}%
+        </Text>
+        <Text style={{ fontSize: typography.body.size, color: colors.tertiary, textAlign: 'center' }}>
+          共 {total} 题，答对 {correctCount} 题，答错 {wrongAnswers.length} 题
+          {answers.length < total ? `，未答 ${total - answers.length} 题` : ''}
+        </Text>
+      </View>
 
       {/* 逐题回顾 */}
       <Text style={styles.reviewHeader}>答题回顾</Text>
@@ -130,105 +128,91 @@ export default function ExamResultScreen() {
         const isAnswered = answer != null;
 
         return (
-          <Card key={idx} style={styles.reviewCard}>
-            <Card.Content>
-              <View style={styles.reviewHeaderRow}>
-                <View style={styles.reviewTagRow}>
-                  <View style={[styles.reviewTypeTag,
-                    { backgroundColor: question.type === 'definition' ? palette.primaryLight : palette.accentLight }]}>
-                    <Text style={[styles.reviewTypeText,
-                      { color: question.type === 'definition' ? colors.primary : palette.accentDark }]}>
-                      {question.type === 'definition' ? '释义单选' : '完形选词'}
-                    </Text>
-                  </View>
-                  <Text style={styles.reviewNumber}>第 {idx + 1} 题</Text>
-                </View>
-                {isAnswered ? (
-                  <Text style={[styles.reviewVerdict, { color: isCorrect ? palette.success : palette.danger }]}>
-                    {isCorrect ? '✓ 正确' : '✗ 错误'}
+          <View key={idx} style={[surface, { padding: spacing.md, marginBottom: spacing.sm }, colors.shadow.hairline]}>
+            <View style={styles.reviewHeaderRow}>
+              <View style={styles.reviewTagRow}>
+                <View style={[styles.reviewTypeTag,
+                  { backgroundColor: question.type === 'definition' ? colors.primaryContainer : colors.secondaryContainer }]}>
+                  <Text style={[styles.reviewTypeText,
+                    { color: question.type === 'definition' ? colors.primary : colors.secondary }]}>
+                    {question.type === 'definition' ? '释义单选' : '完形选词'}
                   </Text>
-                ) : (
-                  <Text style={[styles.reviewVerdict, { color: colors.tertiary }]}>未作答</Text>
+                </View>
+                <Text style={styles.reviewNumber}>第 {idx + 1} 题</Text>
+              </View>
+              {isAnswered ? (
+                <Text style={[styles.reviewVerdict, { color: isCorrect ? colors.success : colors.danger }]}>
+                  {isCorrect ? '✓ 正确' : '✗ 错误'}
+                </Text>
+              ) : (
+                <Text style={[styles.reviewVerdict, { color: colors.tertiary }]}>未作答</Text>
+              )}
+            </View>
+
+            <View style={styles.reviewDivider} />
+
+            {question.type === 'definition' ? (
+              <View>
+                <Text style={styles.reviewSentence}>{question.sentence.replace(/\*/g, '')}</Text>
+                <Text style={styles.reviewWordTag}>目标词: {question.word}</Text>
+                <Text style={styles.reviewCorrectAnswer}>正确答案：{question.correct_definition}</Text>
+                {isAnswered && !isCorrect && (
+                  <Text style={styles.reviewUserAnswer}>
+                    你的选择：{answer!.selected_answer || '（未作答）'}
+                  </Text>
                 )}
               </View>
-
-              <Divider style={styles.reviewDivider} />
-
-              {question.type === 'definition' ? (
-                <View>
-                  <Text style={styles.reviewSentence}>{question.sentence.replace(/\*/g, '')}</Text>
-                  <Text style={styles.reviewWordTag}>目标词: {question.word}</Text>
-                  <Text style={styles.reviewCorrectAnswer}>
-                    正确答案：{question.correct_definition}
+            ) : (
+              <View>
+                <Text style={styles.reviewSentence}>
+                  {question.sentence.replace('[BLANK]', '______')}
+                </Text>
+                {question.chinese_hint ? (
+                  <Text style={styles.reviewHint}>💡 {question.chinese_hint}</Text>
+                ) : null}
+                <Text style={styles.reviewCorrectAnswer}>正确答案：{question.correct_answer}</Text>
+                {isAnswered && !isCorrect && (
+                  <Text style={styles.reviewUserAnswer}>
+                    你的选择：{answer!.selected_answer || '（未作答）'}
                   </Text>
-                  {isAnswered && !isCorrect && (
-                    <Text style={styles.reviewUserAnswer}>
-                      你的选择：{answer!.selected_answer || '（未作答）'}
-                    </Text>
-                  )}
-                </View>
-              ) : (
-                <View>
-                  <Text style={styles.reviewSentence}>
-                    {question.sentence.replace('[BLANK]', '______')}
-                  </Text>
-                  {question.chinese_hint ? (
-                    <Text style={styles.reviewHint}>💡 {question.chinese_hint}</Text>
-                  ) : null}
-                  <Text style={styles.reviewCorrectAnswer}>
-                    正确答案：{question.correct_answer}
-                  </Text>
-                  {isAnswered && !isCorrect && (
-                    <Text style={styles.reviewUserAnswer}>
-                      你的选择：{answer!.selected_answer || '（未作答）'}
-                    </Text>
-                  )}
-                </View>
-              )}
-            </Card.Content>
-          </Card>
+                )}
+              </View>
+            )}
+          </View>
         );
       })}
 
       {/* 操作按钮 */}
-      <View style={styles.actions}>
-        <Button
-          mode="contained"
+      <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+        <AppButton
+          title="再来一组"
           onPress={() => navigation.navigate('ExamSetup')}
-          style={styles.actionButton}
-          icon="refresh"
-        >
-          再来一组
-        </Button>
+          variant="primary"
+          size="lg"
+          fullWidth
+          leftIcon={<MaterialCommunityIcons name="refresh" size={20} color={colors.onPrimary} />}
+        />
         {hasWrongQuestions && (
-          <Button
-            mode="outlined"
+          <AppButton
+            title="复习错题"
             onPress={() => navigation.navigate('WrongQuestionReview')}
-            style={styles.actionButton}
-            icon="alert-circle"
-          >
-            复习错题
-          </Button>
+            variant="secondary"
+            size="lg"
+            fullWidth
+            leftIcon={<MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.primary} />}
+          />
         )}
-        <Button
-          mode="outlined"
-          onPress={() => {
-            navigation.navigate('Main', {
-              screen: 'Home' as any,
-              params: { screen: 'WordList' as any },
-            });
-          }}
-          style={styles.actionButton}
-          icon="book"
-        >
-          查看单词
-        </Button>
-        <Button
-          mode="text"
-          onPress={() => navigation.navigate('Main', { screen: 'Home' as any })}
-        >
-          返回首页
-        </Button>
+        <AppButton
+          title="返回练习"
+          onPress={() => navigation.popToTop()}
+          variant="secondary"
+          size="lg"
+          fullWidth
+          leftIcon={<MaterialCommunityIcons name="arrow-left" size={20} color={colors.primary} />}
+        />
+        <Pressable onPress={() => navigation.navigate('Main', { screen: 'Home' as any })} style={({ pressed }) => [styles.textBtn, { opacity: pressed ? 0.7 : 1 }]}>
+          <Text style={styles.textBtnLabel}>返回首页</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -236,26 +220,19 @@ export default function ExamResultScreen() {
 
 const useStyles = makeStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, paddingBottom: 40 },
-  summaryCard: { borderRadius: 16, elevation: 3, marginBottom: 16, backgroundColor: colors.surface },
-  summaryContent: { alignItems: 'center', paddingVertical: 24 },
-  summaryLabel: { fontSize: 16, color: colors.onSurfaceVariant, marginBottom: 8 },
-  summaryAccuracy: { fontSize: 56, fontWeight: '800', marginBottom: 8 },
-  summaryDetail: { fontSize: 14, color: colors.tertiary },
-  reviewHeader: { fontSize: 17, fontWeight: '700', color: colors.onSurface, marginBottom: 12 },
-  reviewCard: { borderRadius: 12, elevation: 2, marginBottom: 10 },
+  reviewHeader: { fontSize: 17, fontWeight: '700', color: colors.onSurface, marginTop: 20, marginBottom: 12 },
   reviewHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   reviewTagRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reviewTypeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  reviewTypeTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   reviewTypeText: { fontSize: 11, fontWeight: '600' },
   reviewNumber: { fontSize: 13, color: colors.tertiary },
   reviewVerdict: { fontSize: 14, fontWeight: '700' },
-  reviewDivider: { marginVertical: 10, backgroundColor: colors.outline },
+  reviewDivider: { height: 1, backgroundColor: colors.outline, marginVertical: 10, opacity: 0.5 },
   reviewSentence: { fontSize: 15, color: colors.onSurfaceVariant, lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
-  reviewWordTag: { fontSize: 13, color: palette.primaryDark, fontWeight: '600', marginBottom: 4 },
+  reviewWordTag: { fontSize: 13, color: colors.primary, fontWeight: '600', marginBottom: 4 },
   reviewHint: { fontSize: 12, color: colors.tertiary, marginBottom: 6 },
-  reviewCorrectAnswer: { fontSize: 14, color: palette.successDark, fontWeight: '500', marginTop: 4 },
-  reviewUserAnswer: { fontSize: 14, color: palette.dangerDark, marginTop: 2 },
-  actions: { marginTop: 8, gap: 10 },
-  actionButton: { borderRadius: 12, paddingVertical: 4 },
+  reviewCorrectAnswer: { fontSize: 14, color: colors.success, fontWeight: '500', marginTop: 4 },
+  reviewUserAnswer: { fontSize: 14, color: colors.danger, marginTop: 2 },
+  textBtn: { paddingVertical: 12, alignItems: 'center' },
+  textBtnLabel: { fontSize: 14, fontWeight: '600', color: colors.primary },
 }));

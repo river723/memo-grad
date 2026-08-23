@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import { Card, Text, Button, Surface } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
@@ -81,12 +81,12 @@ export default function RealExamWritingScreen() {
 
                 {part.sample ? (
                   <>
-                    <TouchableOpacity onPress={() => toggle(idx)} activeOpacity={0.7}>
+                    <Pressable onPress={() => toggle(idx)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
                       <View style={styles.revealHeader}>
                         <Text style={styles.revealLabel}>参考范文</Text>
                         <Text style={styles.revealToggle}>{open ? '收起 ▲' : '查看 ▼'}</Text>
                       </View>
-                    </TouchableOpacity>
+                    </Pressable>
                     {open ? (
                       <Surface style={styles.sampleBox}>
                         <Text style={styles.sampleText}>{part.sample}</Text>
@@ -132,7 +132,7 @@ const useStyles = makeStyles(colors => ({
   emptyText: { fontSize: 16, color: colors.tertiary, marginBottom: 16 },
   content: { padding: 16, paddingBottom: 32 },
   pageHint: { fontSize: 12, color: colors.tertiary, marginBottom: 12, lineHeight: 18 },
-  partCard: { borderRadius: 12, elevation: 2, marginBottom: 14 },
+  partCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface, marginBottom: 14 },
   sectionTag: {
     alignSelf: 'flex-start', backgroundColor: colors.primaryContainer,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 10,

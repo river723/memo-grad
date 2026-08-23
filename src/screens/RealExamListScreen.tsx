@@ -1,31 +1,27 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, Text } from 'react-native';
-import { Card, SegmentedButtons } from 'react-native-paper';
+import { View, ScrollView, Pressable, Text } from 'react-native';
+import { SegmentedButtons } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AppIcon, { type IconName } from '../components/ds/AppIcon';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
-import { palette } from '../theme/tokens';
+import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import { getExamYears, getExamSet, type ExamSet, type SetId } from '../utils/realExamContent';
+import { getExamYears, getExamSet, type ExamSet } from '../utils/realExamContent';
 import type { RealExamYear, RealExamSession, RealExamWrongQuestion } from '../types';
+import EmptyState from '../components/ds/EmptyState';
 
 type SetFilter = 'all' | 'english1' | 'english2';
 type PaperStatus = { text: string; color: string };
 
-/** 年份卡数据：year 元数据 + 已加载的套卷内容（懒加载，展开时才拉）。 */
 type YearEntry = {
   year: number;
   english1: RealExamYear['english1'] | null;
   english2: RealExamYear['english2'] | null;
 };
 
-/**
- * 真题练习入口页：按年份列出可练习的历年真题。
- * - 顶部英一/英二筛选；年份卡片可折叠（默认展开最近一年）。
- * - 每个 passage / 完形入口展示上次得分与待复习错题数，便于续练与回顾。
- */
 export default function RealExamListScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
@@ -33,13 +29,10 @@ export default function RealExamListScreen() {
   const [sessions, setSessions] = useState<RealExamSession[]>([]);
   const [wrongs, setWrongs] = useState<RealExamWrongQuestion[]>([]);
   const [filter, setFilter] = useState<SetFilter>('all');
-  // 年份元数据 + 各年份的套卷内容。年份列表异步拉取；套卷内容懒加载（展开时才拉）。
   const [years, setYears] = useState<YearEntry[]>([]);
   const [loadingYears, setLoadingYears] = useState(true);
-  // 默认展开最近一年，其余折叠，避免十年全铺开
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  // 首屏：拉年份列表 + 默认展开最近一年
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -50,7 +43,7 @@ export default function RealExamListScreen() {
         setYears(entries);
         if (entries.length > 0) {
           setExpanded(new Set([entries[0].year]));
-          loadYearContent(entries[0].year); // 默认展开最近一年
+          loadYearContent(entries[0].year);
         }
       } catch (err) {
         console.warn('[RealExamList] 拉取年份列表失败：', err);
@@ -63,12 +56,10 @@ export default function RealExamListScreen() {
     };
   }, []);
 
-  // 展开某一年时懒加载该年的套卷内容
   const loadYearContent = useCallback((year: number) => {
     setYears((prev) => {
       const entry = prev.find((e) => e.year === year);
       if (!entry || (entry.english1 && entry.english2)) return prev;
-      // 触发加载（不 await，加载完成后 setYears 更新）
       (async () => {
         try {
           const [e1, e2] = await Promise.all([
@@ -109,7 +100,6 @@ export default function RealExamListScreen() {
     }, [])
   );
 
-  // 按 paperId 聚合：最近一次会话得分 + 当前待复习错题数
   const statusByPaper = useMemo(() => {
     const map = new Map<string, { lastScore: number; lastTotal: number; wrongCount: number }>();
     const latestByPaper = new Map<string, RealExamSession>();
@@ -136,35 +126,26 @@ export default function RealExamListScreen() {
     if (st.lastTotal > 0) {
       const acc = st.lastScore / st.lastTotal;
       parts.push(`上次 ${st.lastScore}/${st.lastTotal}`);
-      color = acc >= 0.7 ? palette.success : acc >= 0.5 ? palette.accent : palette.danger;
+      color = acc >= 0.7 ? colors.success : acc >= 0.5 ? colors.warning : colors.danger;
     }
     if (st.wrongCount > 0) {
       parts.push(`错${st.wrongCount}待复习`);
-      if (st.lastTotal === 0) color = palette.accent;
+      if (st.lastTotal === 0) color = colors.warning;
     }
     if (parts.length === 0) return null;
     return { text: parts.join(' · '), color };
   };
 
-  const goReading = (year: number, setId: 'english1' | 'english2', passageId: string) => {
+  const goReading = (year: number, setId: 'english1' | 'english2', passageId: string) =>
     navigation.navigate('RealExamReading', { year, setId, passageId });
-  };
-
-  const goCloze = (year: number, setId: 'english1' | 'english2', paperId: string) => {
+  const goCloze = (year: number, setId: 'english1' | 'english2', paperId: string) =>
     navigation.navigate('RealExamCloze', { year, setId, paperId });
-  };
-
-  const goNewType = (year: number, setId: 'english1' | 'english2', paperId: string) => {
+  const goNewType = (year: number, setId: 'english1' | 'english2', paperId: string) =>
     navigation.navigate('RealExamNewType', { year, setId, paperId });
-  };
-
-  const goTranslation = (year: number, setId: 'english1' | 'english2', paperId: string) => {
+  const goTranslation = (year: number, setId: 'english1' | 'english2', paperId: string) =>
     navigation.navigate('RealExamTranslation', { year, setId, paperId });
-  };
-
-  const goWriting = (year: number, setId: 'english1' | 'english2', paperId: string) => {
+  const goWriting = (year: number, setId: 'english1' | 'english2', paperId: string) =>
     navigation.navigate('RealExamWriting', { year, setId, paperId });
-  };
 
   const toggleYear = (year: number) => {
     setExpanded(prev => {
@@ -173,7 +154,7 @@ export default function RealExamListScreen() {
         next.delete(year);
       } else {
         next.add(year);
-        loadYearContent(year); // 展开时懒加载套卷内容
+        loadYearContent(year);
       }
       return next;
     });
@@ -181,19 +162,20 @@ export default function RealExamListScreen() {
 
   if (loadingYears) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📚</Text>
-        <Text style={styles.emptyText}>真题加载中…</Text>
+      <View style={styles.centerContainer}>
+        <Text style={{ color: colors.onSurfaceVariant }}>真题加载中…</Text>
       </View>
     );
   }
 
   if (years.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📚</Text>
-        <Text style={styles.emptyText}>暂无真题数据</Text>
-        <Text style={styles.emptyHint}>后续版本将逐步补充历年真题</Text>
+      <View style={styles.container}>
+        <EmptyState
+          icon="book-open-page-variant"
+          title="暂无真题数据"
+          description="后续版本将逐步补充历年真题，敬请期待。"
+        />
       </View>
     );
   }
@@ -202,7 +184,7 @@ export default function RealExamListScreen() {
     label: string,
     set: RealExamYear['english1'] | null,
     setId: 'english1' | 'english2',
-    yearObj: YearEntry,
+    yearObj: YearEntry
   ) => {
     if (!set) {
       return (
@@ -216,61 +198,59 @@ export default function RealExamListScreen() {
     return (
       <View style={styles.setGroup}>
         <Text style={styles.setTitle}>{label}</Text>
-        {reading.length > 0 && (
-          <View style={styles.entryList}>
-            {reading.map((passage, idx) => (
-              <EntryRow
-                key={passage.id}
-                icon="book-open-variant"
-                title={passage.title || `Text ${idx + 1}`}
-                count={passage.questions.length}
-                status={statusFor(passage.id)}
-                onPress={() => goReading(yearObj.year, setId, passage.id)}
-              />
-            ))}
-          </View>
-        )}
-        {cloze && (
-          <EntryRow
-            icon="format-letter-matches"
-            title="完形填空"
-            count={20}
-            status={statusFor(cloze.id)}
-            onPress={() => goCloze(yearObj.year, setId, cloze.id)}
-          />
-        )}
-        {newType && (
-          <EntryRow
-            icon="sort-variant"
-            title="新题型"
-            count={newType.questions.length}
-            status={statusFor(newType.id)}
-            onPress={() => goNewType(yearObj.year, setId, newType.id)}
-          />
-        )}
-        {translation && (
-          <EntryRow
-            icon="translate"
-            title="翻译"
-            badge="阅览"
-            onPress={() => goTranslation(yearObj.year, setId, translation.id)}
-          />
-        )}
-        {writing && (
-          <EntryRow
-            icon="pencil-outline"
-            title="写作"
-            badge="阅览"
-            onPress={() => goWriting(yearObj.year, setId, writing.id)}
-          />
-        )}
+        <View style={styles.entryList}>
+          {reading.map((passage, idx) => (
+            <EntryRow
+              key={passage.id}
+              icon="book-open-variant"
+              title={passage.title || `Text ${idx + 1}`}
+              count={passage.questions.length}
+              status={statusFor(passage.id)}
+              onPress={() => goReading(yearObj.year, setId, passage.id)}
+            />
+          ))}
+          {cloze && (
+            <EntryRow
+              icon="format-letter-matches"
+              title="完形填空"
+              count={20}
+              status={statusFor(cloze.id)}
+              onPress={() => goCloze(yearObj.year, setId, cloze.id)}
+            />
+          )}
+          {newType && (
+            <EntryRow
+              icon="sort-variant"
+              title="新题型"
+              count={newType.questions.length}
+              status={statusFor(newType.id)}
+              onPress={() => goNewType(yearObj.year, setId, newType.id)}
+            />
+          )}
+          {translation && (
+            <EntryRow
+              icon="translate"
+              title="翻译"
+              badge="阅览"
+              onPress={() => goTranslation(yearObj.year, setId, translation.id)}
+            />
+          )}
+          {writing && (
+            <EntryRow
+              icon="pencil-outline"
+              title="写作"
+              badge="阅览"
+              onPress={() => goWriting(yearObj.year, setId, writing.id)}
+            />
+          )}
+        </View>
       </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['2xl'] }}>
         <SegmentedButtons
           value={filter}
           onValueChange={(v) => setFilter(v as SetFilter)}
@@ -279,7 +259,6 @@ export default function RealExamListScreen() {
             { value: 'english1', label: '英语一' },
             { value: 'english2', label: '英语二' },
           ]}
-          style={styles.filter}
         />
         <Text style={styles.tip}>
           共 {years.length} 年真题 · 一次一篇 · 客观题自动评分
@@ -287,25 +266,34 @@ export default function RealExamListScreen() {
         {years.map(year => {
           const isExpanded = expanded.has(year.year);
           return (
-            <Card key={year.year} style={styles.yearCard}>
-              <TouchableOpacity
-                style={styles.yearHeader}
+            <View
+              key={year.year}
+              style={[
+                styles.yearCard,
+                { backgroundColor: colors.surface, borderColor: colors.outline, borderRadius: radius.lg },
+              ]}
+            >
+              <Pressable
                 onPress={() => toggleYear(year.year)}
-                activeOpacity={0.7}
+                style={({ pressed }) => [styles.yearHeader, { opacity: pressed ? 0.7 : 1 }]}
               >
                 <View>
                   <Text style={styles.cardTitle}>{year.year} 年</Text>
                   <Text style={styles.yearSubtitle}>考研英语一 / 英语二</Text>
                 </View>
-                <Text style={styles.chevron}>{isExpanded ? '收起 ▲' : '展开 ▼'}</Text>
-              </TouchableOpacity>
+                <MaterialCommunityIcons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={22}
+                  color={colors.primary}
+                />
+              </Pressable>
               {isExpanded && (
-                <Card.Content>
+                <View style={styles.yearBody}>
                   {filter !== 'english2' && renderSet('英语一', year.english1, 'english1', year)}
                   {filter !== 'english1' && renderSet('英语二', year.english2, 'english2', year)}
-                </Card.Content>
+                </View>
               )}
-            </Card>
+            </View>
           );
         })}
       </ScrollView>
@@ -313,7 +301,6 @@ export default function RealExamListScreen() {
   );
 }
 
-/** 单个真题入口行：图标 + 标题/题数 + 状态（上次得分 / 待复习错题）。 */
 function EntryRow({
   icon,
   title,
@@ -322,7 +309,7 @@ function EntryRow({
   status,
   onPress,
 }: {
-  icon: string;
+  icon: IconName;
   title: string;
   count?: number;
   badge?: string;
@@ -331,19 +318,22 @@ function EntryRow({
 }) {
   const { colors } = useAppTheme();
   const styles = useStyles();
+  const typography = colors.typography;
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.entryRow}>
-        <MaterialCommunityIcons name={icon as any} size={18} color={colors.tertiary} />
-        <View style={styles.entryText}>
-          <Text style={styles.entryTitle}>
-            {title}{count != null ? ` (${count}题)` : ''}{badge ? ` · ${badge}` : ''}
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.entryRow, { borderColor: colors.outline, opacity: pressed ? 0.7 : 1 }]}>
+      <AppIcon name={icon} size={18} color={colors.primary} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: typography.bodySm.size, fontWeight: '500', color: colors.onSurface }}>
+          {title}{count != null ? ` (${count}题)` : ''}{badge ? ` · ${badge}` : ''}
+        </Text>
+        {status ? (
+          <Text style={{ fontSize: typography.caption.size, color: status.color, marginTop: 2 }}>
+            {status.text}
           </Text>
-          {status ? <Text style={[styles.entryStatus, { color: status.color }]}>{status.text}</Text> : null}
-        </View>
-        <Text style={styles.entryArrow}>›</Text>
+        ) : null}
       </View>
-    </TouchableOpacity>
+      <MaterialCommunityIcons name="chevron-right" size={18} color={colors.tertiary} />
+    </Pressable>
   );
 }
 
@@ -352,33 +342,33 @@ const useStyles = makeStyles(colors => ({
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  filter: {
-    marginBottom: 10,
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
   },
   tip: {
     fontSize: 13,
     color: colors.onSurfaceVariant,
-    marginBottom: 12,
+    marginVertical: 10,
     textAlign: 'center',
   },
   yearCard: {
-    marginBottom: 12,
-    elevation: 2,
+    marginBottom: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   yearHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.onSurface,
   },
   yearSubtitle: {
@@ -386,10 +376,9 @@ const useStyles = makeStyles(colors => ({
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
-  chevron: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '600',
+  yearBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 14,
   },
   setGroup: {
     marginBottom: 12,
@@ -403,11 +392,10 @@ const useStyles = makeStyles(colors => ({
     fontSize: 14,
     fontWeight: '600',
     color: colors.onSurface,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   entryList: {
     gap: 8,
-    marginBottom: 8,
   },
   entryRow: {
     flexDirection: 'row',
@@ -415,46 +403,8 @@ const useStyles = makeStyles(colors => ({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: colors.outline,
     gap: 10,
-  },
-  entryText: {
-    flex: 1,
-  },
-  entryTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.onSurface,
-  },
-  entryStatus: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  entryArrow: {
-    fontSize: 20,
-    color: colors.tertiary,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-    backgroundColor: colors.background,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: colors.onSurfaceVariant,
-    marginBottom: 6,
-  },
-  emptyHint: {
-    fontSize: 13,
-    color: colors.tertiary,
-    textAlign: 'center',
   },
 }));
