@@ -4,7 +4,7 @@
     "slug": "kaoyan-english-vocabulary",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/MemoGrad.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
@@ -27,8 +27,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/MemoGrad.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-icon-bg.png"
       },
       "package": "com.kaoyan.vocabulary"
     },
