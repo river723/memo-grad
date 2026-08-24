@@ -2,10 +2,23 @@ name: Build Unsigned iOS IPA
 
 # 在 Windows 上无 Mac、无付费 Apple 账号时，用 GitHub 托管的 macOS runner
 # 构建「未签名 ipa」，再用 Sideloadly 在本机拿免费 Apple ID 重签名安装。
+#
+# 双形态（2026-08 统一代码库后）：
+#   手动触发时选 mode：
+#     online  → 网络版（默认；push 自动触发也固定出网络版）
+#     offline → 单机版（EXPO_PUBLIC_OFFLINE_MODE=1，免登录/AI 本地 Key/本地内容）
+#   两种 ipa 的 Sideloadly 重签名安装流程完全相同，仅 JS bundle 内联的
+#   EXPO_PUBLIC_* 环境变量不同。
 # 详见 .claude/plans/ipad-iphone-sprightly-moore.md
 
 on:
   workflow_dispatch:      # 允许在 Actions 页面手动触发
+    inputs:
+      mode:
+        description: '构建形态：online=网络版 / offline=单机版'
+        type: choice
+        options: [online, offline]
+        default: online
   push:
     branches: [main, NetDict]
     paths:
@@ -27,6 +40,10 @@ jobs:
     timeout-minutes: 45
     env:
       EXPO_PUBLIC_API_URL: http://192.168.1.8:5888
+      # 形态开关：手动触发按 mode 派生；push 触发 inputs.mode 为空 → 固定 online
+      # Metro 在 xcodebuild 打包阶段静态内联 EXPO_PUBLIC_*（与 API_URL 同机制）
+      EXPO_PUBLIC_OFFLINE_MODE: ${{ inputs.mode == 'offline' && '1' || '0' }}
+      EXPO_PUBLIC_USE_REMOTE_CONTENT: ${{ inputs.mode == 'offline' && 'false' || 'true' }}
       # CI 环境跳过交互式更新检查
       CI: true
       # 注意：不要设置 RCT_NEW_ARCH_ENABLED=0 之类变量试图关闭新架构——
@@ -119,20 +136,21 @@ jobs:
           path: ios/build/xcodebuild.log
           retention-days: 7
 
-      # 把 .app 装进 Payload/ 再压成 .ipa（Sideloadly 会重签名）
+      # 把 .app 装进 Payload/ 再压成 .ipa（Sideloadly 会重签名）；文件名带形态后缀
       - name: Package IPA
         working-directory: ios
         run: |
+          MODE=${{ inputs.mode == 'offline' && 'offline' || 'online' }}
           mkdir -p build/Payload
           cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
           cd build
-          zip -r -q ../kaoyan-unsigned.ipa Payload
+          zip -r -q "kaoyan-unsigned-${MODE}.ipa" Payload
           cd ..
-          echo "IPA size: $(du -h kaoyan-unsigned.ipa | cut -f1)"
+          echo "IPA size: $(du -h kaoyan-unsigned-${MODE}.ipa | cut -f1)"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kaoyan-unsigned-ipa
-          path: ios/kaoyan-unsigned.ipa
+          name: kaoyan-unsigned-${{ inputs.mode == 'offline' && 'offline' || 'online' }}-ipa
+          path: ios/kaoyan-unsigned-*.ipa
           retention-days: 14

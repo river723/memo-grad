@@ -118,10 +118,10 @@ export const REMOTE_CONTENT =
 
 ### 打包命令总览
 
-| 形态 \ 平台 | 安卓 APK | Windows 桌面 |
-|---|---|---|
-| **网络版（在线）** | `eas build -p android --profile preview` | `npm run tauri:build` |
-| **单机版（离线）** | `eas build -p android --profile offline-apk` | `npm run tauri:build:offline` |
+| 形态 \ 平台 | 安卓 APK | Windows 桌面 | iOS（未签名 ipa） |
+|---|---|---|---|
+| **网络版（在线）** | `eas build -p android --profile preview` | `npm run tauri:build` | Actions 手动触发，mode=online |
+| **单机版（离线）** | `eas build -p android --profile offline-apk` | `npm run tauri:build:offline` | Actions 手动触发，mode=offline |
 
 ```bash
 # —— 在线安卓 APK（EAS 云构建，本机无 JDK/SDK 不能本地构建）——
@@ -143,7 +143,30 @@ npm run build:web            # 在线形态 → web-build/
 npm run build:web:offline    # 单机形态 → web-build/
 ```
 
-iOS 未签名 ipa 走 GitHub Actions 工作流（`.github/workflows/`），推送触发。
+### iOS 构建（未签名 ipa + Sideloadly 重签）
+
+本机无 Mac、无付费 Apple 开发者账号，iOS 走 GitHub 托管 macOS runner 产出**未签名 ipa**，
+再本机用 Sideloadly + 免费 Apple ID 重签名安装（7 天有效期）。工作流：
+[.github/workflows/build-ios.yml](.github/workflows/build-ios.yml)。
+
+```bash
+# 方式一：gh CLI 触发（--field 选形态）
+gh workflow run build-ios.yml -f mode=online     # 网络版
+gh workflow run build-ios.yml -f mode=offline    # 单机版
+
+# 跟踪进度 / 下载产物（artifact 保留 14 天）
+gh run watch
+gh run download          # 解压得 kaoyan-unsigned-<online|offline>.ipa
+```
+
+方式二：GitHub 网页 → Actions → "Build Unsigned iOS IPA" → Run workflow → 选 mode。
+
+注意：
+
+- **push 到 NetDict 的自动触发只出网络版包**（零回归）；单机版仅手动触发。
+- 两种形态的 Sideloadly 安装流程完全相同，仅 JS bundle 内联的 `EXPO_PUBLIC_*` 不同。
+- 单机版 ipa 装机后冒烟：免登录直达主界面、设置出现 AI 设置区块、飞行模式下加单词/复习/AI 出题可用。
+- 不走 EAS 构建 iOS：内部分发需要付费开发者账号做 ad-hoc 签名。
 
 ### 新功能开发守则
 
