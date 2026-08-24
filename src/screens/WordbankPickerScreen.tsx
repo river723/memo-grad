@@ -709,6 +709,7 @@ const useStyles = makeStyles(colors => ({
     paddingVertical: 12,
     borderRadius: 14,
     elevation: 6,
+    backgroundColor: colors.surface,
   },
   sortModalTitle: {
     fontSize: 15,

@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, Animated, Easing } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AppIcon, { type IconName } from '../components/ds/AppIcon';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { useAppTheme } from '../theme/theme';
@@ -44,7 +45,7 @@ type TodaySuggestion = {
   title: string;
   description: string;
   actionLabel: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap | string;
+  icon: IconName;
   route: SuggestionRoute;
 };
 
@@ -369,7 +370,7 @@ export default function HomeScreen() {
                 variant="primary"
                 size="lg"
                 fullWidth
-                leftIcon={<MaterialCommunityIcons name={todaySuggestion.icon as any} size={20} color={colors.onPrimary} />}
+                leftIcon={<AppIcon name={todaySuggestion.icon} size={20} color={colors.onPrimary} />}
               />
               {todaySuggestion.actionLabel === '继续学习' && todayStats.wrongQuestionCount > 0 && (
                 <AppButton
@@ -580,7 +581,12 @@ export default function HomeScreen() {
             {/* 一周趋势摘要（点击进 StatsDetail） */}
             {weeklyTrend.length > 0 && (
               <Pressable
-                onPress={() => navigation.navigate('Main' as any, { screen: 'Stats' as any })}
+                onPress={() =>
+                  navigation.navigate('Main' as any, {
+                    screen: 'Stats' as any,
+                    params: { screen: 'StatsDetail' as any },
+                  })
+                }
                 style={({ pressed }) => [
                   styles.trendCard,
                   {

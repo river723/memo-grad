@@ -1,21 +1,21 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import {
-  Card,
-  Text,
-  Button,
-  IconButton,
-} from 'react-native-paper';
+import { View, ScrollView, Pressable } from 'react-native';
+import { Text } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
-import { palette } from '../theme/tokens';
+import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { ExamSession } from '../types';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
+import AppButton from '../components/ds/AppButton';
+import EmptyState from '../components/ds/EmptyState';
 
 export default function ExamHistoryScreen() {
   const { colors } = useAppTheme();
+  const typography = colors.typography;
   const styles = useStyles();
   const navigation = useAppNavigation();
   const [sessions, setSessions] = useState<ExamSession[]>([]);
@@ -32,22 +32,17 @@ export default function ExamHistoryScreen() {
     setSessions(all);
   };
 
-  const handleDelete = (id: string) => {
-    Alert.alert('删除记录', '确定要删除这套考题吗？', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '删除',
-        style: 'destructive',
-        onPress: async () => {
-          await StorageService.deleteExamSession(id);
-          loadSessions();
-        },
-      },
-    ]);
+  const handleDelete = async (id: string) => {
+    const confirmed = await showConfirm('删除记录', '确定要删除这套考题吗？', {
+      confirmText: '删除',
+      cancelText: '取消',
+    }).catch(() => false);
+    if (!confirmed) return;
+    await StorageService.deleteExamSession(id);
+    loadSessions();
   };
 
   const handleRedo = (session: ExamSession) => {
-    // 不传 sessionId：重做走新建而非覆盖，保留原成绩记录以呈现进步轨迹。
     navigation.navigate('ExamAnswer', {
       questions: session.questions,
       questionType: session.question_type,
@@ -55,9 +50,9 @@ export default function ExamHistoryScreen() {
   };
 
   const getAccuracyColor = (rate: number) => {
-    if (rate >= 0.8) return palette.success;
-    if (rate >= 0.6) return palette.accent;
-    return palette.danger;
+    if (rate >= 0.8) return colors.success;
+    if (rate >= 0.6) return colors.warning;
+    return colors.danger;
   };
 
   const formatDate = (iso: string) => {
@@ -69,82 +64,135 @@ export default function ExamHistoryScreen() {
     return `${month}月${day}日 ${hours}:${mins}`;
   };
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {sessions.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📋</Text>
-          <Text style={styles.emptyTitle}>暂无考题记录</Text>
-          <Text style={styles.emptyHint}>完成AI出题练习后可在此复习</Text>
-          <Button
-            mode="outlined"
-            onPress={() => navigation.navigate('ExamSetup')}
-            style={styles.emptyButton}
-          >
-            去做一组练习
-          </Button>
-        </View>
-      ) : (
-        sessions.map(session => {
-          const total = session.questions.length;
-          const correct = session.answers.filter(a => a.is_correct).length;
+  if (sessions.length === 0) {
+    return (
+      <View style={styles.container}>
+        <EmptyState
+          icon="clipboard-text-history"
+          title="暂无考题记录"
+          description="完成 AI 出题练习后，可在此复习历史成绩与重做。"
+          actionLabel="去做一组练习"
+          onAction={() => navigation.navigate('ExamSetup')}
+        />
+      </View>
+    );
+  }
 
-          return (
-            <TouchableOpacity
-              key={session.id}
-              onPress={() => handleRedo(session)}
-              activeOpacity={0.7}
-            >
-              <Card style={styles.sessionCard}>
-                <Card.Content>
-                  <View style={styles.sessionHeader}>
-                    <View style={styles.sessionInfo}>
-                      <Text style={styles.sessionDate}>{formatDate(session.created_at)}</Text>
-                      <Text style={styles.sessionType}>
-                        {session.question_type === 'definition' ? '释义单选' : '完形选词'}
-                        {' · '}{total} 题
-                        {' · 上次答对 '}{correct} 题
-                      </Text>
-                    </View>
-                    <View style={styles.sessionScoreRow}>
-                      <Text style={[styles.sessionScore, { color: getAccuracyColor(session.accuracy) }]}>
-                        {Math.round(session.accuracy * 100)}%
-                      </Text>
-                      <Text style={styles.sessionCount}>{correct}/{total}</Text>
-                    </View>
-                  </View>
-                </Card.Content>
-                <IconButton
-                  icon="delete"
-                  iconColor={colors.tertiary}
-                  size={18}
-                  style={styles.deleteIcon}
-                  onPress={() => handleDelete(session.id)}
-                />
-              </Card>
-            </TouchableOpacity>
-          );
-        })
-      )}
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['2xl'] }}>
+      {sessions.map(session => {
+        const total = session.questions.length;
+        const correct = session.answers.filter(a => a.is_correct).length;
+        return (
+          <Pressable
+            key={session.id}
+            onPress={() => handleRedo(session)}
+            style={({ pressed }) => [
+              styles.sessionCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.outline,
+                borderRadius: radius.lg,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <View style={styles.sessionHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: typography.bodyLg.size, fontWeight: '600', color: colors.onSurface }}>
+                  {formatDate(session.created_at)}
+                </Text>
+                <Text style={{ fontSize: typography.caption.size, color: colors.onSurfaceVariant, marginTop: 2 }}>
+                  {session.question_type === 'definition' ? '释义单选' : '完形选词'}
+                  {' · '}{total} 题 · 上次答对 {correct} 题
+                </Text>
+              </View>
+              <View style={styles.scoreCol}>
+                <Text style={[styles.sessionScore, { color: getAccuracyColor(session.accuracy) }]}>
+                  {Math.round(session.accuracy * 100)}%
+                </Text>
+                <Text style={{ fontSize: typography.caption.size, color: colors.onSurfaceVariant, marginTop: 1 }}>
+                  {correct}/{total}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.sessionFooter}>
+              <Pressable
+                onPress={() => handleDelete(session.id)}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.deleteBtn,
+                  { backgroundColor: pressed ? colors.errorContainer : 'transparent' },
+                ]}
+              >
+                <MaterialCommunityIcons name="delete-outline" size={16} color={colors.tertiary} />
+                <Text style={{ fontSize: typography.caption.size, color: colors.tertiary, marginLeft: 4 }}>删除</Text>
+              </Pressable>
+              <View style={styles.redoRow}>
+                <Text style={{ fontSize: typography.caption.size, color: colors.primary, fontWeight: '600' }}>重做</Text>
+                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} />
+              </View>
+            </View>
+          </Pressable>
+        );
+      })}
+
+      <View style={{ marginTop: spacing.lg }}>
+        <AppButton
+          title="再做一组练习"
+          onPress={() => navigation.navigate('ExamSetup')}
+          variant="secondary"
+          size="lg"
+          fullWidth
+          leftIcon={<MaterialCommunityIcons name="plus" size={20} color={colors.primary} />}
+        />
+      </View>
     </ScrollView>
   );
 }
 
 const useStyles = makeStyles(colors => ({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, paddingBottom: 40 },
-  emptyContainer: { alignItems: 'center', paddingVertical: 64 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: colors.onSurface, marginBottom: 8 },
-  emptyHint: { fontSize: 14, color: colors.tertiary, marginBottom: 24 },
-  emptyButton: { borderRadius: 12 },
-  sessionCard: { borderRadius: 12, elevation: 2, marginBottom: 10, position: 'relative' },
-  sessionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: 32 },
-  sessionInfo: { flex: 1 },
-  sessionDate: { fontSize: 15, fontWeight: '600', color: colors.onSurface },
-  sessionType: { fontSize: 12, color: colors.onSurfaceVariant, marginTop: 2 },
-  sessionScoreRow: { alignItems: 'flex-end' },
-  sessionScore: { fontSize: 24, fontWeight: '800' },
-  sessionCount: { fontSize: 12, color: colors.onSurfaceVariant, marginTop: 1 },
-  deleteIcon: { position: 'absolute', top: 4, right: 4 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  sessionCard: {
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  sessionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  scoreCol: {
+    alignItems: 'flex-end',
+  },
+  sessionScore: {
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  sessionFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.outline,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  redoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
 }));

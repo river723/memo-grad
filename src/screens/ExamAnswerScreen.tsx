@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import {
   Card,
   Text,
@@ -11,7 +11,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
-import { palette } from '../theme/tokens';
 import { ExamQuestion, ExamAnswer as ExamAnswerType, DefinitionQuestion, ClozeQuestion } from '../types';
 import { EXAM_CONFIG } from '../constants';
 import StorageService from '../services/StorageService';
@@ -372,14 +371,14 @@ function renderOption(
   }
 
   return (
-    <TouchableOpacity key={idx} onPress={() => onSelect(option)} activeOpacity={0.7}>
+    <Pressable key={idx} onPress={() => onSelect(option)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
       <View style={optionStyle}>
         <Text style={styles.optionIndex}>{'ABCD'[idx]}</Text>
         <Text style={textStyle} numberOfLines={3}>{option}</Text>
         {isRevealed && isCorrect && <Text style={styles.checkIcon}>✓</Text>}
         {isRevealed && isSelected && !isCorrect && <Text style={styles.crossIcon}>✗</Text>}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -493,22 +492,20 @@ const useStyles = makeStyles(colors => ({
   optionsGrid: { gap: 10, marginTop: 4 },
   optionButton: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.outline,
-    minHeight: 56,
-    borderLeftWidth: 4,
-    borderLeftColor: 'transparent',
+    minHeight: 44,
   },
-  optionSelected: { borderColor: colors.primary, borderLeftColor: colors.primary, backgroundColor: colors.primaryContainer },
-  optionCorrect: { borderColor: colors.success, borderLeftColor: colors.success, backgroundColor: colors.status.active.bg },
-  optionIncorrect: { borderColor: colors.danger, borderLeftColor: colors.danger, backgroundColor: colors.status.refunded.bg },
-  optionIndex: { fontSize: 15, fontWeight: '700', color: colors.tertiary, width: 28, textAlign: 'center' },
-  optionText: { fontSize: 15, color: colors.onSurface, flex: 1, lineHeight: 22 },
+  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primaryContainer },
+  optionCorrect: { borderColor: colors.success, backgroundColor: colors.status.active.bg },
+  optionIncorrect: { borderColor: colors.danger, backgroundColor: colors.status.refunded.bg },
+  optionIndex: { fontSize: 14, fontWeight: '700', color: colors.tertiary, width: 24, textAlign: 'center', marginTop: 1 },
+  optionText: { fontSize: 14, color: colors.onSurface, flex: 1, lineHeight: 20 },
   optionTextSelected: { color: colors.primary, fontWeight: '600' },
   optionTextCorrect: { color: colors.success, fontWeight: '600' },
   optionTextIncorrect: { color: colors.danger, fontWeight: '600' },

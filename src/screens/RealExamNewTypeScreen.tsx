@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { Card, Text, Button, Surface, ProgressBar } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
+import { useAppTheme } from '../theme/theme';
 import { generateId } from '../utils/idUtils';
-import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { getExamSet } from '../utils/realExamContent';
 import type {
@@ -31,6 +31,7 @@ const SUBTYPE_LABEL: Record<RealExamNewTypePaper['subtype'], string> = {
 export default function RealExamNewTypeScreen() {
   const navigation = useAppNavigation();
   const route = useAppRoute<'RealExamNewType'>();
+  const { colors } = useAppTheme();
   const styles = useStyles();
 
   const { year, setId, paperId } = (route.params || {}) as {
@@ -174,7 +175,7 @@ export default function RealExamNewTypeScreen() {
             ? <Text style={styles.progressCount}>得分 {score} / {total}</Text>
             : <Text style={styles.progressCount}>已答 {answeredCount} / {total}</Text>}
         </View>
-        <ProgressBar progress={submitted ? 1 : progress} color={palette.primary} style={styles.bar} />
+        <ProgressBar progress={submitted ? 1 : progress} color={colors.primary} style={styles.bar} />
       </Surface>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -250,11 +251,11 @@ export default function RealExamNewTypeScreen() {
                     const showCorrect = submitted && o.letter === q.answer;
                     const showWrong = submitted && isSel && !isCorrect;
                     return (
-                      <TouchableOpacity
+                      <Pressable
                         key={o.letter}
-                        activeOpacity={0.7}
                         disabled={submitted || o.fixed}
                         onPress={() => handleSelect(q.index, o.letter)}
+                        style={({ pressed }) => pressed && { opacity: 0.7 }}
                       >
                         <View
                           style={[
@@ -275,7 +276,7 @@ export default function RealExamNewTypeScreen() {
                             {o.letter}
                           </Text>
                         </View>
-                      </TouchableOpacity>
+                      </Pressable>
                     );
                   })}
                 </View>
@@ -325,7 +326,7 @@ const useStyles = makeStyles(colors => ({
   emptyText: { fontSize: 16, color: colors.tertiary, marginBottom: 16 },
   progressBar: {
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
-    backgroundColor: colors.surface, elevation: 2,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.outline,
   },
   progressHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6,
@@ -335,9 +336,9 @@ const useStyles = makeStyles(colors => ({
   bar: { height: 6, borderRadius: 3 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 24 },
-  dirCard: { borderRadius: 12, elevation: 1, marginBottom: 12, backgroundColor: colors.surface },
-  passageCard: { borderRadius: 12, elevation: 2, marginBottom: 12 },
-  poolCard: { borderRadius: 12, elevation: 2, marginBottom: 16 },
+  dirCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, marginBottom: 12, backgroundColor: colors.surface },
+  passageCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface, marginBottom: 12 },
+  poolCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface, marginBottom: 16 },
   sectionTag: {
     alignSelf: 'flex-start', backgroundColor: colors.primaryContainer,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 10,
@@ -349,7 +350,7 @@ const useStyles = makeStyles(colors => ({
   poolLetter: { fontSize: 13, fontWeight: '700', color: colors.primary, marginBottom: 4 },
   poolText: { fontSize: 14, color: colors.onSurface, lineHeight: 21 },
   answerTitle: { fontSize: 15, fontWeight: '700', color: colors.onSurface, marginBottom: 8 },
-  questionCard: { borderRadius: 12, elevation: 1, marginBottom: 10 },
+  questionCard: { borderRadius: 12, elevation: 0, borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surface, marginBottom: 10 },
   questionHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10,
   },
@@ -362,8 +363,8 @@ const useStyles = makeStyles(colors => ({
   },
   letterChipSel: { borderColor: colors.primary, backgroundColor: colors.primaryContainer },
   letterChipDisabled: { opacity: 0.4 },
-  letterChipCorrect: { borderColor: palette.success, backgroundColor: palette.successLight },
-  letterChipWrong: { borderColor: palette.danger, backgroundColor: palette.dangerLight },
+  letterChipCorrect: { borderColor: colors.success, backgroundColor: colors.primaryContainer },
+  letterChipWrong: { borderColor: colors.danger, backgroundColor: colors.errorContainer },
   letterChipText: { fontSize: 16, fontWeight: '700', color: colors.onSurface },
   letterChipTextSel: { color: colors.primary },
   letterChipTextEmph: { fontWeight: '800' },
@@ -373,13 +374,13 @@ const useStyles = makeStyles(colors => ({
   },
   explanationLabel: { fontSize: 12, fontWeight: '700', color: colors.primary, marginBottom: 4 },
   explanationText: { fontSize: 13, color: colors.onSurface, lineHeight: 20 },
-  badgeCorrect: { fontSize: 13, color: palette.success, fontWeight: '600' },
-  badgeWrong: { fontSize: 13, color: palette.danger, fontWeight: '600' },
+  badgeCorrect: { fontSize: 13, color: colors.success, fontWeight: '600' },
+  badgeWrong: { fontSize: 13, color: colors.danger, fontWeight: '600' },
   badgeSkipped: { fontSize: 13, color: colors.tertiary, fontWeight: '600' },
   footerActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   footerButton: { flex: 1 },
   bottomBar: {
-    paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.surface, elevation: 4,
+    paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.outline,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
   bottomHint: { fontSize: 13, color: colors.onSurfaceVariant, flex: 1 },

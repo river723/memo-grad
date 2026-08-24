@@ -1,29 +1,21 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import {
-  Card,
-  Text,
-  Button,
-  Modal,
-  Chip,
-  ActivityIndicator,
-  IconButton,
-} from 'react-native-paper';
+import { View, ScrollView, Pressable } from 'react-native';
+import { Text, ActivityIndicator } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
-import { palette } from '../theme/tokens';
+import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
 import { Article, Word } from '../types';
 import { parseArticleContent, TextSegment } from '../utils/storyUtils';
 import { getLocalWordDictResult } from '../utils/wordUtils';
+import AppButton from '../components/ds/AppButton';
+import WordDictModal from '../components/WordDictModal';
 
 const THEME_LABELS: Record<string, string> = {
   technology: '科技',
@@ -34,12 +26,11 @@ const THEME_LABELS: Record<string, string> = {
   random: '随机',
 };
 
-// TextSegment / parseArticleContent 已移至 src/utils/storyUtils.ts 供 StoryDetailScreen 复用
-
 export default function ArticleDetailScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
   const styles = useStyles();
+  const typography = colors.typography;
   const route = useAppRoute<'ArticleDetail'>();
   const { articleId } = route.params as { articleId: string };
 
@@ -61,19 +52,16 @@ export default function ArticleDetailScreen() {
     try {
       const art = await StorageService.getArticleById(articleId);
       if (!art) {
-        Alert.alert('错误', '文章不存在');
         navigation.goBack();
         return;
       }
       setArticle(art);
 
-      // 加载相关单词的完整信息
       const allWords = await StorageService.getWords();
       const wMap = new Map<string, Word>();
       for (const wordId of art.word_ids) {
         const word = allWords.find(w => w.id === wordId);
         if (word) {
-          // 生词本存的记录可能缺少记忆技巧等字段，用本地词库回填
           const dict = await getLocalWordDictResult(word.word);
           const enriched: Word = dict
             ? {
@@ -91,18 +79,18 @@ export default function ArticleDetailScreen() {
       }
       setWordMap(wMap);
 
-      // 解析文章内容
       const segs = parseArticleContent(art.content, art.words, wMap);
       setSegments(segs);
 
-      // 加载设置，触发旧数据迁移
       await StorageService.getSettings();
 
-      // 更新已读次数
+      const newReadCount = (art.read_count || 0) + 1;
+      const now = new Date().toISOString();
       await StorageService.updateArticle(articleId, {
-        read_count: (art.read_count || 0) + 1,
-        last_read_at: new Date().toISOString(),
+        read_count: newReadCount,
+        last_read_at: now,
       });
+      setArticle({ ...art, read_count: newReadCount, last_read_at: now });
     } catch (error) {
       console.error('Failed to load article:', error);
     }
@@ -115,18 +103,15 @@ export default function ArticleDetailScreen() {
     }
   };
 
-  const handleDelete = () => {
-    Alert.alert('确认删除', '确定要删除这篇文章吗？删除后无法恢复。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '删除',
-        style: 'destructive',
-        onPress: async () => {
-          await StorageService.deleteArticle(articleId);
-          navigation.goBack();
-        },
-      },
-    ]);
+  const handleDelete = async () => {
+    const confirmed = await showConfirm(
+      '确认删除',
+      '确定要删除这篇文章吗？删除后无法恢复。',
+      { confirmText: '删除', cancelText: '取消' }
+    ).catch(() => false);
+    if (!confirmed) return;
+    await StorageService.deleteArticle(articleId);
+    navigation.goBack();
   };
 
   const handleRegenerate = async () => {
@@ -136,27 +121,24 @@ export default function ArticleDetailScreen() {
 
     setIsRegenerating(true);
     try {
-      const result = await AIService.generateFunArticle(
-        article.words,
-        article.theme,
-        200
-      );
+      const result = await AIService.generateFunArticle(article.words, article.theme, 200);
 
-      // 更新当前文章内容
       await StorageService.updateArticle(article.id, {
         title: result.title,
         content: result.content,
         translation: result.translation,
       });
 
-      // 重新加载
       await loadArticle();
     } catch (error: any) {
       if (error instanceof SubscriptionRequiredError) {
         subscriptionPrompt(navigation, 'AI 文章生成需要会员订阅，是否前往订阅页？');
         return;
       }
-      Alert.alert('重新生成失败', error.message || '请重试');
+      showConfirm('重新生成失败', error.message || '请重试', {
+        confirmText: '知道了',
+        cancelText: '关闭',
+      }).catch(() => {});
     } finally {
       setIsRegenerating(false);
     }
@@ -172,206 +154,152 @@ export default function ArticleDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* 文章头部 */}
-        <View style={styles.header}>
-          <Text style={styles.title}>{article.title}</Text>
-          <View style={styles.headerMeta}>
-            <Chip icon="tag" style={styles.themeChip} textStyle={styles.themeChipText}>
-              {THEME_LABELS[article.theme] || article.theme}
-            </Chip>
-            <Text style={styles.metaText}>
-              已读 {article.read_count || 0} 次
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 88 }}>
+        {/* Hero：标题 + 主题/已读 */}
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: colors.primary, borderRadius: radius.xl },
+            colors.shadow.card,
+          ]}
+        >
+          <View style={{ flex: 1, gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.themePillOnHero}>
+                <Text style={styles.themePillOnHeroText}>
+                  {THEME_LABELS[article.theme] || article.theme}
+                </Text>
+              </View>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: typography.caption.size }}>
+                打开 {article.read_count || 0} 次
+              </Text>
+            </View>
+            <Text
+              style={{
+                color: colors.onPrimary,
+                fontSize: typography.headline.size,
+                lineHeight: typography.headline.lineHeight,
+                fontWeight: '700',
+                letterSpacing: -0.3,
+              }}
+              numberOfLines={3}
+            >
+              {article.title}
             </Text>
           </View>
-          {/* 生词标签 */}
-          <View style={styles.wordTags}>
-            {article.words.map((word, index) => (
-              <Chip
-                key={index}
-                style={styles.wordTag}
-                textStyle={styles.wordTagText}
-                compact
-              >
-                {word}
-              </Chip>
-            ))}
+          <View style={styles.heroIcon}>
+            <MaterialCommunityIcons name="file-document" size={24} color={colors.onPrimary} />
           </View>
         </View>
 
-        {/* 文章正文 - 带生词高亮 */}
-        <Card style={styles.contentCard}>
-          <Card.Content>
-            {isRegenerating ? (
-              <View style={styles.regeneratingArea}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.regeneratingText}>正在重新生成文章...</Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.articleText}>
-                  {segments.map((seg, index) => {
-                    if (seg.isWord) {
-                      return (
-                        <Text
-                          key={index}
-                          style={styles.highlightedWord}
-                          onPress={() => handleWordTap(seg.wordObj)}
-                        >
-                          {seg.text}
-                        </Text>
-                      );
-                    }
-                    return <Text key={index}>{seg.text}</Text>;
-                  })}
-                </Text>
-                {article.translation ? (
-                  <View style={styles.translationToggleArea}>
-                    <Button
-                      mode="outlined"
-                      compact
-                      onPress={() => setShowTranslation(!showTranslation)}
-                      icon={showTranslation ? 'eye-off' : 'eye'}
-                      labelStyle={styles.translationToggleLabel}
-                      style={styles.translationToggleBtn}
-                    >
-                      {showTranslation ? '隐藏译文' : '显示译文'}
-                    </Button>
-                  </View>
-                ) : null}
-                {article.translation && showTranslation && (
-                  <View>
-                    <View style={styles.translationDivider} />
-                    <Text style={styles.translationLabel}>中文翻译</Text>
-                    <Text style={styles.translationContent}>
-                      {article.translation}
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
-          </Card.Content>
-        </Card>
+        {/* 生词标签 */}
+        <View style={styles.wordTagsRow}>
+          {article.words.map((word, index) => (
+            <View key={index} style={styles.wordTag}>
+              <Text style={styles.wordTagText}>{word}</Text>
+            </View>
+          ))}
+        </View>
 
-        {/* 底部提示 */}
+        {/* 文章正文 */}
+        <View
+          style={[
+            styles.contentCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.outline,
+              borderRadius: radius.lg,
+            },
+            colors.shadow.hairline,
+          ]}
+        >
+          {isRegenerating ? (
+            <View style={styles.regeneratingArea}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.regeneratingText}>正在重新生成文章...</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.articleText}>
+                {segments.map((seg, index) => {
+                  if (seg.isWord) {
+                    return (
+                      <Text
+                        key={index}
+                        style={styles.highlightedWord}
+                        onPress={() => handleWordTap(seg.wordObj)}
+                      >
+                        {seg.text}
+                      </Text>
+                    );
+                  }
+                  return <Text key={index}>{seg.text}</Text>;
+                })}
+              </Text>
+              {article.translation ? (
+                <View style={styles.translationToggleArea}>
+                  <Pressable
+                    onPress={() => setShowTranslation(!showTranslation)}
+                    style={({ pressed }) => [
+                      styles.translationToggle,
+                      { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={showTranslation ? 'eye-off' : 'eye'}
+                      size={16}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.translationToggleLabel}>
+                      {showTranslation ? '隐藏译文' : '显示译文'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {article.translation && showTranslation && (
+                <View>
+                  <View style={styles.translationDivider} />
+                  <Text style={styles.translationLabel}>中文翻译</Text>
+                  <Text style={styles.translationContent}>{article.translation}</Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+
         <Text style={styles.tapHint}>
           💡 点击文中<Text style={{ color: colors.primary, fontWeight: '600' }}>蓝色高亮</Text>生词可查看释义
         </Text>
       </ScrollView>
 
       {/* 底部操作栏 */}
-      <View style={styles.bottomBar}>
-        <Button
-          mode="outlined"
+      <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.outline }]}>
+        <AppButton
+          title={isRegenerating ? '生成中...' : '重新生成'}
           onPress={handleRegenerate}
+          variant="secondary"
+          size="lg"
           loading={isRegenerating}
           disabled={isRegenerating}
-          icon="refresh"
-          style={styles.bottomButton}
-        >
-          重新生成
-        </Button>
-        <Button
-          mode="outlined"
+          style={{ flex: 1 }}
+          leftIcon={<MaterialCommunityIcons name="refresh" size={20} color={colors.primary} />}
+        />
+        <AppButton
+          title="删除"
           onPress={handleDelete}
-          icon="delete-outline"
-          style={styles.bottomButton}
-          textColor={colors.danger}
-        >
-          删除
-        </Button>
+          variant="danger"
+          size="lg"
+          style={{ flex: 1 }}
+          leftIcon={<MaterialCommunityIcons name="delete-outline" size={20} color={colors.onPrimary} />}
+        />
       </View>
 
-      {/* 单词释义弹窗 */}
-      <Modal
+      {/* 单词释义弹窗（共享组件） */}
+      <WordDictModal
         visible={showWordModal}
-        onDismiss={() => setShowWordModal(false)}
-        contentContainerStyle={styles.wordModal}
-      >
-        {selectedWord && (
-          <View>
-            <View style={styles.wordModalHeader}>
-              <Text style={styles.wordModalTitle}>{selectedWord.word}</Text>
-              <IconButton
-                icon="close"
-                size={20}
-                onPress={() => setShowWordModal(false)}
-              />
-            </View>
-
-            {selectedWord.pronunciation_uk && (
-              <Text style={styles.pronunciation}>
-                英 /{selectedWord.pronunciation_uk}/
-                {selectedWord.pronunciation_us &&
-                  `  美 /${selectedWord.pronunciation_us}/`}
-              </Text>
-            )}
-
-            {/* 释义列表 */}
-            <View style={styles.definitions}>
-              {selectedWord.definitions.map((def, index) => (
-                <View key={index} style={styles.defItem}>
-                  <View style={styles.defHeader}>
-                    <Chip style={styles.posChip} textStyle={styles.posChipText} compact>
-                      {def.part_of_speech}
-                    </Chip>
-                    <Text style={styles.defMeaning}>{def.meaning}</Text>
-                    {def.is_core && (
-                      <Chip
-                        style={styles.coreChip}
-                        textStyle={styles.coreChipText}
-                        compact
-                      >
-                        核心
-                      </Chip>
-                    )}
-                    {def.is_rare_sense && (
-                      <Chip
-                        style={styles.rareChip}
-                        textStyle={styles.rareChipText}
-                        compact
-                      >
-                        熟词僻义
-                      </Chip>
-                    )}
-                  </View>
-                  {def.example ? (
-                    <Text style={styles.defExample}>{def.example}</Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-
-            {/* 词根词缀 */}
-            {selectedWord.etymology ? (
-              <View style={styles.etymologySection}>
-                <Text style={styles.sectionLabel}>词根词缀</Text>
-                <Text style={styles.etymologyText}>{selectedWord.etymology}</Text>
-              </View>
-            ) : null}
-
-            {/* 记忆口诀 */}
-            {selectedWord.memory_tip ? (
-              <View style={styles.etymologySection}>
-                <Text style={styles.sectionLabel}>记忆口诀</Text>
-                <Text style={styles.etymologyText}>{selectedWord.memory_tip}</Text>
-              </View>
-            ) : null}
-
-            {/* 相似词 */}
-            {Array.isArray(selectedWord.similar_words) && selectedWord.similar_words.length > 0 && (
-              <View style={styles.similarSection}>
-                <Text style={styles.sectionLabel}>易混词提醒</Text>
-                {selectedWord.similar_words.map((sw, index) => (
-                  <Text key={index} style={styles.similarText}>
-                    · {sw.word}（{sw.relation === 'spelling' ? '形近' : sw.relation === 'meaning' ? '义近' : '同根'}）— {sw.description}
-                  </Text>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-      </Modal>
+        onClose={() => setShowWordModal(false)}
+        word={selectedWord}
+      />
     </View>
   );
 }
@@ -387,54 +315,53 @@ const useStyles = makeStyles(colors => ({
     alignItems: 'center',
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 80,
-  },
-  header: {
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.onSurface,
-    marginBottom: 10,
-  },
-  headerMeta: {
+  hero: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 20,
+    minHeight: 110,
     gap: 12,
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  themeChip: {
-    backgroundColor: colors.primaryContainer,
-    height: 28,
+  heroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
-  themeChipText: {
+  themePillOnHero: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  themePillOnHeroText: {
     fontSize: 11,
-    color: colors.primary,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
-  metaText: {
-    fontSize: 12,
-    color: colors.tertiary,
-  },
-  wordTags: {
+  wordTagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+    marginBottom: 12,
   },
   wordTag: {
-    backgroundColor: palette.accentLight,
-    height: 26,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: colors.secondaryContainer,
   },
   wordTagText: {
     fontSize: 11,
-    color: palette.accentDark,
+    color: colors.secondary,
   },
   contentCard: {
-    borderRadius: 12,
-    elevation: 2,
-    marginBottom: 12,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 8,
   },
   articleText: {
     fontSize: 16,
@@ -457,137 +384,22 @@ const useStyles = makeStyles(colors => ({
     color: colors.onSurfaceVariant,
     marginTop: 12,
   },
-  tapHint: {
-    fontSize: 12,
-    color: colors.tertiary,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    padding: 12,
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.outline,
-  },
-  bottomButton: {
-    flex: 1,
-  },
-  wordModal: {
-    backgroundColor: colors.surface,
-    padding: 20,
-    margin: 24,
-    borderRadius: 16,
-    maxHeight: '70%',
-  },
-  wordModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  wordModalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  pronunciation: {
-    fontSize: 13,
-    color: colors.tertiary,
-    marginBottom: 16,
-  },
-  definitions: {
-    marginBottom: 12,
-  },
-  defItem: {
-    marginBottom: 10,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outline,
-  },
-  defHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 4,
-  },
-  posChip: {
-    backgroundColor: colors.background,
-    height: 22,
-  },
-  posChipText: {
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-  },
-  defMeaning: {
-    fontSize: 15,
-    color: colors.onSurface,
-    fontWeight: '500',
-    flex: 1,
-  },
-  coreChip: {
-    backgroundColor: colors.primaryContainer,
-    height: 22,
-  },
-  coreChipText: {
-    fontSize: 10,
-    color: colors.primary,
-  },
-  rareChip: {
-    backgroundColor: palette.accentLight,
-    height: 22,
-  },
-  rareChipText: {
-    fontSize: 10,
-    color: palette.accentDark,
-  },
-  defExample: {
-    fontSize: 13,
-    color: colors.tertiary,
-    fontStyle: 'italic',
-    marginTop: 2,
-    marginLeft: 4,
-    lineHeight: 19,
-  },
-  etymologySection: {
-    marginBottom: 12,
-    paddingTop: 4,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.onSurfaceVariant,
-    marginBottom: 4,
-  },
-  etymologyText: {
-    fontSize: 13,
-    color: colors.onSurfaceVariant,
-    lineHeight: 20,
-  },
-  similarSection: {
-    marginBottom: 4,
-  },
-  similarText: {
-    fontSize: 13,
-    color: colors.onSurfaceVariant,
-    lineHeight: 20,
-    marginBottom: 2,
-  },
   translationToggleArea: {
     alignItems: 'center',
     marginTop: 16,
   },
-  translationToggleBtn: {
-    borderColor: colors.primary,
+  translationToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   translationToggleLabel: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.primary,
   },
   translationDivider: {
@@ -605,5 +417,21 @@ const useStyles = makeStyles(colors => ({
     fontSize: 15,
     color: colors.onSurfaceVariant,
     lineHeight: 26,
+  },
+  tapHint: {
+    fontSize: 12,
+    color: colors.tertiary,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    padding: 12,
+    gap: 12,
+    borderTopWidth: 1,
   },
 }));

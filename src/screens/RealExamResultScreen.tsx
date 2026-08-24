@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, ScrollView, BackHandler, TouchableOpacity } from 'react-native';
+import { View, ScrollView, BackHandler, Pressable } from 'react-native';
 import { Card, Text, Button, Surface } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
-import { palette } from '../theme/tokens';
+import { useAppTheme } from '../theme/theme';
 import StorageService from '../services/StorageService';
 import ReviewOption from '../components/ReviewOption';
 import type {
@@ -33,6 +33,7 @@ type RouteParams = {
 export default function RealExamResultScreen() {
   const navigation = useAppNavigation();
   const route = useAppRoute<'RealExamResult'>();
+  const { colors } = useAppTheme();
   const styles = useStyles();
   const savedRef = useRef(false);
 
@@ -111,7 +112,7 @@ export default function RealExamResultScreen() {
             <Text
               style={[
                 styles.scoreNumber,
-                { color: percentage >= 60 ? palette.success : palette.danger },
+                { color: percentage >= 60 ? colors.success : colors.danger },
               ]}
             >
               {session.score} / {session.total}
@@ -161,17 +162,17 @@ function BilingualCard({
   const title = mode === 'reading' ? '📖 文章原文 & 中文译文' : '📖 完形原文 & 中文译文';
   return (
     <Card style={styles.bilingualCard}>
-      <TouchableOpacity
+      <Pressable
         onPress={() => setExpanded(v => !v)}
-        activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={expanded ? '收起原文与译文' : '展开原文与译文'}
+        style={({ pressed }) => pressed && { opacity: 0.7 }}
       >
         <View style={styles.bilingualHeader}>
           <Text style={styles.bilingualTitle}>{title}（{paragraphs.length} 段）</Text>
           <Text style={styles.bilingualToggle}>{expanded ? '收起 ▲' : '展开 ▼'}</Text>
         </View>
-      </TouchableOpacity>
+      </Pressable>
       {expanded ? (
         <Card.Content style={styles.bilingualBody}>
           {paragraphs.map((p, i) => (
@@ -342,7 +343,7 @@ const useStyles = makeStyles(colors => ({
   },
   scoreContent: { alignItems: 'center', paddingVertical: 20 },
   scoreLabel: { fontSize: 14, color: colors.onSurfaceVariant, marginBottom: 8 },
-  scoreNumber: { fontSize: 44, fontWeight: 'bold' },
+  scoreNumber: { fontSize: 56, lineHeight: 60, fontWeight: '800' },
   scorePercent: { fontSize: 15, color: colors.onSurfaceVariant, marginTop: 6 },
   reviewTitle: { fontSize: 15, fontWeight: '700', color: colors.onSurface, marginBottom: 8 },
   reviewCard: { borderRadius: 12, elevation: 1, marginBottom: 10 },
@@ -365,16 +366,16 @@ const useStyles = makeStyles(colors => ({
     borderColor: colors.outline,
     marginBottom: 6,
   },
-  reviewOptionCorrect: { borderColor: palette.success, backgroundColor: palette.successLight },
-  reviewOptionIncorrect: { borderColor: palette.danger, backgroundColor: palette.dangerLight },
+  reviewOptionCorrect: { borderColor: colors.success, backgroundColor: colors.primaryContainer },
+  reviewOptionIncorrect: { borderColor: colors.danger, backgroundColor: colors.errorContainer },
   reviewOptionIndex: { fontSize: 13, fontWeight: '700', color: colors.tertiary, width: 20, textAlign: 'center' },
-  reviewOptionIndexCorrect: { color: palette.successDark },
-  reviewOptionIndexIncorrect: { color: palette.dangerDark },
+  reviewOptionIndexCorrect: { color: colors.success },
+  reviewOptionIndexIncorrect: { color: colors.danger },
   reviewOptionText: { fontSize: 13, color: colors.onSurface, flex: 1 },
-  reviewOptionTextCorrect: { color: palette.successDark, fontWeight: '500' },
-  reviewOptionTextIncorrect: { color: palette.dangerDark },
-  checkIcon: { fontSize: 16, color: palette.success, fontWeight: '800', marginLeft: 4 },
-  crossIcon: { fontSize: 16, color: palette.danger, fontWeight: '800', marginLeft: 4 },
+  reviewOptionTextCorrect: { color: colors.success, fontWeight: '500' },
+  reviewOptionTextIncorrect: { color: colors.danger },
+  checkIcon: { fontSize: 16, color: colors.success, fontWeight: '800', marginLeft: 4 },
+  crossIcon: { fontSize: 16, color: colors.danger, fontWeight: '800', marginLeft: 4 },
   explanationBox: {
     marginTop: 8,
     padding: 10,
@@ -384,8 +385,8 @@ const useStyles = makeStyles(colors => ({
   },
   explanationLabel: { fontSize: 12, fontWeight: '700', color: colors.primary, marginBottom: 4 },
   explanationText: { fontSize: 13, color: colors.onSurface, lineHeight: 20 },
-  badgeCorrect: { fontSize: 13, color: palette.success, fontWeight: '600' },
-  badgeWrong: { fontSize: 13, color: palette.danger, fontWeight: '600' },
+  badgeCorrect: { fontSize: 13, color: colors.success, fontWeight: '600' },
+  badgeWrong: { fontSize: 13, color: colors.danger, fontWeight: '600' },
   badgeSkipped: { fontSize: 13, color: colors.tertiary, fontWeight: '600' },
   footerActions: {
     flexDirection: 'row',

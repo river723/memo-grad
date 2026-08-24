@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, FlatList, TouchableOpacity } from 'react-native';
-import { Surface, Text, Chip } from 'react-native-paper';
+import { View, FlatList, Pressable, StyleSheet } from 'react-native';
+import { Text } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppNavigation } from '../navigation/types';
 import { useAppTheme } from '../theme/theme';
-import { fontFamily } from '../theme/tokens';
+import { fontFamily, radius, spacing } from '../theme/tokens';
 import { makeStyles } from '../utils/useStyles';
 import { getStorySeries, type StorySeriesMeta } from '../utils/storyContent';
+import EmptyState from '../components/ds/EmptyState';
 
 const THEME_LABELS: Record<string, string> = {
   adventure: '冒险',
@@ -23,63 +25,70 @@ const useStyles = makeStyles((colors) => ({
     flex: 1,
     backgroundColor: colors.background,
   },
-  seriesHeader: {
-    padding: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  seriesTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.onSurface,
-    marginBottom: 4,
-  },
-  seriesMeta: {
-    fontSize: 12,
-    color: colors.tertiary,
-    lineHeight: 18,
+  list: {
+    padding: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing['3xl'],
   },
   chapterCard: {
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 12,
-    elevation: 2,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outline,
     backgroundColor: colors.surface,
   },
   chapterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 6,
+    gap: spacing.sm,
+  },
+  chapterNumBadge: {
+    minWidth: 44,
+    height: 28,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryContainer,
   },
   chapterNum: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     fontFamily: fontFamily.serif,
     color: colors.primary,
     letterSpacing: 0.3,
-    minWidth: 56,
   },
   chapterTitle: {
+    flex: 1,
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '600',
     fontFamily: fontFamily.serif,
     color: colors.onSurface,
     letterSpacing: 0.2,
-    flex: 1,
+    lineHeight: 22,
   },
-  chapterInfo: {
+  chapterMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 8,
+    paddingLeft: 52,
   },
-  wordCount: {
+  metaText: {
     fontSize: 12,
     color: colors.tertiary,
   },
-  themeChip: {
-    height: 22,
+  themePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceVariant,
+  },
+  themePillText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.onSurfaceVariant,
   },
 }));
 
@@ -89,6 +98,7 @@ export default function StoryListScreen() {
   const styles = useStyles();
 
   const [series, setSeries] = useState<StorySeriesMeta | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +108,8 @@ export default function StoryListScreen() {
         if (!cancelled) setSeries(s);
       } catch (err) {
         console.warn('[StoryList] 拉取故事系列失败：', err);
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
     })();
     return () => {
@@ -108,34 +120,45 @@ export default function StoryListScreen() {
   const chapters = series?.chapters ?? [];
 
   const renderChapter = ({ item }: { item: StorySeriesMeta['chapters'][number] }) => (
-    <TouchableOpacity
+    <Pressable
       onPress={() => navigation.navigate('StoryDetail', { chapterId: item.chapterId })}
-      activeOpacity={0.7}
+      style={({ pressed }) => [
+        styles.chapterCard,
+        pressed && { opacity: 0.7 },
+      ]}
     >
-      <Surface style={styles.chapterCard}>
-        <View style={styles.chapterRow}>
-          <Text style={styles.chapterNum}>
-            第{item.chapterId}章
-          </Text>
-          <Text style={styles.chapterTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <View style={styles.chapterInfo}>
-            <Text style={styles.wordCount}>{item.wordCount} 词</Text>
-            {item.theme ? (
-              <Chip
-                icon="tag"
-                style={[styles.themeChip, { backgroundColor: colors.primaryContainer }]}
-                textStyle={{ fontSize: 10, color: colors.primary }}
-              >
-                {THEME_LABELS[item.theme] || item.theme}
-              </Chip>
-            ) : null}
-          </View>
+      <View style={styles.chapterRow}>
+        <View style={styles.chapterNumBadge}>
+          <Text style={styles.chapterNum}>第{item.chapterId}章</Text>
         </View>
-      </Surface>
-    </TouchableOpacity>
+        <Text style={styles.chapterTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.tertiary} />
+      </View>
+      <View style={styles.chapterMeta}>
+        <MaterialCommunityIcons name="text" size={13} color={colors.tertiary} />
+        <Text style={styles.metaText}>{item.wordCount} 词</Text>
+        {item.theme ? (
+          <View style={styles.themePill}>
+            <Text style={styles.themePillText}>{THEME_LABELS[item.theme] || item.theme}</Text>
+          </View>
+        ) : null}
+      </View>
+    </Pressable>
   );
+
+  if (loaded && chapters.length === 0) {
+    return (
+      <View style={styles.container}>
+        <EmptyState
+          icon="book-open-variant"
+          title="暂无故事章节"
+          description="系列故事尚未发布，请稍后再来。"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -143,20 +166,10 @@ export default function StoryListScreen() {
         data={chapters}
         renderItem={renderChapter}
         keyExtractor={(item) => String(item.chapterId)}
-        contentContainerStyle={{ paddingBottom: 80 }}
-        ListHeaderComponent={
-          <View style={styles.seriesHeader}>
-            <Text style={styles.seriesTitle}>{series?.seriesTitle ?? '故事系列'}</Text>
-            <Text style={styles.seriesMeta}>
-              共 {series?.totalChapters ?? '?'} 章 · {series?.totalWords ?? '?'} 个单词
-            </Text>
-          </View>
-        }
+        contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <View style={{ padding: 24, alignItems: 'center' }}>
-            <Text style={{ color: colors.tertiary, textAlign: 'center', lineHeight: 22 }}>
-              {series ? '暂无故事章节。' : '故事加载中…'}
-            </Text>
+          <View style={{ paddingVertical: spacing['2xl'], alignItems: 'center' }}>
+            <Text style={{ color: colors.tertiary }}>故事加载中…</Text>
           </View>
         }
       />

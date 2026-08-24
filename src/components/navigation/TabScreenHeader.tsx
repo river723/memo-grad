@@ -18,13 +18,14 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AppIcon, { type IconName } from '../ds/AppIcon';
 import { useAppTheme } from '../../theme/theme';
 import { spacing, radius, fontWeight, palette } from '../../theme/tokens';
 
 export interface TabScreenHeaderOptions {
   title: string;
   subtitle?: string;
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap | string;
+  icon?: IconName;
   showBack?: boolean;
   onBack?: () => void;
   right?: React.ReactNode;
@@ -48,8 +49,8 @@ const HeaderTitle: React.FC<{ opts: TabScreenHeaderOptions }> = ({ opts }) => {
   return (
     <View style={styles.titleRow}>
       {opts.icon ? (
-        <MaterialCommunityIcons
-          name={opts.icon as any}
+        <AppIcon
+          name={opts.icon}
           size={20}
           color={colors.onPrimary}
           style={{ marginRight: 8 }}

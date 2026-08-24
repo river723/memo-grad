@@ -11,7 +11,6 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
-  IconButton
 } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import StorageService from '../services/StorageService';
@@ -23,8 +22,9 @@ import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
-import { palette } from '../theme/tokens';
+import { palette, radius, spacing } from '../theme/tokens';
 import FlashcardStudy from '../components/FlashcardStudy';
+import WordDictModal from '../components/WordDictModal';
 
 type StudyScreenMode = 'flashcard' | 'listening' | 'quiz' | 'article';
 
@@ -663,50 +663,102 @@ export default function StudyScreen() {
     const articleWords = getArticleWords();
     const targetLength = getArticleTargetLength(articleWords);
     const hiddenWordCount = Math.max(0, words.length - articleWords.length);
+    const hasArticle = !!generatedArticle;
 
     return (
       <View style={styles.modeContainer}>
-        <Card style={styles.wordCard}>
-          <Card.Content>
-            <Text style={styles.articleTitle}>生成短文</Text>
-            <Text style={styles.articleSubtitle}>
-              用本轮单词生成一篇有趣英文短文，通过语境帮助记忆；阅读不会计入答题准确率。
-            </Text>
+        {!hasArticle && (
+        <View style={styles.wordCard}>
+          <Text style={styles.articleTitle}>生成短文</Text>
+          <Text style={styles.articleSubtitle}>
+            用本轮单词生成一篇有趣英文短文，通过语境帮助记忆；阅读不会计入答题准确率。
+          </Text>
 
-            <View style={styles.articleWordWrap}>
-              {articleWords.slice(0, 12).map(word => (
-                <Chip key={word.id || word.word} compact style={styles.articleWordChip}>
-                  {word.word}
-                </Chip>
-              ))}
-              {articleWords.length > 12 && (
-                <Chip compact style={styles.articleWordChip}>等 {articleWords.length} 个</Chip>
-              )}
-              {hiddenWordCount > 0 && (
-                <Chip compact style={styles.articleLimitChip}>已优先使用前 30 个</Chip>
-              )}
+          <View style={styles.articleWordWrap}>
+            {articleWords.slice(0, 12).map(word => (
+              <Chip key={word.id || word.word} compact style={styles.articleWordChip}>
+                {word.word}
+              </Chip>
+            ))}
+            {articleWords.length > 12 && (
+              <Chip compact style={styles.articleWordChip}>等 {articleWords.length} 个</Chip>
+            )}
+            {hiddenWordCount > 0 && (
+              <Chip compact style={styles.articleLimitChip}>已优先使用前 30 个</Chip>
+            )}
+          </View>
+
+          <Text style={styles.articleAutoLengthText}>
+            将根据 {articleWords.length} 个生词自动生成约 {targetLength} 词的短文。
+          </Text>
+
+          {articleError && (
+            <Text style={loadedArticleId ? styles.articleInfo : styles.articleError}>
+              {articleError}
+            </Text>
+          )}
+
+          <Button
+            mode="contained"
+            onPress={handleGenerateArticle}
+            loading={isGeneratingArticle}
+            disabled={isGeneratingArticle || articleWords.length === 0}
+            icon="creation"
+            style={styles.articleGenerateButton}
+          >
+            {generatedArticle ? '重新生成短文' : '生成短文'}
+          </Button>
+
+          {isGeneratingArticle && (
+            <View style={styles.articleLoadingBox}>
+              <ActivityIndicator animating color={colors.primary} />
+              <Text style={styles.articleLoadingText}>AI 正在为你创作短文...</Text>
             </View>
+          )}
+        </View>
+        )}
 
-            <Text style={styles.articleAutoLengthText}>
-              将根据 {articleWords.length} 个生词自动生成约 {targetLength} 词的短文。
-            </Text>
-
+        {hasArticle && (
+          <View style={styles.articlePreviewCard}>
+            {/* 重新生成短文入口（次要） */}
+            <Button
+              mode="outlined"
+              compact
+              icon="refresh"
+              onPress={handleGenerateArticle}
+              loading={isGeneratingArticle}
+              disabled={isGeneratingArticle || articleWords.length === 0}
+              style={{ alignSelf: 'flex-start', marginBottom: spacing.sm }}
+            >
+              重新生成短文
+            </Button>
             {articleError && (
               <Text style={loadedArticleId ? styles.articleInfo : styles.articleError}>
                 {articleError}
               </Text>
             )}
+            <Text style={styles.articlePreviewTitle}>{generatedArticle.title}</Text>
+            {renderHighlightedArticle()}
 
-            <Button
-              mode="contained"
-              onPress={handleGenerateArticle}
-              loading={isGeneratingArticle}
-              disabled={isGeneratingArticle || articleWords.length === 0}
-              icon="creation"
-              style={styles.articleGenerateButton}
-            >
-              {generatedArticle ? '重新生成短文' : '生成短文'}
-            </Button>
+            <Text style={styles.articleTapHint}>
+              💡 点击文中<Text style={styles.articleTapHintHighlight}>蓝色高亮</Text>生词可查看释义
+            </Text>
+
+            {!!generatedArticle.translation && (
+              <Button
+                mode="text"
+                onPress={() => setShowArticleTranslation(prev => !prev)}
+                style={styles.articleTranslationButton}
+              >
+                {showArticleTranslation ? '隐藏中文翻译' : '显示中文翻译'}
+              </Button>
+            )}
+
+            {showArticleTranslation && !!generatedArticle.translation && (
+              <Surface style={styles.articleTranslationBox}>
+                <Text style={styles.articleTranslationText}>{generatedArticle.translation}</Text>
+              </Surface>
+            )}
 
             {isGeneratingArticle && (
               <View style={styles.articleLoadingBox}>
@@ -714,36 +766,7 @@ export default function StudyScreen() {
                 <Text style={styles.articleLoadingText}>AI 正在为你创作短文...</Text>
               </View>
             )}
-          </Card.Content>
-        </Card>
-
-        {generatedArticle && (
-          <Card style={styles.articlePreviewCard}>
-            <Card.Content>
-              <Text style={styles.articlePreviewTitle}>{generatedArticle.title}</Text>
-              {renderHighlightedArticle()}
-
-              <Text style={styles.articleTapHint}>
-                💡 点击文中<Text style={styles.articleTapHintHighlight}>蓝色高亮</Text>生词可查看释义
-              </Text>
-
-              {!!generatedArticle.translation && (
-                <Button
-                  mode="text"
-                  onPress={() => setShowArticleTranslation(prev => !prev)}
-                  style={styles.articleTranslationButton}
-                >
-                  {showArticleTranslation ? '隐藏中文翻译' : '显示中文翻译'}
-                </Button>
-              )}
-
-              {showArticleTranslation && !!generatedArticle.translation && (
-                <Surface style={styles.articleTranslationBox}>
-                  <Text style={styles.articleTranslationText}>{generatedArticle.translation}</Text>
-                </Surface>
-              )}
-            </Card.Content>
-          </Card>
+          </View>
         )}
       </View>
     );
@@ -762,8 +785,6 @@ export default function StudyScreen() {
         onEnhance={enhanceCurrentWord}
         enhancing={enhancingWordId === currentWord.id}
         appSettings={appSettings}
-        progressCurrent={currentIndex + 1}
-        progressTotal={words.length}
       />
     );
   };
@@ -774,63 +795,61 @@ export default function StudyScreen() {
 
     return (
       <View style={styles.modeContainer}>
-        <Card style={styles.wordCard}>
-          <Card.Content>
-            <View style={styles.listeningContainer}>
-              <Text style={styles.listeningTitle}>听力练习</Text>
-              <Surface style={styles.soundIcon}>
-                <Text style={styles.soundEmoji}>{isListening ? '🔊' : '🎧'}</Text>
-              </Surface>
-              <Text style={styles.listeningHint}>
-                {!speechSettings.soundEnabled
-                  ? '发音功能已关闭，请先到设置中开启'
-                  : isListening
-                  ? '播放中...'
-                  : '点击听取单词发音'}
-              </Text>
-              <Button
-                mode="contained"
-                onPress={startListeningMode}
-                loading={isListening}
-                disabled={isListening || !speechSettings.soundEnabled}
-                style={styles.playButton}
-                icon={speechSettings.soundEnabled ? 'play' : 'volume-off'}
-              >
-                {speechSettings.soundEnabled ? '播放' : '发音已关闭'}
-              </Button>
+        <View style={styles.wordCard}>
+          <View style={styles.listeningContainer}>
+            <Text style={styles.listeningTitle}>听力练习</Text>
+            <Surface style={styles.soundIcon}>
+              <Text style={styles.soundEmoji}>{isListening ? '🔊' : '🎧'}</Text>
+            </Surface>
+            <Text style={styles.listeningHint}>
+              {!speechSettings.soundEnabled
+                ? '发音功能已关闭，请先到设置中开启'
+                : isListening
+                ? '播放中...'
+                : '点击听取单词发音'}
+            </Text>
+            <Button
+              mode="contained"
+              onPress={startListeningMode}
+              loading={isListening}
+              disabled={isListening || !speechSettings.soundEnabled}
+              style={styles.playButton}
+              icon={speechSettings.soundEnabled ? 'play' : 'volume-off'}
+            >
+              {speechSettings.soundEnabled ? '播放' : '发音已关闭'}
+            </Button>
 
-              {isListening && (
-                <View style={styles.answerSection}>
-                  <Text style={styles.answerTitle}>你听到了哪个单词？</Text>
-                  <TextInput
+            {isListening && (
+              <View style={styles.answerSection}>
+                <Text style={styles.answerTitle}>你听到了哪个单词？</Text>
+                <TextInput
+                  mode="outlined"
+                  placeholder="输入你听到的单词"
+                  value={listenAnswer}
+                  onChangeText={setListenAnswer}
+                  style={styles.listenInput}
+                  autoCapitalize="none"
+                />
+                <View style={styles.answerButtons}>
+                  <Button
                     mode="outlined"
-                    placeholder="输入你听到的单词"
-                    value={listenAnswer}
-                    onChangeText={setListenAnswer}
-                    style={styles.listenInput}
-                    autoCapitalize="none"
-                  />
-                  <View style={styles.answerButtons}>
-                    <Button
-                      mode="outlined"
-                      onPress={() => handleResult(false)}
-                      style={styles.answerBtn}
-                    >
-                      跳过
-                    </Button>
-                    <Button
-                      mode="contained"
-                      onPress={handleListenSubmit}
-                      style={styles.answerBtn}
-                    >
-                      提交
-                    </Button>
-                  </View>
+                    onPress={() => handleResult(false)}
+                    style={styles.answerBtn}
+                  >
+                    跳过
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={handleListenSubmit}
+                    style={styles.answerBtn}
+                  >
+                    提交
+                  </Button>
                 </View>
-              )}
-            </View>
-          </Card.Content>
-        </Card>
+              </View>
+            )}
+          </View>
+        </View>
       </View>
     );
   };
@@ -841,44 +860,42 @@ export default function StudyScreen() {
 
     return (
       <View style={styles.modeContainer}>
-        <Card style={styles.wordCard}>
-          <Card.Content>
-            <Text style={styles.quizTitle}>选择正确的释义</Text>
-            <Text style={styles.quizWord}>{currentWord.word}</Text>
+        <View style={styles.wordCard}>
+          <Text style={styles.quizTitle}>选择正确的释义</Text>
+          <Text style={styles.quizWord}>{currentWord.word}</Text>
 
-            <View style={styles.optionsContainer}>
-              {quizOptions.map((option, index) => {
-                const isSelected = selectedAnswer === option;
-                const isCorrect = option === currentWord.definitions[0]?.meaning;
-                const showFeedback = showQuizResult && isSelected;
+          <View style={styles.optionsContainer}>
+            {quizOptions.map((option, index) => {
+              const isSelected = selectedAnswer === option;
+              const isCorrect = option === currentWord.definitions[0]?.meaning;
+              const showFeedback = showQuizResult && isSelected;
 
-                return (
-                  <Surface
-                    key={index}
-                    style={[
-                      styles.optionItem,
-                      isSelected && styles.selectedOption,
-                      showFeedback && isCorrect && styles.correctOption,
-                      showFeedback && !isCorrect && isSelected && styles.incorrectOption
-                    ]}
+              return (
+                <Surface
+                  key={index}
+                  style={[
+                    styles.optionItem,
+                    isSelected && styles.selectedOption,
+                    showFeedback && isCorrect && styles.correctOption,
+                    showFeedback && !isCorrect && isSelected && styles.incorrectOption
+                  ]}
+                >
+                  <Button
+                    mode="text"
+                    onPress={() => !showQuizResult && handleQuizAnswer(option)}
+                    style={styles.optionButton}
+                    disabled={showQuizResult}
                   >
-                    <Button
-                      mode="text"
-                      onPress={() => !showQuizResult && handleQuizAnswer(option)}
-                      style={styles.optionButton}
-                      disabled={showQuizResult}
-                    >
-                      <Text style={styles.optionText}>{option}</Text>
-                    </Button>
-                    {showFeedback && (
-                      <Text style={styles.resultIcon}>{isCorrect ? '✅' : '❌'}</Text>
-                    )}
-                  </Surface>
-                );
-              })}
-            </View>
-          </Card.Content>
-        </Card>
+                    <Text style={styles.optionText}>{option}</Text>
+                  </Button>
+                  {showFeedback && (
+                    <Text style={styles.resultIcon}>{isCorrect ? '✅' : '❌'}</Text>
+                  )}
+                </Surface>
+              );
+            })}
+          </View>
+        </View>
       </View>
     );
   };
@@ -936,59 +953,55 @@ export default function StudyScreen() {
 
   return (
     <View style={styles.container}>
-      <Card style={styles.modeSelector}>
-        <Card.Content>
-          <SegmentedButtons
-            value={currentMode}
-            onValueChange={(value) => {
-              setCurrentMode(value as StudyScreenMode);
-              setCurrentIndex(0);
-              setIsFlipped(false);
-              setSelectedAnswer('');
-              setShowQuizResult(false);
-              setShowResult(false);
-              setListenAnswer('');
-              setIsListening(false);
-            }}
-            buttons={[
-              { value: 'flashcard', label: '📖 单词卡' },
-              { value: 'listening', label: '🔊 听写' },
-              { value: 'quiz', label: '✏️ 释义' },
-              { value: 'article', label: '✨ 短文' }
-            ]}
-          />
-        </Card.Content>
-      </Card>
+      <View style={styles.modeSelector}>
+        <SegmentedButtons
+          value={currentMode}
+          onValueChange={(value) => {
+            setCurrentMode(value as StudyScreenMode);
+            setCurrentIndex(0);
+            setIsFlipped(false);
+            setSelectedAnswer('');
+            setShowQuizResult(false);
+            setShowResult(false);
+            setListenAnswer('');
+            setIsListening(false);
+          }}
+          buttons={[
+            { value: 'flashcard', label: '📖 单词卡' },
+            { value: 'listening', label: '🔊 听写' },
+            { value: 'quiz', label: '✏️ 释义' },
+            { value: 'article', label: '✨ 短文' }
+          ]}
+        />
+      </View>
 
-      <Card style={styles.progressCard}>
-        <Card.Content>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressText}>
-              {currentIndex + 1} / {words.length}
+      <View style={styles.progressCard}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressText}>
+            {currentIndex + 1} / {words.length}
+          </Text>
+          <View style={styles.progressRight}>
+            <Text style={styles.accuracyText}>
+              准确率: {studyStats.accuracy.toFixed(1)}%
             </Text>
-            <View style={styles.progressRight}>
-              <Text style={styles.accuracyText}>
-                准确率: {studyStats.accuracy.toFixed(1)}%
-              </Text>
-              <Button
-                mode="text"
-                onPress={() => setShowExitConfirm(true)}
-                icon="close"
-                textColor="#999"
-                compact
-                style={styles.exitBtn}
-              >
-                退出
-              </Button>
-            </View>
+            <Button
+              mode="text"
+              onPress={() => setShowExitConfirm(true)}
+              icon="close"
+              textColor="#999"
+              compact
+              style={styles.exitBtn}
+            >
+              退出
+            </Button>
           </View>
-          <ProgressBar
-            progress={(currentIndex + 1) / Math.max(words.length, 1)}
-            color={colors.primary}
-            style={styles.progressBar}
-          />
-        </Card.Content>
-      </Card>
+        </View>
+        <ProgressBar
+          progress={(currentIndex + 1) / Math.max(words.length, 1)}
+          color={colors.primary}
+          style={styles.progressBar}
+        />
+      </View>
 
       <ScrollView style={styles.content}>
         {showCompletion ? (
@@ -1172,91 +1185,11 @@ export default function StudyScreen() {
       </Modal>
 
       {/* 单词释义弹窗 */}
-      <Modal
+      <WordDictModal
         visible={showArticleWordModal}
-        onDismiss={() => setShowArticleWordModal(false)}
-        contentContainerStyle={styles.articleWordModal}
-      >
-        {selectedArticleWord && (
-          <View>
-            <View style={styles.articleWordModalHeader}>
-              <Text style={styles.articleWordModalTitle}>{selectedArticleWord.word}</Text>
-              <IconButton
-                icon="close"
-                size={20}
-                onPress={() => setShowArticleWordModal(false)}
-              />
-            </View>
-
-            {selectedArticleWord.pronunciation_uk && (
-              <Text style={styles.articleWordPronunciation}>
-                英 /{selectedArticleWord.pronunciation_uk}/
-                {selectedArticleWord.pronunciation_us &&
-                  `  美 /${selectedArticleWord.pronunciation_us}/`}
-              </Text>
-            )}
-
-            <View style={styles.articleWordDefinitions}>
-              {selectedArticleWord.definitions.map((def, index) => (
-                <View key={index} style={styles.articleWordDefItem}>
-                  <View style={styles.articleWordDefHeader}>
-                    <Chip style={styles.articleWordPosChip} textStyle={styles.articleWordPosChipText} compact>
-                      {def.part_of_speech}
-                    </Chip>
-                    <Text style={styles.articleWordDefMeaning}>{def.meaning}</Text>
-                    {def.is_core && (
-                      <Chip
-                        style={styles.articleWordCoreChip}
-                        textStyle={styles.articleWordCoreChipText}
-                        compact
-                      >
-                        核心
-                      </Chip>
-                    )}
-                    {def.is_rare_sense && (
-                      <Chip
-                        style={styles.articleWordRareChip}
-                        textStyle={styles.articleWordRareChipText}
-                        compact
-                      >
-                        熟词僻义
-                      </Chip>
-                    )}
-                  </View>
-                  {def.example ? (
-                    <Text style={styles.articleWordDefExample}>{def.example}</Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-
-            {selectedArticleWord.etymology ? (
-              <View style={styles.articleWordEtymologySection}>
-                <Text style={styles.articleWordSectionLabel}>词根词缀</Text>
-                <Text style={styles.articleWordEtymologyText}>{selectedArticleWord.etymology}</Text>
-              </View>
-            ) : null}
-
-            {selectedArticleWord.memory_tip ? (
-              <View style={styles.articleWordEtymologySection}>
-                <Text style={styles.articleWordSectionLabel}>记忆口诀</Text>
-                <Text style={styles.articleWordEtymologyText}>{selectedArticleWord.memory_tip}</Text>
-              </View>
-            ) : null}
-
-            {Array.isArray(selectedArticleWord.similar_words) && selectedArticleWord.similar_words.length > 0 && (
-              <View style={styles.articleWordSimilarSection}>
-                <Text style={styles.articleWordSectionLabel}>易混词提醒</Text>
-                {selectedArticleWord.similar_words.map((sw, index) => (
-                  <Text key={index} style={styles.articleWordSimilarText}>
-                    · {sw.word}（{sw.relation === 'spelling' ? '形近' : sw.relation === 'meaning' ? '义近' : '同根'}）— {sw.description}
-                  </Text>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-      </Modal>
+        onClose={() => setShowArticleWordModal(false)}
+        word={selectedArticleWord}
+      />
     </View>
   );
 }
@@ -1272,6 +1205,11 @@ const useStyles = makeStyles(colors => ({
   },
   progressCard: {
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -1308,7 +1246,11 @@ const useStyles = makeStyles(colors => ({
   },
   wordCard: {
     marginBottom: 16,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
   },
   cardContent: {
     padding: 24,
@@ -1492,7 +1434,6 @@ const useStyles = makeStyles(colors => ({
   },
   optionItem: {
     borderRadius: 8,
-    elevation: 1,
     backgroundColor: colors.surfaceVariant,
     borderWidth: 1,
     borderColor: colors.outline,
@@ -1580,8 +1521,11 @@ const useStyles = makeStyles(colors => ({
   },
   articlePreviewCard: {
     marginBottom: 16,
-    borderRadius: 12,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
   },
   articlePreviewTitle: {
     fontSize: 22,
@@ -1627,107 +1571,6 @@ const useStyles = makeStyles(colors => ({
     fontSize: 15,
     lineHeight: 26,
     color: colors.onSurfaceVariant,
-  },
-  articleWordModal: {
-    backgroundColor: colors.surface,
-    padding: 20,
-    margin: 24,
-    borderRadius: 16,
-    maxHeight: '70%',
-  },
-  articleWordModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  articleWordModalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  articleWordPronunciation: {
-    fontSize: 13,
-    color: colors.tertiary,
-    marginBottom: 16,
-  },
-  articleWordDefinitions: {
-    marginBottom: 12,
-  },
-  articleWordDefItem: {
-    marginBottom: 10,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outline,
-  },
-  articleWordDefHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 4,
-  },
-  articleWordPosChip: {
-    backgroundColor: colors.surfaceVariant,
-    height: 22,
-  },
-  articleWordPosChipText: {
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-  },
-  articleWordDefMeaning: {
-    fontSize: 15,
-    color: colors.onSurface,
-    fontWeight: '500',
-    flex: 1,
-  },
-  articleWordCoreChip: {
-    backgroundColor: colors.primaryContainer,
-    height: 22,
-  },
-  articleWordCoreChipText: {
-    fontSize: 10,
-    color: colors.primary,
-  },
-  articleWordRareChip: {
-    backgroundColor: palette.accentLight,
-    height: 22,
-  },
-  articleWordRareChipText: {
-    fontSize: 10,
-    color: palette.accentDark,
-  },
-  articleWordDefExample: {
-    fontSize: 13,
-    color: colors.tertiary,
-    fontStyle: 'italic',
-    marginTop: 2,
-    marginLeft: 4,
-    lineHeight: 19,
-  },
-  articleWordEtymologySection: {
-    marginBottom: 12,
-    paddingTop: 4,
-  },
-  articleWordSectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.onSurfaceVariant,
-    marginBottom: 4,
-  },
-  articleWordEtymologyText: {
-    fontSize: 13,
-    color: colors.onSurfaceVariant,
-    lineHeight: 20,
-  },
-  articleWordSimilarSection: {
-    marginBottom: 4,
-  },
-  articleWordSimilarText: {
-    fontSize: 13,
-    color: colors.onSurfaceVariant,
-    lineHeight: 20,
-    marginBottom: 2,
   },
   resultIcon: {
     fontSize: 20,

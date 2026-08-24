@@ -1,21 +1,17 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, ScrollView } from 'react-native';
-import {
-  Card,
-  Text,
-  Button,
-  Modal,
-  Chip,
-  IconButton,
-} from 'react-native-paper';
+import { View, ScrollView, Pressable } from 'react-native';
+import { Text } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
-import { palette } from '../theme/tokens';
+import { radius, spacing } from '../theme/tokens';
 import { parseArticleContent } from '../utils/storyUtils';
 import { getLocalWordDictResult } from '../utils/wordUtils';
 import { getStoryChapter, getAdjacentChapterIds, type StoryChapterFull } from '../utils/storyContent';
 import type { Word } from '../types';
+import AppButton from '../components/ds/AppButton';
+import WordDictModal from '../components/WordDictModal';
 
 /**
  * 判断短文本是否像标题（无句末标点），用于识别英文正文开头多出的章节标题行。
@@ -28,8 +24,6 @@ function isTitleLike(text: string): boolean {
 
 /**
  * 将英文正文与中文译文按 `\n\n` 拆成段落并按下标配对，得到段落级中英对照结构。
- * - 英文比中文多一段且首段为标题时，标题单独成段不配对译文（避免整章错位）；
- * - 其余按顺序配对，多出的一方以单语段落补齐。
  */
 function buildBilingualPairs(
   content: string,
@@ -42,7 +36,6 @@ function buildBilingualPairs(
 
   const pairs: { en: string; zh?: string }[] = [];
 
-  // 英文开头多出的标题行（如 "Chapter 2: Awakening"）单独成段
   let enStart = 0;
   if (
     enParas.length === zhParas.length + 1 &&
@@ -72,10 +65,10 @@ export default function StoryDetailScreen() {
   const navigation = useAppNavigation();
   const { colors } = useAppTheme();
   const styles = useStyles();
+  const typography = colors.typography;
   const route = useAppRoute<'StoryDetail'>();
   const { chapterId } = route.params as { chapterId: number };
 
-  // 异步拉章节（内存/AsyncStorage/远程/fallback 四层）
   const [chapter, setChapter] = useState<StoryChapterFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [adjacent, setAdjacent] = useState<{ prev?: number; next?: number }>({});
@@ -109,7 +102,6 @@ export default function StoryDetailScreen() {
   const [showWordModal, setShowWordModal] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
 
-  // 构建目标词的 Word Map（异步查词库）
   const [wordMap, setWordMap] = useState<Map<string, Word>>(new Map());
 
   useEffect(() => {
@@ -123,7 +115,7 @@ export default function StoryDetailScreen() {
       for (const w of chapter.words) {
         const entry = await getLocalWordDictResult(w);
         if (cancelled) return;
-        if (!entry) continue; // 词库没命中该目标词时跳过（高亮降级为普通文本）
+        if (!entry) continue;
         map.set(w.toLowerCase(), {
           id: '',
           word: w,
@@ -142,7 +134,6 @@ export default function StoryDetailScreen() {
     };
   }, [chapter]);
 
-  // 段落级中英对照：将英文正文与中文译文按段落拆分配对，并为每段英文解析生词片段
   const pairsWithSegs = useMemo(() => {
     if (!chapter) return [];
     const pairs = buildBilingualPairs(chapter.content, chapter.translation);
@@ -163,7 +154,7 @@ export default function StoryDetailScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>章节加载中…</Text>
+        <Text style={{ color: colors.onSurfaceVariant }}>章节加载中…</Text>
       </View>
     );
   }
@@ -171,7 +162,7 @@ export default function StoryDetailScreen() {
   if (!chapter) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>章节不存在</Text>
+        <Text style={{ color: colors.onSurfaceVariant }}>章节不存在</Text>
       </View>
     );
   }
@@ -181,67 +172,104 @@ export default function StoryDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* 章节标题 */}
-        <View style={styles.header}>
-          <Text style={styles.chapterNum}>第 {chapter.id} 章</Text>
-          <Text style={styles.title}>{chapter.title}</Text>
-          <View style={styles.headerMeta}>
-            <Text style={styles.metaText}>{chapter.word_count} 词</Text>
-            <Text style={styles.metaText}>· {chapter.words.length} 个目标词</Text>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 88 }}>
+        {/* Hero：章标题 + 词数 */}
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: colors.primary, borderRadius: radius.xl },
+            colors.shadow.card,
+          ]}
+        >
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.caption.size, letterSpacing: 0.6 }}>
+              第 {chapter.id} 章
+            </Text>
+            <Text
+              style={{
+                color: colors.onPrimary,
+                fontSize: typography.headline.size,
+                lineHeight: typography.headline.lineHeight,
+                fontWeight: '700',
+                letterSpacing: -0.3,
+              }}
+              numberOfLines={3}
+            >
+              {chapter.title}
+            </Text>
+            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: typography.bodySm.size, marginTop: 2 }}>
+              {chapter.word_count} 词 · {chapter.words.length} 个目标词
+            </Text>
+          </View>
+          <View style={styles.heroIcon}>
+            <MaterialCommunityIcons name="book-open-page-variant" size={24} color={colors.onPrimary} />
           </View>
         </View>
 
-        {/* 正文 */}
-        <Card style={styles.contentCard}>
-          <Card.Content>
-            {pairsWithSegs.map((pair, index) => {
-              const showEn = !!pair.en;
-              const showZh = !!pair.zh && showTranslation;
-              if (!showEn && !showZh) return null;
-              return (
-                <View key={index} style={styles.bilingualPara}>
-                  {showEn ? (
-                    <Text style={styles.articleText}>
-                      {pair.segs.map((seg, j) => {
-                        if (seg.isWord) {
-                          return (
-                            <Text
-                              key={j}
-                              style={styles.highlightedWord}
-                              onPress={() => handleWordTap(seg.wordObj)}
-                            >
-                              {seg.text}
-                            </Text>
-                          );
-                        }
-                        return <Text key={j}>{seg.text}</Text>;
-                      })}
-                    </Text>
-                  ) : null}
-                  {showZh ? (
-                    <Text style={styles.bilingualZh}>{pair.zh}</Text>
-                  ) : null}
-                </View>
-              );
-            })}
-
-            {chapter.translation ? (
-              <View style={styles.translationToggleArea}>
-                <Button
-                  mode="outlined"
-                  compact
-                  onPress={() => setShowTranslation(!showTranslation)}
-                  icon={showTranslation ? 'eye-off' : 'eye'}
-                  labelStyle={styles.translationToggleLabel}
-                  style={styles.translationToggleBtn}
-                >
-                  {showTranslation ? '隐藏译文' : '显示译文'}
-                </Button>
+        {/* 阅读正文 */}
+        <View
+          style={[
+            styles.contentCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.outline,
+              borderRadius: radius.lg,
+            },
+            colors.shadow.hairline,
+          ]}
+        >
+          {pairsWithSegs.map((pair, index) => {
+            const showEn = !!pair.en;
+            const showZh = !!pair.zh && showTranslation;
+            if (!showEn && !showZh) return null;
+            return (
+              <View key={index} style={styles.bilingualPara}>
+                {showEn ? (
+                  <Text style={styles.articleText}>
+                    {pair.segs.map((seg, j) => {
+                      if (seg.isWord) {
+                        return (
+                          <Text
+                            key={j}
+                            style={styles.highlightedWord}
+                            onPress={() => handleWordTap(seg.wordObj)}
+                          >
+                            {seg.text}
+                          </Text>
+                        );
+                      }
+                      return <Text key={j}>{seg.text}</Text>;
+                    })}
+                  </Text>
+                ) : null}
+                {showZh ? (
+                  <Text style={styles.bilingualZh}>{pair.zh}</Text>
+                ) : null}
               </View>
-            ) : null}
-          </Card.Content>
-        </Card>
+            );
+          })}
+
+          {chapter.translation ? (
+            <View style={styles.translationToggleArea}>
+              <Pressable
+                onPress={() => setShowTranslation(!showTranslation)}
+                style={({ pressed }) => [
+                  styles.translationToggle,
+                  { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={showTranslation ? 'eye-off' : 'eye'}
+                  size={16}
+                  color={colors.primary}
+                />
+                <Text style={styles.translationToggleLabel}>
+                  {showTranslation ? '隐藏译文' : '显示译文'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
 
         <Text style={styles.tapHint}>
           💡 点击文中<Text style={{ color: colors.primary, fontWeight: '600' }}>蓝色高亮</Text>生词可查看释义
@@ -249,111 +277,38 @@ export default function StoryDetailScreen() {
       </ScrollView>
 
       {/* 底部导航 */}
-      <View style={styles.bottomBar}>
-        <Button
-          mode="outlined"
-          onPress={() =>
-            prevChapter !== undefined && navigation.replace('StoryDetail', { chapterId: prevChapter })
-          }
+      <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.outline }]}>
+        <AppButton
+          title="上一章"
+          onPress={() => prevChapter !== undefined && navigation.replace('StoryDetail', { chapterId: prevChapter })}
+          variant="secondary"
+          size="lg"
           disabled={prevChapter === undefined}
-          icon="chevron-left"
-          style={styles.bottomButton}
-        >
-          上一章
-        </Button>
-        <Button
-          mode="outlined"
-          onPress={() =>
-            nextChapter !== undefined && navigation.replace('StoryDetail', { chapterId: nextChapter })
-          }
+          style={{ flex: 1 }}
+          leftIcon={<MaterialCommunityIcons name="chevron-left" size={20} color={prevChapter === undefined ? colors.tertiary : colors.primary} />}
+        />
+        <AppButton
+          title="下一章"
+          onPress={() => nextChapter !== undefined && navigation.replace('StoryDetail', { chapterId: nextChapter })}
+          variant="secondary"
+          size="lg"
           disabled={nextChapter === undefined}
-          icon="chevron-right"
-          contentStyle={{ flexDirection: 'row-reverse' }}
-          style={styles.bottomButton}
-        >
-          下一章
-        </Button>
+          style={{ flex: 1 }}
+          rightIcon={<MaterialCommunityIcons name="chevron-right" size={20} color={nextChapter === undefined ? colors.tertiary : colors.primary} />}
+        />
       </View>
 
-      {/* 释义 Modal */}
-      <Modal
+      {/* 释义弹窗（共享组件） */}
+      <WordDictModal
         visible={showWordModal}
-        onDismiss={() => setShowWordModal(false)}
-        contentContainerStyle={styles.wordModal}
-      >
-        {selectedWord && (
-          <ScrollView>
-            <View style={styles.wordModalHeader}>
-              <Text style={styles.wordModalTitle}>{selectedWord.word}</Text>
-              <IconButton icon="close" size={20} onPress={() => setShowWordModal(false)} />
-            </View>
-
-            <View style={styles.definitions}>
-              {selectedWord.definitions.map((def, index) => (
-                <View key={index} style={styles.defItem}>
-                  <View style={styles.defHeader}>
-                    <Chip style={styles.posChip} textStyle={styles.posChipText} compact>
-                      {def.part_of_speech}
-                    </Chip>
-                    <Text style={styles.defMeaning}>{def.meaning}</Text>
-                    {def.is_core && (
-                      <Chip
-                        style={styles.coreChip}
-                        textStyle={styles.coreChipText}
-                        compact
-                      >
-                        核心
-                      </Chip>
-                    )}
-                    {def.is_rare_sense && (
-                      <Chip
-                        style={styles.rareChip}
-                        textStyle={styles.rareChipText}
-                        compact
-                      >
-                        熟词僻义
-                      </Chip>
-                    )}
-                  </View>
-                  {def.example ? (
-                    <Text style={styles.defExample}>{def.example}</Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-
-            {selectedWord.etymology ? (
-              <View style={styles.sectionBlock}>
-                <Text style={styles.sectionLabel}>词根词缀</Text>
-                <Text style={styles.sectionText}>{selectedWord.etymology}</Text>
-              </View>
-            ) : null}
-
-            {selectedWord.memory_tip ? (
-              <View style={styles.sectionBlock}>
-                <Text style={styles.sectionLabel}>记忆口诀</Text>
-                <Text style={styles.sectionText}>{selectedWord.memory_tip}</Text>
-              </View>
-            ) : null}
-
-            {Array.isArray(selectedWord.similar_words) && selectedWord.similar_words.length > 0 && (
-              <View style={styles.sectionBlock}>
-                <Text style={styles.sectionLabel}>易混词提醒</Text>
-                {selectedWord.similar_words.map((sw, index) => (
-                  <Text key={index} style={styles.sectionText}>
-                    · {sw.word}（{sw.relation === 'spelling' ? '形近' : sw.relation === 'meaning' ? '义近' : '同根'}）— {sw.description}
-                  </Text>
-                ))}
-              </View>
-            )}
-          </ScrollView>
-        )}
-      </Modal>
+        onClose={() => setShowWordModal(false)}
+        word={selectedWord}
+      />
     </View>
   );
 }
 
-const useStyles = makeStyles((colors) => ({
+const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -364,38 +319,26 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 80,
-  },
-  header: {
-    marginBottom: 16,
-  },
-  chapterNum: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.onSurface,
-    marginBottom: 8,
-  },
-  headerMeta: {
+  hero: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    padding: 20,
+    minHeight: 110,
+    gap: 12,
+    marginBottom: 16,
   },
-  metaText: {
-    fontSize: 12,
-    color: colors.tertiary,
+  heroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   contentCard: {
-    borderRadius: 12,
-    elevation: 2,
-    marginBottom: 12,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 8,
   },
   articleText: {
     fontSize: 16,
@@ -413,11 +356,18 @@ const useStyles = makeStyles((colors) => ({
     alignItems: 'center',
     marginTop: 16,
   },
-  translationToggleBtn: {
-    borderColor: colors.primary,
+  translationToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   translationToggleLabel: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.primary,
   },
   bilingualPara: {
@@ -446,99 +396,6 @@ const useStyles = makeStyles((colors) => ({
     flexDirection: 'row',
     padding: 12,
     gap: 12,
-    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: colors.outline,
-  },
-  bottomButton: {
-    flex: 1,
-  },
-  wordModal: {
-    backgroundColor: colors.surface,
-    padding: 20,
-    margin: 24,
-    borderRadius: 16,
-    maxHeight: '70%',
-  },
-  wordModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  wordModalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  definitions: {
-    marginBottom: 12,
-  },
-  defItem: {
-    marginBottom: 10,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.outline,
-  },
-  defHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 4,
-  },
-  posChip: {
-    backgroundColor: colors.background,
-    height: 22,
-  },
-  posChipText: {
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-  },
-  defMeaning: {
-    fontSize: 15,
-    color: colors.onSurface,
-    fontWeight: '500',
-    flex: 1,
-  },
-  coreChip: {
-    backgroundColor: colors.primaryContainer,
-    height: 22,
-  },
-  coreChipText: {
-    fontSize: 10,
-    color: colors.primary,
-  },
-  rareChip: {
-    backgroundColor: palette.accentLight,
-    height: 22,
-  },
-  rareChipText: {
-    fontSize: 10,
-    color: palette.accentDark,
-  },
-  defExample: {
-    fontSize: 13,
-    color: colors.tertiary,
-    fontStyle: 'italic',
-    marginTop: 2,
-    marginLeft: 4,
-    lineHeight: 19,
-  },
-  sectionBlock: {
-    marginBottom: 12,
-    paddingTop: 4,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.onSurfaceVariant,
-    marginBottom: 4,
-  },
-  sectionText: {
-    fontSize: 13,
-    color: colors.onSurfaceVariant,
-    lineHeight: 20,
-    marginBottom: 2,
   },
 }));

@@ -1,23 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { View, FlatList, TouchableOpacity } from 'react-native';
-import {
-  Card,
-  Text,
-  FAB,
-  Modal,
-  Button as PaperButton,
-  Chip,
-  Surface,
-  IconButton,
-} from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
+import { View, FlatList, Pressable, StyleSheet } from 'react-native';
+import { Text, FAB } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import { useAppTheme } from '../theme/theme';
+import { radius, spacing } from '../theme/tokens';
 import { makeStyles } from '../utils/useStyles';
-import { palette } from '../theme/tokens';
 import StorageService from '../services/StorageService';
 import { Article } from '../types';
+import { showConfirm } from '../providers/ConfirmDialogProvider';
+import EmptyState from '../components/ds/EmptyState';
 
 const THEME_LABELS: Record<string, string> = {
   technology: '科技',
@@ -33,59 +26,54 @@ const useStyles = makeStyles((colors) => ({
     flex: 1,
     backgroundColor: colors.background,
   },
-  listContent: {
-    padding: 16,
-    paddingBottom: 80,
-  },
-  emptyList: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+  list: {
+    padding: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: 96,
   },
   articleCard: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.outline,
     backgroundColor: colors.surface,
   },
   articleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  articleTitleArea: {
-    flex: 1,
-    marginRight: 8,
+    marginBottom: 6,
   },
   articleTitle: {
-    fontSize: 16,
+    flex: 1,
+    marginRight: 8,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.onSurface,
-    marginBottom: 4,
+    lineHeight: 22,
+  },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
   },
   articleMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  articleDate: {
-    fontSize: 12,
+  metaText: {
+    fontSize: 11,
     color: colors.tertiary,
-  },
-  articleReadCount: {
-    fontSize: 12,
-    color: colors.tertiary,
-  },
-  articleBody: {
-    marginBottom: 10,
   },
   articleContent: {
     fontSize: 13,
     color: colors.onSurfaceVariant,
     lineHeight: 20,
+    marginBottom: 10,
   },
   articleFooter: {
     flexDirection: 'row',
@@ -93,12 +81,15 @@ const useStyles = makeStyles((colors) => ({
     flexWrap: 'wrap',
     gap: 6,
   },
-  themeChip: {
-    backgroundColor: palette.primaryLight,
-    height: 28,
+  themePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryContainer,
   },
-  chipText: {
-    fontSize: 11,
+  themePillText: {
+    fontSize: 10,
+    fontWeight: '600',
     color: colors.primary,
   },
   wordChips: {
@@ -109,12 +100,14 @@ const useStyles = makeStyles((colors) => ({
     flex: 1,
   },
   wordChip: {
-    backgroundColor: palette.accentLight,
-    height: 26,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: colors.secondaryContainer,
   },
   wordChipText: {
-    fontSize: 11,
-    color: palette.accentDark,
+    fontSize: 10,
+    color: colors.secondary,
   },
   moreWords: {
     fontSize: 11,
@@ -122,60 +115,11 @@ const useStyles = makeStyles((colors) => ({
   },
   fab: {
     position: 'absolute',
-    margin: 16,
+    margin: spacing.lg,
     right: 0,
     bottom: 0,
     backgroundColor: colors.primary,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.tertiary,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyHint: {
-    fontSize: 14,
-    color: colors.outline,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    padding: 24,
-    margin: 32,
     borderRadius: 16,
-    alignItems: 'center',
-  },
-  modalIcon: {
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.onSurface,
-    marginBottom: 8,
-  },
-  modalText: {
-    fontSize: 14,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-  },
-  deleteButton: {
-    backgroundColor: palette.danger,
   },
 }));
 
@@ -184,8 +128,6 @@ export default function ArticleListScreen() {
   const { colors } = useAppTheme();
   const styles = useStyles();
   const [articles, setArticles] = useState<Article[]>([]);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [articleToDelete, setArticleToDelete] = useState<Article | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -196,28 +138,22 @@ export default function ArticleListScreen() {
   const loadArticles = async () => {
     try {
       const allArticles = await StorageService.getArticles();
-      // 按创建时间倒序
-      allArticles.sort((a, b) => {
-        const dateA = new Date(a.created_at).getTime();
-        const dateB = new Date(b.created_at).getTime();
-        return dateB - dateA;
-      });
+      allArticles.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setArticles(allArticles);
     } catch (error) {
       console.error('Failed to load articles:', error);
     }
   };
 
-  const handleDelete = (article: Article) => {
-    setArticleToDelete(article);
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDelete = async () => {
-    if (articleToDelete?.id != null) {
-      await StorageService.deleteArticle(articleToDelete.id);
-      setShowDeleteConfirm(false);
-      setArticleToDelete(null);
+  const handleDelete = async (article: Article) => {
+    const confirmed = await showConfirm(
+      '确认删除',
+      `确定要删除文章「${article.title}」吗？删除后无法恢复。`,
+      { confirmText: '删除', cancelText: '取消' }
+    ).catch(() => false);
+    if (!confirmed) return;
+    if (article.id != null) {
+      await StorageService.deleteArticle(article.id);
       loadArticles();
     }
   };
@@ -225,9 +161,7 @@ export default function ArticleListScreen() {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays === 0) return '今天';
     if (diffDays === 1) return '昨天';
     if (diffDays < 7) return `${diffDays} 天前`;
@@ -235,63 +169,64 @@ export default function ArticleListScreen() {
   };
 
   const renderArticle = ({ item }: { item: Article }) => (
-    <TouchableOpacity
-      onPress={() => {
-        if (item.id != null) navigation.navigate('ArticleDetail', { articleId: item.id });
-      }}
-      activeOpacity={0.7}
+    <Pressable
+      onPress={() => item.id != null && navigation.navigate('ArticleDetail', { articleId: item.id })}
+      style={({ pressed }) => [styles.articleCard, pressed && { opacity: 0.7 }]}
     >
-      <Surface style={styles.articleCard}>
-        <View style={styles.articleHeader}>
-          <View style={styles.articleTitleArea}>
-            <Text style={styles.articleTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-            <View style={styles.articleMeta}>
-              <Text style={styles.articleDate}>{formatDate(item.created_at)}</Text>
-              <Text style={styles.articleReadCount}>已读 {item.read_count || 0} 次</Text>
+      <View style={styles.articleHeader}>
+        <Text style={styles.articleTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <Pressable
+          onPress={() => handleDelete(item)}
+          hitSlop={8}
+          style={({ pressed }) => [styles.deleteBtn, { backgroundColor: pressed ? colors.errorContainer : 'transparent' }]}
+        >
+          <MaterialCommunityIcons name="delete-outline" size={18} color={colors.tertiary} />
+        </Pressable>
+      </View>
+
+      <View style={styles.articleMeta}>
+        <MaterialCommunityIcons name="clock-outline" size={12} color={colors.tertiary} />
+        <Text style={styles.metaText}>{formatDate(item.created_at)}</Text>
+        <Text style={styles.metaText}>· 已读 {item.read_count || 0} 次</Text>
+      </View>
+
+      <Text style={styles.articleContent} numberOfLines={2}>
+        {item.content}
+      </Text>
+
+      <View style={styles.articleFooter}>
+        <View style={styles.themePill}>
+          <Text style={styles.themePillText}>{THEME_LABELS[item.theme] || item.theme}</Text>
+        </View>
+        <View style={styles.wordChips}>
+          {item.words.slice(0, 4).map((word, index) => (
+            <View key={index} style={styles.wordChip}>
+              <Text style={styles.wordChipText}>{word}</Text>
             </View>
-          </View>
-          <IconButton
-            icon="delete-outline"
-            size={20}
-            iconColor={colors.tertiary}
-            onPress={() => handleDelete(item)}
-          />
+          ))}
+          {item.words.length > 4 && (
+            <Text style={styles.moreWords}>+{item.words.length - 4}</Text>
+          )}
         </View>
-        <View style={styles.articleBody}>
-          <Text style={styles.articleContent} numberOfLines={2}>
-            {item.content}
-          </Text>
-        </View>
-        <View style={styles.articleFooter}>
-          <Chip icon="tag" style={styles.themeChip} textStyle={styles.chipText}>
-            {THEME_LABELS[item.theme] || item.theme}
-          </Chip>
-          <View style={styles.wordChips}>
-            {item.words.slice(0, 4).map((word, index) => (
-              <Chip key={index} style={styles.wordChip} textStyle={styles.wordChipText} compact>
-                {word}
-              </Chip>
-            ))}
-            {item.words.length > 4 && (
-              <Text style={styles.moreWords}>+{item.words.length - 4}</Text>
-            )}
-          </View>
-        </View>
-      </Surface>
-    </TouchableOpacity>
+      </View>
+    </Pressable>
   );
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <MaterialIcons name="article" size={64} color={colors.outline} />
-      <Text style={styles.emptyTitle}>还没有文章</Text>
-      <Text style={styles.emptyHint}>
-        点击下方按钮，用你的单词本生成{'\n'}第一篇生动有趣的英文文章吧！
-      </Text>
-    </View>
-  );
+  if (articles.length === 0) {
+    return (
+      <View style={styles.container}>
+        <EmptyState
+          icon="file-document-outline"
+          title="还没有文章"
+          description="点击右下角按钮，用你的单词本生成第一篇生动有趣的英文文章。"
+          actionLabel="生成文章"
+          onAction={() => navigation.navigate('ArticleGenerate')}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -299,49 +234,15 @@ export default function ArticleListScreen() {
         data={articles}
         renderItem={renderArticle}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={articles.length === 0 ? styles.emptyList : styles.listContent}
-        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={styles.list}
       />
-
       <FAB
         icon="plus"
         style={styles.fab}
-        color="#FFF"
+        color="#FFFFFF"
         onPress={() => navigation.navigate('ArticleGenerate')}
         label="生成文章"
       />
-
-      {/* 删除确认弹窗 */}
-      <Modal
-        visible={showDeleteConfirm}
-        onDismiss={() => setShowDeleteConfirm(false)}
-        contentContainerStyle={styles.modalContent}
-      >
-        <View style={styles.modalIcon}>
-          <MaterialIcons name="delete-outline" size={48} color={palette.danger} />
-        </View>
-        <Text style={styles.modalTitle}>确认删除</Text>
-        <Text style={styles.modalText}>
-          确定要删除文章「{articleToDelete?.title}」吗？{'\n'}删除后无法恢复。
-        </Text>
-        <View style={styles.modalActions}>
-          <PaperButton
-            mode="outlined"
-            onPress={() => setShowDeleteConfirm(false)}
-            style={styles.modalButton}
-          >
-            取消
-          </PaperButton>
-          <PaperButton
-            mode="contained"
-            onPress={confirmDelete}
-            style={[styles.modalButton, styles.deleteButton]}
-            textColor="#FFF"
-          >
-            删除
-          </PaperButton>
-        </View>
-      </Modal>
     </View>
   );
 }

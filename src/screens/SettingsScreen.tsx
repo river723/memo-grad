@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, Alert, Linking, Platform } from 'react-native';
-import {
-  Card,
-  Text,
-  Switch,
-  List,
-  Button as PaperButton,
-  TextInput,
-  Divider,
-  Surface,
-  Button
-} from 'react-native-paper';
+import { View, ScrollView, Alert, Linking, Platform, Pressable } from 'react-native';
+import { Text, Switch, SegmentedButtons } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import StorageService from '../services/StorageService';
@@ -22,8 +13,10 @@ import { useAppNavigation } from '../navigation/types';
 import { useAuth } from '../providers/AuthProvider';
 import { useThemeContext } from '../providers/ThemeProvider';
 import { makeStyles } from '../utils/useStyles';
-import { palette } from '../theme/tokens';
+import { radius, spacing } from '../theme/tokens';
 import { showConfirm } from '../providers/ConfirmDialogProvider';
+import SectionHeader from '../components/ds/SectionHeader';
+import AppButton from '../components/ds/AppButton';
 
 const BACKUP_FIELDS = [
   'word',
@@ -40,7 +33,6 @@ const BACKUP_FIELDS = [
 ];
 
 const showMessage = (title: string, message: string) => {
-  // 复用 confirm dialog 充当单向提示（用户必须点"知道了"才关闭）
   showConfirm(title, message, { confirmText: '知道了', cancelText: '关闭' }).catch(() => {});
 };
 
@@ -50,31 +42,34 @@ const showConfirmDialog = (title: string, message: string): Promise<boolean> => 
 
 const getBackupValidationError = (jsonData: string): string | null => {
   let data: unknown;
-
   try {
     data = JSON.parse(jsonData);
   } catch (error) {
     return '备份内容无法解析，请选择正确的 .bk 备份文件。';
   }
-
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return '这不是本应用的备份文件。';
   }
-
   const backup = data as Record<string, unknown>;
   const hasBackupField = BACKUP_FIELDS.some(field =>
     Object.prototype.hasOwnProperty.call(backup, field)
   );
-
   return hasBackupField ? null : '这不是本应用的备份文件。';
+};
+
+const PLAN_LABEL: Record<string, string> = {
+  monthly: '月度会员',
+  quarterly: '季度会员',
+  yearly: '年度会员',
 };
 
 export default function SettingsScreen() {
   const { colors } = useAppTheme();
+  const typography = colors.typography;
+  const styles = useStyles();
   const { setThemeMode } = useThemeContext();
   const { isPro, entitlement, refreshEntitlement } = useAuth();
   const navigation = useAppNavigation();
-  const styles = useStyles();
   const [settings, setSettings] = useState<AppSettings>({
     dailyNewWords: 10,
     reviewInterval: [1, 2, 4, 7, 15],
@@ -90,7 +85,7 @@ export default function SettingsScreen() {
     examAutoAdvance: true,
     aiProvider: 'deepseek',
     aiModel: 'deepseek-v4-flash',
-    apiKey: '', // 保留字段兼容旧数据，网络版不再使用
+    apiKey: '',
   });
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -99,7 +94,6 @@ export default function SettingsScreen() {
     loadSettings();
   }, []);
 
-  // 从订阅页 / 网页支付返回时刷新 Pro 状态
   useFocusEffect(
     useCallback(() => { refreshEntitlement(); }, [refreshEntitlement])
   );
@@ -128,19 +122,13 @@ export default function SettingsScreen() {
   };
 
   const handleExport = async () => {
-    if (isExporting) {
-      return;
-    }
-
+    if (isExporting) return;
     setIsExporting(true);
     try {
       const exportedData = await StorageService.exportData();
       const fileName = FileService.generateBackupFileName();
-
       const result = await FileService.exportBackupFile(exportedData, fileName);
-      if (result === 'canceled') {
-        return;
-      }
+      if (result === 'canceled') return;
       showMessage(
         '导出成功',
         result === 'saved'
@@ -157,23 +145,16 @@ export default function SettingsScreen() {
   };
 
   const runImport = async () => {
-    if (isImporting) {
-      return;
-    }
-
+    if (isImporting) return;
     setIsImporting(true);
     try {
       const fileText = await FileService.pickAndReadBackupFile();
-      if (!fileText) {
-        return;
-      }
-
+      if (!fileText) return;
       const validationError = getBackupValidationError(fileText);
       if (validationError) {
         showMessage('导入失败', validationError);
         return;
       }
-
       await StorageService.importData(fileText);
       await loadSettings();
       showMessage('导入成功', '备份已成功导入，当前设备的 API Key 已保留。');
@@ -189,16 +170,12 @@ export default function SettingsScreen() {
       await runImport();
       return;
     }
-
     Alert.alert(
       '导入备份',
       '请选择本应用导出的 .bk 备份文件。导入会覆盖本机已有学习数据；备份文件不会覆盖当前设备保存的 API Key。确定继续吗？',
       [
         { text: '取消', style: 'cancel' },
-        {
-          text: '选择 .bk 文件',
-          onPress: runImport,
-        }
+        { text: '选择 .bk 文件', onPress: runImport },
       ]
     );
   };
@@ -208,21 +185,10 @@ export default function SettingsScreen() {
       if (!confirmed) return;
       await StorageService.clearAllData();
       setSettings({
-        dailyNewWords: 10,
-        reviewInterval: [1, 2, 4, 7, 15],
-        soundEnabled: true,
-        theme: 'light',
-        fontSize: 14,
-        autoPlaySound: false,
-        showRareSense: true,
-        showEtymology: true,
-        articleWordCount: 10,
-        articleLength: 200,
-        examQuestionCount: 10,
-        examAutoAdvance: true,
-        aiProvider: 'deepseek',
-        aiModel: 'deepseek-v4-flash',
-        apiKey: '',
+        dailyNewWords: 10, reviewInterval: [1, 2, 4, 7, 15], soundEnabled: true, theme: 'light',
+        fontSize: 14, autoPlaySound: false, showRareSense: true, showEtymology: true,
+        articleWordCount: 10, articleLength: 200, examQuestionCount: 10, examAutoAdvance: true,
+        aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '',
       });
       setThemeMode('light');
       showMessage('已清除', '所有数据已清除');
@@ -233,21 +199,10 @@ export default function SettingsScreen() {
     showConfirmDialog('恢复默认', '确定要恢复所有设置为默认值吗？').then(async confirmed => {
       if (!confirmed) return;
       await saveSettings({
-        dailyNewWords: 10,
-        reviewInterval: [1, 2, 4, 7, 15],
-        soundEnabled: true,
-        theme: 'light',
-        fontSize: 14,
-        autoPlaySound: false,
-        showRareSense: true,
-        showEtymology: true,
-        articleWordCount: 10,
-        articleLength: 200,
-        examQuestionCount: 10,
-        examAutoAdvance: true,
-        aiProvider: 'deepseek',
-        aiModel: 'deepseek-v4-flash',
-        apiKey: '',
+        dailyNewWords: 10, reviewInterval: [1, 2, 4, 7, 15], soundEnabled: true, theme: 'light',
+        fontSize: 14, autoPlaySound: false, showRareSense: true, showEtymology: true,
+        articleWordCount: 10, articleLength: 200, examQuestionCount: 10, examAutoAdvance: true,
+        aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '',
       });
       setThemeMode('light');
       showMessage('已恢复', '所有设置已恢复为默认值');
@@ -255,444 +210,256 @@ export default function SettingsScreen() {
   };
 
   const handleAdjustDailyNewWords = (delta: number) => {
-    const newValue = Math.max(1, Math.min(
-      UI_CONFIG.DAILY_NEW_WORDS_LIMIT,
-      settings.dailyNewWords + delta
-    ));
+    const newValue = Math.max(1, Math.min(UI_CONFIG.DAILY_NEW_WORDS_LIMIT, settings.dailyNewWords + delta));
     saveSettings({ dailyNewWords: newValue });
   };
 
   const handleAdjustExamQuestionCount = (delta: number) => {
-    const newValue = Math.max(5, Math.min(
-      20,
-      (settings.examQuestionCount || 10) + delta
-    ));
+    const newValue = Math.max(5, Math.min(20, (settings.examQuestionCount || 10) + delta));
     saveSettings({ examQuestionCount: newValue });
   };
 
-  const renderSettingItem = (title: string, value: string | number, onPress?: () => void) => (
-    <List.Item
-      title={title}
-      description={value?.toString()}
-      left={props => <List.Icon {...props} icon="cog" />}
-      onPress={onPress}
-      style={styles.settingItem}
-    />
+  const surface = {
+    backgroundColor: colors.surface,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  } as const;
+
+  // 步进器：标签 + 值 + 加减 + 进度条
+  const renderStepper = (
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    fillPct: number,
+    minLabel: string,
+    maxLabel: string,
+    onDec: () => void,
+    onInc: () => void
+  ) => {
+    const decDisabled = value <= min;
+    const incDisabled = value >= max;
+    const stepBtn = (onPress: () => void, disabled: boolean, glyph: string) => (
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        style={({ pressed }) => [
+          styles.stepperBtn,
+          { backgroundColor: colors.primaryContainer, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
+        ]}
+      >
+        <Text style={{ fontSize: 16, fontWeight: '700', color: colors.primary }}>{glyph}</Text>
+      </Pressable>
+    );
+    return (
+      <View style={styles.settingGroup}>
+        <View style={styles.stepperHeader}>
+          <Text style={styles.settingLabel}>{label}</Text>
+          <View style={styles.stepperRow}>
+            {stepBtn(onDec, decDisabled, '−')}
+            <View style={styles.numberBadge}>
+              <Text style={styles.numberText}>{value}</Text>
+            </View>
+            {stepBtn(onInc, incDisabled, '+')}
+          </View>
+        </View>
+        <View style={styles.sliderContainer}>
+          <View style={[styles.sliderFill, { width: `${Math.min(fillPct, 100)}%`, backgroundColor: colors.primary }]} />
+        </View>
+        <View style={styles.sliderLabels}>
+          <Text style={styles.sliderLabel}>{minLabel}</Text>
+          <Text style={styles.sliderLabel}>{maxLabel}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const toggleRow = (
+    icon: string,
+    label: string,
+    sublabel: string,
+    value: boolean,
+    onValueChange: (v: boolean) => void,
+    disabled = false
+  ) => (
+    <View style={styles.toggleRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.toggleLabel, disabled && { color: colors.tertiary }]}>{label}</Text>
+        <Text style={styles.toggleSublabel}>{sublabel}</Text>
+      </View>
+      <Switch value={value} onValueChange={onValueChange} color={colors.primary} disabled={disabled} />
+    </View>
   );
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}>
       {/* 外观 */}
-      <Card style={styles.card}>
-        <Card.Title title="🎨 外观" titleStyle={styles.cardTitle} />
-        <Card.Content>
-          <Text style={styles.settingLabel}>主题</Text>
-          <View style={styles.themeRow}>
-            {(['light', 'dark', 'system'] as const).map(mode => (
-              <PaperButton
-                key={mode}
-                mode={settings.theme === mode ? 'contained' : 'outlined'}
-                compact
-                onPress={() => {
-                  saveSettings({ theme: mode });
-                  setThemeMode(mode);
-                }}
-                style={styles.themeBtn}
-                icon={mode === 'light' ? 'white-balance-sunny' : mode === 'dark' ? 'weather-night' : 'theme-light-dark'}
-              >
-                {mode === 'light' ? '浅色' : mode === 'dark' ? '深色' : '跟随系统'}
-              </PaperButton>
-            ))}
-          </View>
-        </Card.Content>
-      </Card>
+      <SectionHeader title="外观" icon="palette-outline" />
+      <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+        <Text style={styles.settingLabel}>主题</Text>
+        <SegmentedButtons
+          value={settings.theme}
+          onValueChange={(v) => { saveSettings({ theme: v as any }); setThemeMode(v as any); }}
+          buttons={[
+            { value: 'light', label: '浅色', icon: 'white-balance-sunny' },
+            { value: 'dark', label: '深色', icon: 'weather-night' },
+            { value: 'system', label: '跟随系统', icon: 'theme-light-dark' },
+          ]}
+          style={{ marginTop: spacing.sm }}
+        />
+      </View>
 
       {/* 学习设置 */}
-      <Card style={styles.card}>
-        <Card.Title title="⚙️ 学习设置" titleStyle={styles.cardTitle} />
-        <Card.Content>
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingLabel}>每日新词数量</Text>
-            <View style={styles.numberInput}>
-              <View style={styles.stepperRow}>
-                <PaperButton
-                  mode="outlined"
-                  compact
-                  onPress={() => handleAdjustDailyNewWords(-1)}
-                  style={styles.stepperBtn}
-                  labelStyle={styles.stepperBtnLabel}
-                >
-                  -
-                </PaperButton>
-                <Surface style={styles.numberButton}>
-                  <Text style={styles.numberText}>{settings.dailyNewWords}</Text>
-                </Surface>
-                <PaperButton
-                  mode="outlined"
-                  compact
-                  onPress={() => handleAdjustDailyNewWords(1)}
-                  style={styles.stepperBtn}
-                  labelStyle={styles.stepperBtnLabel}
-                >
-                  +
-                </PaperButton>
-              </View>
-            </View>
-            <View style={styles.sliderContainer}>
-              <View
-                style={[
-                  styles.sliderFill,
-                  { width: `${(settings.dailyNewWords / UI_CONFIG.DAILY_NEW_WORDS_LIMIT) * 100}%` }
-                ]}
-              />
-            </View>
-            <View style={styles.sliderLabels}>
-              <Text style={styles.sliderLabel}>1</Text>
-              <Text style={styles.sliderLabel}>{UI_CONFIG.DAILY_NEW_WORDS_LIMIT}</Text>
-            </View>
-          </View>
-
-          <Divider style={styles.divider} />
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingLabel}>AI出题练习题数</Text>
-            <View style={styles.numberInput}>
-              <View style={styles.stepperRow}>
-                <PaperButton
-                  mode="outlined"
-                  compact
-                  onPress={() => handleAdjustExamQuestionCount(-1)}
-                  style={styles.stepperBtn}
-                  labelStyle={styles.stepperBtnLabel}
-                >
-                  -
-                </PaperButton>
-                <Surface style={styles.numberButton}>
-                  <Text style={styles.numberText}>{settings.examQuestionCount || 10}</Text>
-                </Surface>
-                <PaperButton
-                  mode="outlined"
-                  compact
-                  onPress={() => handleAdjustExamQuestionCount(1)}
-                  style={styles.stepperBtn}
-                  labelStyle={styles.stepperBtnLabel}
-                >
-                  +
-                </PaperButton>
-              </View>
-            </View>
-            <View style={styles.sliderContainer}>
-              <View
-                style={[
-                  styles.sliderFill,
-                  { width: `${((settings.examQuestionCount || 10) / 20) * 100}%` }
-                ]}
-              />
-            </View>
-            <View style={styles.sliderLabels}>
-              <Text style={styles.sliderLabel}>5</Text>
-              <Text style={styles.sliderLabel}>20</Text>
-            </View>
-          </View>
-
-          <View style={styles.toggleRow}>
-            <View>
-              <Text style={styles.toggleLabel}>⚡ 答题自动跳转</Text>
-              <Text style={styles.toggleSublabel}>
-                {settings.examAutoAdvance ? '答对后 2.5 秒自动下一题' : '手动点击下一题'}
-              </Text>
-            </View>
-            <Switch
-              value={settings.examAutoAdvance}
-              onValueChange={value => saveSettings({ examAutoAdvance: value })}
-              color={colors.primary}
-            />
-          </View>
-
-          <Divider style={styles.divider} />
-
-          <View style={styles.toggleRow}>
-            <View>
-              <Text style={styles.toggleLabel}>🔊 发音功能</Text>
-              <Text style={styles.toggleSublabel}>朗读单词发音</Text>
-            </View>
-            <Switch
-              value={settings.soundEnabled}
-              onValueChange={value => saveSettings({ soundEnabled: value })}
-              color={palette.primary}
-            />
-          </View>
-
-          <View style={styles.toggleRow}>
-            <View>
-              <Text style={styles.toggleLabel}>🔇 熟词僻义</Text>
-              <Text style={styles.toggleSublabel}>显示特殊用法标注</Text>
-            </View>
-            <Switch
-              value={settings.showRareSense}
-              onValueChange={value => saveSettings({ showRareSense: value })}
-              color={colors.primary}
-            />
-          </View>
-
-          <View style={styles.toggleRow}>
-            <View>
-              <Text style={styles.toggleLabel}>🔍 词根词缀</Text>
-              <Text style={styles.toggleSublabel}>显示词源分析</Text>
-            </View>
-            <Switch
-              value={settings.showEtymology}
-              onValueChange={value => saveSettings({ showEtymology: value })}
-              color={colors.primary}
-            />
-          </View>
-
-          <View style={styles.toggleRow}>
-            <View>
-              <Text style={[styles.toggleLabel, !settings.soundEnabled && styles.disabledText]}>
-                🔊 自动发音
-              </Text>
-              <Text style={styles.toggleSublabel}>
-                {settings.soundEnabled ? '学新单词时自动朗读' : '需先开启发音功能'}
-              </Text>
-            </View>
-            <Switch
-              value={settings.soundEnabled && settings.autoPlaySound}
-              onValueChange={value => saveSettings({ autoPlaySound: value })}
-              color={colors.primary}
-              disabled={!settings.soundEnabled}
-            />
-          </View>
-        </Card.Content>
-      </Card>
+      <SectionHeader title="学习设置" icon="cog-outline" />
+      <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+        {renderStepper(
+          '每日新词数量',
+          settings.dailyNewWords,
+          1,
+          UI_CONFIG.DAILY_NEW_WORDS_LIMIT,
+          (settings.dailyNewWords / UI_CONFIG.DAILY_NEW_WORDS_LIMIT) * 100,
+          '1',
+          String(UI_CONFIG.DAILY_NEW_WORDS_LIMIT),
+          () => handleAdjustDailyNewWords(-1),
+          () => handleAdjustDailyNewWords(1)
+        )}
+        <View style={styles.divider} />
+        {renderStepper(
+          'AI 出题练习题数',
+          settings.examQuestionCount || 10,
+          5,
+          20,
+          ((settings.examQuestionCount || 10) / 20) * 100,
+          '5',
+          '20',
+          () => handleAdjustExamQuestionCount(-1),
+          () => handleAdjustExamQuestionCount(1)
+        )}
+        <View style={styles.divider} />
+        {toggleRow('lightning-bolt', '⚡ 答题自动跳转', settings.examAutoAdvance ? '答对后 2.5 秒自动下一题' : '手动点击下一题', settings.examAutoAdvance, v => saveSettings({ examAutoAdvance: v }))}
+        {toggleRow('volume-high', '🔊 发音功能', '朗读单词发音', settings.soundEnabled, v => saveSettings({ soundEnabled: v }))}
+        {toggleRow('book-alert', '🔇 熟词僻义', '显示特殊用法标注', settings.showRareSense, v => saveSettings({ showRareSense: v }))}
+        {toggleRow('magnify-scan', '🔍 词根词缀', '显示词源分析', settings.showEtymology, v => saveSettings({ showEtymology: v }))}
+        {toggleRow('volume-vibrate', '🔊 自动发音', settings.soundEnabled ? '学新单词时自动朗读' : '需先开启发音功能', settings.soundEnabled && settings.autoPlaySound, v => saveSettings({ autoPlaySound: v }), !settings.soundEnabled)}
+      </View>
 
       {/* 文章生成设置 */}
-      <Card style={styles.card}>
-        <Card.Title title="📝 文章生成设置" titleStyle={styles.cardTitle} />
-        <Card.Content>
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingLabel}>每篇文章生词数</Text>
-            <View style={styles.numberInput}>
-              <View style={styles.stepperRow}>
-                <PaperButton
-                  mode="outlined"
-                  compact
-                  onPress={() => {
-                    const newValue = Math.max(5, (settings.articleWordCount || 10) - 1);
-                    saveSettings({ articleWordCount: newValue });
-                  }}
-                  style={styles.stepperBtn}
-                  labelStyle={styles.stepperBtnLabel}
-                >
-                  -
-                </PaperButton>
-                <Surface style={styles.numberButton}>
-                  <Text style={styles.numberText}>{settings.articleWordCount || 10}</Text>
-                </Surface>
-                <PaperButton
-                  mode="outlined"
-                  compact
-                  onPress={() => {
-                    const newValue = Math.min(20, (settings.articleWordCount || 10) + 1);
-                    saveSettings({ articleWordCount: newValue });
-                  }}
-                  style={styles.stepperBtn}
-                  labelStyle={styles.stepperBtnLabel}
-                >
-                  +
-                </PaperButton>
-              </View>
-            </View>
-            <View style={styles.sliderContainer}>
-              <View
-                style={[
-                  styles.sliderFill,
-                  { width: `${((settings.articleWordCount || 10) / 20) * 100}%` }
-                ]}
-              />
-            </View>
-            <View style={styles.sliderLabels}>
-              <Text style={styles.sliderLabel}>5</Text>
-              <Text style={styles.sliderLabel}>20</Text>
-            </View>
-          </View>
-
-          <Divider style={styles.divider} />
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingLabel}>文章目标词数</Text>
-            <View style={styles.numberInput}>
-              <View style={styles.stepperRow}>
-                <PaperButton
-                  mode="outlined"
-                  compact
-                  onPress={() => {
-                    const newValue = Math.max(100, (settings.articleLength || 200) - 50);
-                    saveSettings({ articleLength: newValue });
-                  }}
-                  style={styles.stepperBtn}
-                  labelStyle={styles.stepperBtnLabel}
-                >
-                  -
-                </PaperButton>
-                <Surface style={styles.numberButton}>
-                  <Text style={styles.numberText}>{settings.articleLength || 200}</Text>
-                </Surface>
-                <PaperButton
-                  mode="outlined"
-                  compact
-                  onPress={() => {
-                    const newValue = Math.min(500, (settings.articleLength || 200) + 50);
-                    saveSettings({ articleLength: newValue });
-                  }}
-                  style={styles.stepperBtn}
-                  labelStyle={styles.stepperBtnLabel}
-                >
-                  +
-                </PaperButton>
-              </View>
-            </View>
-            <View style={styles.sliderContainer}>
-              <View
-                style={[
-                  styles.sliderFill,
-                  { width: `${((settings.articleLength || 200) / 500) * 100}%` }
-                ]}
-              />
-            </View>
-            <View style={styles.sliderLabels}>
-              <Text style={styles.sliderLabel}>100</Text>
-              <Text style={styles.sliderLabel}>500</Text>
-            </View>
-          </View>
-        </Card.Content>
-      </Card>
+      <SectionHeader title="文章生成设置" icon="file-document-outline" />
+      <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+        {renderStepper(
+          '每篇文章生词数',
+          settings.articleWordCount || 10,
+          5, 20,
+          ((settings.articleWordCount || 10) / 20) * 100,
+          '5', '20',
+          () => saveSettings({ articleWordCount: Math.max(5, (settings.articleWordCount || 10) - 1) }),
+          () => saveSettings({ articleWordCount: Math.min(20, (settings.articleWordCount || 10) + 1) })
+        )}
+        <View style={styles.divider} />
+        {renderStepper(
+          '文章目标词数',
+          settings.articleLength || 200,
+          100, 500,
+          ((settings.articleLength || 200) / 500) * 100,
+          '100', '500',
+          () => saveSettings({ articleLength: Math.max(100, (settings.articleLength || 200) - 50) }),
+          () => saveSettings({ articleLength: Math.min(500, (settings.articleLength || 200) + 50) })
+        )}
+      </View>
 
       {/* AI 功能订阅 */}
-      <Card style={styles.card}>
-        <Card.Title title="⭐ AI 功能订阅" titleStyle={styles.cardTitle} />
-        <Card.Content>
-          {/* 状态行：免费 / Pro + 套餐名 + 到期日 */}
-          <View style={styles.subscriptionStatusRow}>
-            <View
-              style={[
-                styles.planBadge,
-                { backgroundColor: isPro ? colors.primaryContainer : colors.surfaceVariant },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.planBadgeText,
-                  { color: isPro ? colors.primary : colors.onSurfaceVariant },
-                ]}
-              >
-                {isPro
-                  ? `Pro · ${
-                      entitlement?.plan === 'monthly'
-                        ? '月度会员'
-                        : entitlement?.plan === 'quarterly'
-                        ? '季度会员'
-                        : entitlement?.plan === 'yearly'
-                        ? '年度会员'
-                        : '会员'
-                    }`
-                  : '免费版'}
-              </Text>
-            </View>
-            {isPro && entitlement?.expiresAt && (
-              <Text style={styles.subscriptionExpiry}>
-                到期 {format(new Date(entitlement.expiresAt), 'yyyy-MM-dd')}
-              </Text>
-            )}
-          </View>
-
-          {/* 配额行：仅 Pro 显示月度限额 */}
-          {isPro && entitlement && (
-            <Text style={styles.subscriptionQuota}>
-              本月已用 {entitlement.quota.used} / {entitlement.quota.monthlyLimit} 次
-              （剩余 {entitlement.quota.remaining}）
+      <SectionHeader title="AI 功能订阅" icon="crown-outline" />
+      <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+        <View style={styles.subRow}>
+          <View style={[styles.planBadge, { backgroundColor: isPro ? colors.primaryContainer : colors.surfaceVariant }]}>
+            <Text style={[styles.planBadgeText, { color: isPro ? colors.primary : colors.onSurfaceVariant }]}>
+              {isPro ? `Pro · ${PLAN_LABEL[entitlement?.plan ?? ''] ?? '会员'}` : '免费版'}
             </Text>
+          </View>
+          {isPro && entitlement?.expiresAt && (
+            <Text style={styles.expiryText}>到期 {format(new Date(entitlement.expiresAt), 'yyyy-MM-dd')}</Text>
           )}
-
-          <Text style={styles.apiInfo}>
-            {isPro
-              ? '感谢支持！订阅期内可无限制使用 AI 单词分析、文章生成、AI 出题、真题解析。'
-              : 'AI 功能（单词分析、文章生成、AI 出题、真题解析）需要订阅解锁。订阅后由云端统一提供 DeepSeek 算力。'}
+        </View>
+        {isPro && entitlement && (
+          <Text style={styles.quotaText}>
+            本月已用 {entitlement.quota.used} / {entitlement.quota.monthlyLimit} 次（剩余 {entitlement.quota.remaining}）
           </Text>
-
-          <Button
-            mode={isPro ? 'outlined' : 'contained'}
-            icon={isPro ? 'card' : 'star'}
-            onPress={() => navigation.navigate('Subscription')}
-            style={styles.subscriptionCta}
-          >
-            {isPro ? '管理订阅' : '立即升级到 Pro'}
-          </Button>
-        </Card.Content>
-      </Card>
+        )}
+        <Text style={styles.apiInfo}>
+          {isPro
+            ? '感谢支持！订阅期内可无限制使用 AI 单词分析、文章生成、AI 出题、真题解析。'
+            : 'AI 功能（单词分析、文章生成、AI 出题、真题解析）需要订阅解锁，订阅后由云端统一提供 DeepSeek 算力。'}
+        </Text>
+        <AppButton
+          title={isPro ? '管理订阅' : '立即升级到 Pro'}
+          onPress={() => navigation.navigate('Subscription')}
+          variant={isPro ? 'secondary' : 'primary'}
+          size="lg"
+          fullWidth
+          leftIcon={<MaterialCommunityIcons name={isPro ? 'card-account-details' : 'star'} size={20} color={isPro ? colors.primary : colors.onPrimary} />}
+        />
+      </View>
 
       {/* 数据管理 */}
-      <Card style={styles.card}>
-        <Card.Title title="📦 数据管理" titleStyle={styles.cardTitle} />
-        <Card.Content>
-          <View style={styles.dataActions}>
-            <View style={styles.dataActionItem}>
-              <Button
-                mode="contained-tonal"
-                icon="export"
-                onPress={handleExport}
-                loading={isExporting}
-                disabled={isExporting || isImporting}
-                style={styles.dataActionBtn}
-                buttonColor={colors.primaryContainer}
-                textColor={colors.onPrimaryContainer}
-                labelStyle={styles.dataActionText}
-              >
-                导出备份
-              </Button>
-              <Text style={styles.dataActionDesc}>导出 .bk 压缩备份</Text>
-            </View>
-            <View style={styles.dataActionItem}>
-              <Button
-                mode="contained-tonal"
-                icon="import"
-                onPress={handleImport}
-                loading={isImporting}
-                disabled={isExporting || isImporting}
-                style={styles.dataActionBtn}
-                buttonColor={colors.primaryContainer}
-                textColor={colors.onPrimaryContainer}
-                labelStyle={styles.dataActionText}
-              >
-                导入备份
-              </Button>
-              <Text style={styles.dataActionDesc}>从 .bk 文件恢复数据</Text>
-            </View>
+      <SectionHeader title="数据管理" icon="database-outline" />
+      <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+        <View style={styles.dataActions}>
+          <View style={styles.dataActionItem}>
+            <AppButton
+              title="导出备份"
+              onPress={handleExport}
+              variant="secondary"
+              size="md"
+              loading={isExporting}
+              disabled={isExporting || isImporting}
+              fullWidth
+              leftIcon={<MaterialCommunityIcons name="export" size={18} color={colors.primary} />}
+            />
+            <Text style={styles.dataActionDesc}>导出 .bk 压缩备份</Text>
           </View>
-        </Card.Content>
-      </Card>
+          <View style={styles.dataActionItem}>
+            <AppButton
+              title="导入备份"
+              onPress={handleImport}
+              variant="secondary"
+              size="md"
+              loading={isImporting}
+              disabled={isExporting || isImporting}
+              fullWidth
+              leftIcon={<MaterialCommunityIcons name="import" size={18} color={colors.primary} />}
+            />
+            <Text style={styles.dataActionDesc}>从 .bk 文件恢复</Text>
+          </View>
+        </View>
+      </View>
 
-      {/* 高级设置 */}
-      <Card style={styles.card}>
-        <Card.Title title="⚡ 高级选项" titleStyle={styles.cardTitle} />
-        <Card.Content>
-          <View style={styles.dangerActions}>
-            <Surface style={[styles.dangerBtn, { backgroundColor: colors.errorContainer }]}>
-              <Text style={[styles.dangerBtnText, { color: colors.error }]} onPress={handleResetDefaults}>
-                重置所有设置
-              </Text>
-            </Surface>
-            <Surface style={[styles.dangerBtn, { backgroundColor: colors.errorContainer }]}>
-              <Text style={[styles.dangerBtnText, { color: colors.error }]} onPress={handleClearData}>
-                清除所有数据
-              </Text>
-            </Surface>
-          </View>
-        </Card.Content>
-      </Card>
+      {/* 高级选项 */}
+      <SectionHeader title="高级选项" icon="alert-outline" />
+      <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+        <View style={{ gap: spacing.sm }}>
+          <AppButton
+            title="重置所有设置"
+            onPress={handleResetDefaults}
+            variant="danger"
+            size="md"
+            fullWidth
+            leftIcon={<MaterialCommunityIcons name="restore" size={18} color={colors.onPrimary} />}
+          />
+          <AppButton
+            title="清除所有数据"
+            onPress={handleClearData}
+            variant="danger"
+            size="md"
+            fullWidth
+            leftIcon={<MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.onPrimary} />}
+          />
+        </View>
+      </View>
 
       {/* 版本信息 */}
       <View style={styles.footer}>
+        <MaterialCommunityIcons name="book-open-variant" size={20} color={colors.tertiary} />
         <Text style={styles.footerText}>版本 1.0.0</Text>
         <Text style={styles.footerSub}>考研英语生词本AI版</Text>
         <Text style={styles.footerSub}>专注考研 · 科学背词</Text>
@@ -705,60 +472,57 @@ const useStyles = makeStyles(colors => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: 16,
-  },
-  card: {
-    marginBottom: 16,
-    elevation: 2,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  settingItem: {
-    paddingVertical: 8,
   },
   settingGroup: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   settingLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: colors.onSurface,
-    marginBottom: 8,
   },
-  themeRow: {
+  stepperHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 12,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  themeBtn: {
-    flex: 1,
-  },
-  numberInput: {
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
   },
-  numberButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 8,
+  numberBadge: {
+    minWidth: 44,
+    height: 32,
+    paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   numberText: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.primary,
   },
   sliderContainer: {
-    height: 8,
+    height: 6,
     backgroundColor: colors.surfaceVariant,
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   sliderFill: {
     height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 4,
+    borderRadius: 3,
   },
   sliderLabels: {
     flexDirection: 'row',
@@ -766,11 +530,14 @@ const useStyles = makeStyles(colors => ({
     marginTop: 4,
   },
   sliderLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.tertiary,
   },
   divider: {
-    marginVertical: 8,
+    height: 1,
+    backgroundColor: colors.outline,
+    marginVertical: 10,
+    opacity: 0.5,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -779,23 +546,16 @@ const useStyles = makeStyles(colors => ({
     paddingVertical: 8,
   },
   toggleLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
+    color: colors.onSurface,
   },
   toggleSublabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.tertiary,
-    marginTop: 2,
+    marginTop: 1,
   },
-  disabledText: {
-    color: colors.tertiary,
-  },
-  apiInfo: {
-    fontSize: 14,
-    color: colors.onSurfaceVariant,
-    marginBottom: 12,
-  },
-  subscriptionStatusRow: {
+  subRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -810,146 +570,47 @@ const useStyles = makeStyles(colors => ({
     fontSize: 13,
     fontWeight: '600',
   },
-  subscriptionExpiry: {
+  expiryText: {
     fontSize: 12,
     color: colors.tertiary,
   },
-  subscriptionQuota: {
+  quotaText: {
     fontSize: 13,
     color: colors.onSurfaceVariant,
     marginBottom: 12,
   },
-  subscriptionCta: {
-    marginTop: 12,
-  },
-  apiKeyContainer: {
+  apiInfo: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.onSurfaceVariant,
     marginBottom: 12,
-  },
-  apiInput: {
-    backgroundColor: 'transparent',
-  },
-  saveApiBtn: {
-    marginTop: 8,
-  },
-  apiActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  apiActionBtn: {
-    flex: 1,
-  },
-  apiTestMessage: {
-    fontSize: 13,
-    color: colors.onSurfaceVariant,
-    marginTop: 10,
-    lineHeight: 20,
-  },
-  apiTestSuccess: {
-    color: colors.success,
-  },
-  apiTestError: {
-    color: colors.error,
-  },
-  apiTips: {
-    marginTop: 8,
-  },
-  apiTip: {
-    fontSize: 13,
-    color: colors.onSurfaceVariant,
-    lineHeight: 20,
-  },
-  apiLink: {
-    color: colors.primary,
-    fontWeight: 'bold',
   },
   dataActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     gap: 12,
   },
   dataActionItem: {
     flex: 1,
     alignItems: 'center',
   },
-  dataActionBtn: {
-    borderRadius: 8,
-    width: '100%',
-  },
-  dataActionText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
   dataActionDesc: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.tertiary,
-    marginTop: 4,
-  },
-  dangerActions: {
-    gap: 12,
-  },
-  dangerBtn: {
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  dangerBtnText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    marginTop: 6,
+    textAlign: 'center',
   },
   footer: {
     alignItems: 'center',
     paddingVertical: 24,
+    gap: 4,
   },
   footerText: {
-    fontSize: 14,
-    color: colors.tertiary,
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    fontWeight: '500',
   },
   footerSub: {
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
-  },
-  stepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  stepperBtn: {
-    borderRadius: 8,
-    minWidth: 40,
-  },
-  stepperBtnLabel: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  exportModal: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: colors.surface,
-  },
-  exportTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  exportContent: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    padding: 12,
-  },
-  exportJson: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-  },
-  exportActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 16,
+    fontSize: 11,
+    color: colors.tertiary,
   },
 }));

@@ -29,7 +29,7 @@ import {
   Easing,
   Platform,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AppIcon, { type IconName } from './AppIcon';
 import { useAppTheme } from '../../theme/theme';
 import { radius, spacing, palette } from '../../theme/tokens';
 import { spring, timing } from '../../theme/motion';
@@ -98,7 +98,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
-const VARIANT_ICON: Record<ToastVariant, keyof typeof MaterialCommunityIcons.glyphMap> = {
+const VARIANT_ICON: Record<ToastVariant, IconName> = {
   success: 'check-circle',
   error: 'alert-circle',
   info: 'information',
@@ -164,7 +164,7 @@ const ToastCard: React.FC<{ item: ToastItem; onDone: () => void }> = ({ item, on
         },
       ]}
     >
-      <MaterialCommunityIcons name={VARIANT_ICON[item.variant] as any} size={20} color={tint} />
+      <AppIcon name={VARIANT_ICON[item.variant]} size={20} color={tint} />
       <Text style={[styles.text, { color: palette.onPrimary }]} numberOfLines={2}>
         {item.message}
       </Text>

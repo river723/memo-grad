@@ -16,6 +16,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AppIcon, { type IconName } from './AppIcon';
 import { useAppTheme } from '../../theme/theme';
 import { radius, spacing } from '../../theme/tokens';
 import type { TrendDirection } from './StatStrip';
@@ -25,7 +26,7 @@ export type KpiTone = 'primary' | 'success' | 'warning' | 'danger' | 'neutral';
 export interface KpiTileProps {
   label: string;
   value: string | number;
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap | string;
+  icon?: IconName;
   hint?: string;
   trend?: TrendDirection;
   trendValue?: string;
@@ -71,7 +72,7 @@ export default function KpiTile({
       <View style={styles.headerRow}>
         <View style={[styles.iconWrap, { backgroundColor: accent + '20' }]}>
           {icon ? (
-            <MaterialCommunityIcons name={icon as any} size={16} color={accent} />
+            <AppIcon name={icon} size={16} color={accent} />
           ) : null}
         </View>
         <Text
