@@ -35,6 +35,22 @@ module.exports = async function (env, argv) {
     config.output.publicPath = './';
   }
 
+  // react-native-paper / react-native-gesture-handler 内部的可选依赖回退链
+  // 在静态解析缺失包时会触发 Module not found 构建警告（运行时本就静默兜底）。
+  // 将缺省包指向实际会使用的实现，仅消除警告、不改变运行时行为。
+  config.resolve.alias = {
+    ...config.resolve.alias,
+    // paper 图标加载链的首选分支 → 其自身回退实现（即 @expo/vector-icons）
+    '@react-native-vector-icons/material-design-icons':
+      '@expo/vector-icons/MaterialCommunityIcons',
+    // 同上（静态分析仍会扫描该不可达 require，一并指向以消除告警）
+    'react-native-vector-icons/MaterialCommunityIcons':
+      '@expo/vector-icons/MaterialCommunityIcons',
+    // gesture-handler 探测 reanimated 后有 useSharedValue 校验，
+    // 空模块（{}）会被重置回 undefined，与未安装时行为一致
+    'react-native-reanimated': false,
+  };
+
   // Tauri 插件仅在桌面端运行时可用，web 构建无需解析。
   config.externals = {
     ...config.externals,
