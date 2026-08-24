@@ -8,6 +8,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { OFFLINE_MODE } from '../config/appMode';
 import { api, ApiClientError } from '../services/ApiClient';
 import { useAuth } from './AuthProvider';
 
@@ -55,6 +56,7 @@ export function AnnouncementProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const refresh = useCallback(async () => {
+    if (OFFLINE_MODE) return; // 单机形态无公告服务，不发请求
     setLoading(true);
     try {
       const r = await api.get<{ announcements: ActiveAnnouncement[] }>('/api/announcements/active');

@@ -3,10 +3,30 @@
 // 并将资源路径设置为相对路径，以便在 Tauri 中通过本地协议正确加载。
 
 const createExpoWebpackConfigAsync = require('@expo/webpack-config');
+const webpack = require('webpack');
 
 module.exports = async function (env, argv) {
   // 获取 Expo 默认的 webpack 配置
   const config = await createExpoWebpackConfigAsync(env, argv);
+
+  // 应用形态开关（与 src/config/appMode.ts 对应）。
+  // Metro 链由 Expo 内联 EXPO_PUBLIC_*；webpack/Tauri 链在这里显式注入，
+  // 桌面离线包经 scripts/build-web-offline.mjs 设置环境变量后构建。
+  config.plugins = config.plugins || [];
+  config.plugins.push(
+    new webpack.DefinePlugin({
+      'process.env.EXPO_PUBLIC_OFFLINE_MODE': JSON.stringify(
+        process.env.EXPO_PUBLIC_OFFLINE_MODE
+      ),
+      'process.env.EXPO_PUBLIC_USE_REMOTE_CONTENT': JSON.stringify(
+        process.env.EXPO_PUBLIC_USE_REMOTE_CONTENT
+      ),
+      'process.env.EXPO_PUBLIC_API_URL': JSON.stringify(
+        process.env.EXPO_PUBLIC_API_URL
+      ),
+    })
+  );
+
 
   // 添加 Node.js 核心模块的 fallback
   config.resolve = config.resolve || {};

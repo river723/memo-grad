@@ -10,8 +10,10 @@
     "test": "jest",
     "test:migration": "node scripts/test-migration.js",
     "build:web": "expo export:web",
+    "build:web:offline": "node scripts/build-web-offline.mjs",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "tauri:build:offline": "tauri build --config src-tauri/tauri.offline.conf.json"
   },
   "dependencies": {
     "@expo/metro-runtime": "~55.0.12",

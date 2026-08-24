@@ -16,10 +16,12 @@ import { Word, AppSettings, AIResponse, WordDictEntry, WordDictJson } from '../t
 import worddictJson from '../data/worddict.json';
 import StorageService from '../services/StorageService';
 import { WordDictApi, WordDictEntryWire, WordDictMeta } from '../services/WordDictApi';
+import { REMOTE_CONTENT } from '../config/appMode';
 
 // `process.env.EXPO_PUBLIC_*` 在 Expo 编译时被静态替换；运行时为字面量。
 // 默认 true：生产用远程；本地审核或老分支对比设 false。
-const USE_REMOTE = process.env.EXPO_PUBLIC_USE_REMOTE_CONTENT !== 'false';
+// 单机形态（OFFLINE_MODE）强制走本地 JSON，见 src/config/appMode.ts。
+const USE_REMOTE = REMOTE_CONTENT;
 
 const localFallback = worddictJson as WordDictJson;
 

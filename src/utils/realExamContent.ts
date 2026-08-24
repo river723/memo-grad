@@ -15,9 +15,10 @@
 import realExamsFallback from '../data/realExams.json';
 import StorageService from '../services/StorageService';
 import { RealExamApi } from '../services/RealExamApi';
+import { REMOTE_CONTENT } from '../config/appMode';
 import type { RealExamYear } from '../types';
 
-const USE_REMOTE = process.env.EXPO_PUBLIC_USE_REMOTE_CONTENT !== 'false';
+const USE_REMOTE = REMOTE_CONTENT;
 
 const fallbackExams = realExamsFallback as unknown as RealExamYear[];
 

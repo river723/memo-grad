@@ -1,17 +1,18 @@
 /**
- * AI 服务（网络版 v2）。
+ * AI 服务门面（对外形状自网络版 v2 起保持不变 —— 8 个 screen 调用零改动）。
  *
- * 不再直连 DeepSeek API，而是通过后端 `/api/ai/:action` 代理。
- * 8 个公开方法签名不变 —— 这是 8 个 screen 调用处的零改动基础。
- *
- * 与 v1 的关键差异：
- * - 不需要 apiKey/constructor：后端统一管理 DeepSeek Key
- * - 不需要 prompt 构建：prompt 已搬到后端
- * - 不需要 JSON 解析：后端返回已解析的 `{ success, data }`
+ * 按构建期开关 src/config/appMode.ts 的 OFFLINE_MODE 分发：
+ * - 在线形态：走后端 `/api/ai/:action` 代理，Key 由服务端统一管理；
+ *   402（配额耗尽/未订阅）转抛 SubscriptionRequiredError 引导订阅。
+ * - 单机形态（OFFLINE_MODE）：走 src/services/ai/localAIEngine.ts 本地引擎，
+ *   axios 直连 DeepSeek，Key 来自用户在设置页自配的本地密钥；
+ *   无订阅概念，不会抛 SubscriptionRequiredError。
  */
 
+import { OFFLINE_MODE } from '../config/appMode';
 import { api, ApiClientError } from './ApiClient';
 import { AIResponse } from '../types';
+import { LocalAIEngine } from './ai/localAIEngine';
 
 /** 服务端 402：配额耗尽或未订阅，前端收到后应导航到订阅页 */
 export class SubscriptionRequiredError extends Error {
@@ -22,6 +23,9 @@ export class SubscriptionRequiredError extends Error {
 }
 
 class AIService {
+  /** 单机形态的本地引擎实例；在线形态恒为 null（不参与打包后的执行路径） */
+  private local: LocalAIEngine | null = OFFLINE_MODE ? new LocalAIEngine() : null;
+
   /** 调用后端 AI 代理 */
   private async proxy<T = any>(action: string, params: Record<string, unknown>): Promise<T> {
     try {
@@ -40,10 +44,11 @@ class AIService {
   }
 
   async analyzeWord(word: string): Promise<AIResponse> {
-    return this.proxy<AIResponse>('analyzeWord', { word });
+    return OFFLINE_MODE ? this.local!.analyzeWord(word) : this.proxy<AIResponse>('analyzeWord', { word });
   }
 
   async analyzeWords(words: string[]): Promise<Map<string, AIResponse>> {
+    if (OFFLINE_MODE) return this.local!.analyzeWords(words);
     const data = await this.proxy<Record<string, AIResponse>>('analyzeWords', { words });
     const map = new Map<string, AIResponse>();
     for (const [key, value] of Object.entries(data)) {
@@ -53,7 +58,9 @@ class AIService {
   }
 
   async generateStudyContent(words: string[], type: 'passage' | 'quiz' | 'writing'): Promise<string> {
-    return this.proxy<string>('generateStudyContent', { words, type });
+    return OFFLINE_MODE
+      ? this.local!.generateStudyContent(words, type)
+      : this.proxy<string>('generateStudyContent', { words, type });
   }
 
   async generateFunArticle(
@@ -61,7 +68,9 @@ class AIService {
     theme: string = 'random',
     targetLength: number = 200
   ): Promise<{ title: string; content: string; translation: string }> {
-    return this.proxy('generateFunArticle', { words, theme, targetLength });
+    return OFFLINE_MODE
+      ? this.local!.generateFunArticle(words, theme, targetLength)
+      : this.proxy('generateFunArticle', { words, theme, targetLength });
   }
 
   async generateClozeQuestions(
@@ -73,7 +82,9 @@ class AIService {
     correct_answer: string;
     chinese_hint: string;
   }[]> {
-    return this.proxy('generateClozeQuestions', { words });
+    return OFFLINE_MODE
+      ? this.local!.generateClozeQuestions(words)
+      : this.proxy('generateClozeQuestions', { words });
   }
 
   async generateDefinitionQuestions(
@@ -84,7 +95,9 @@ class AIService {
     options: string[];
     correct_definition: string;
   }[]> {
-    return this.proxy('generateDefinitionQuestions', { words });
+    return OFFLINE_MODE
+      ? this.local!.generateDefinitionQuestions(words)
+      : this.proxy('generateDefinitionQuestions', { words });
   }
 
   async generateRealExamExplanation(params: {
@@ -95,11 +108,15 @@ class AIService {
     correctAnswer: string;
     userAnswer?: string | null;
   }): Promise<string> {
-    return this.proxy<string>('generateRealExamExplanation', params);
+    return OFFLINE_MODE
+      ? this.local!.generateRealExamExplanation(params)
+      : this.proxy<string>('generateRealExamExplanation', params);
   }
 
   async extractWordsFromText(text: string): Promise<string[]> {
-    return this.proxy<string[]>('extractWordsFromText', { text });
+    return OFFLINE_MODE
+      ? this.local!.extractWordsFromText(text)
+      : this.proxy<string[]>('extractWordsFromText', { text });
   }
 }
 

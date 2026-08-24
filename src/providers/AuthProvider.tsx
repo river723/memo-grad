@@ -12,6 +12,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import StorageService from '../services/StorageService';
+import { OFFLINE_MODE } from '../config/appMode';
 import { registerTokenStore, api, ApiClientError, setCredentials } from '../services/ApiClient';
 import { startBackgroundSync, stopBackgroundSync } from '../services/SyncService';
 
@@ -70,10 +71,36 @@ const AUTH_KEYS = {
   REFRESH_TOKEN: 'kaoyan_refresh_token',
 };
 
+/**
+ * 单机形态（OFFLINE_MODE）的本地假用户：免登录直达主界面，AI 视为可用
+ * （走用户自配的本地 API Key）。id 用固定值且永不写入 StorageService 的
+ * userId 前缀——离线下 switchUser 不会被调用，key 保持无前缀的旧单机格式。
+ */
+const LOCAL_USER: AuthUser = {
+  id: 'local',
+  phone: null,
+  email: null,
+  nickname: '本地用户',
+  role: 'user',
+  createdAt: '',
+};
+
+/** 单机形态的本地权益：恒为 Pro，配额仅作占位展示。 */
+const LOCAL_ENTITLEMENT: Entitlement = {
+  isPro: true,
+  plan: 'local',
+  status: 'active',
+  expiresAt: null,
+  quota: { monthlyLimit: 0, used: 0, remaining: 999999 },
+};
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [entitlement, setEntitlement] = useState<Entitlement | null>(null);
-  const [loading, setLoading] = useState(true);
+  // 单机形态：直接以本地假用户启动（loading=false → 登录墙不可达）
+  const [user, setUser] = useState<AuthUser | null>(OFFLINE_MODE ? LOCAL_USER : null);
+  const [entitlement, setEntitlement] = useState<Entitlement | null>(
+    OFFLINE_MODE ? LOCAL_ENTITLEMENT : null
+  );
+  const [loading, setLoading] = useState(OFFLINE_MODE ? false : true);
 
   /** 把 token 同步写入 AsyncStorage 和 ApiClient 内存。 */
   const persistTokens = useCallback(async (accessToken: string | null, refreshToken: string | null) => {
@@ -96,6 +123,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   /** 恢复登录态：启动时从 AsyncStorage 拿 token，调 /me 校验有效性。 */
   const restoreSession = useCallback(async () => {
+    if (OFFLINE_MODE) return; // 单机形态无会话可恢复（状态已在初始化时给定）
     try {
       const [accessToken, refreshToken] = await Promise.all([
         StorageService._rawGetItem(AUTH_KEYS.ACCESS_TOKEN),
@@ -132,6 +160,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => { restoreSession(); }, []);
 
   const sendCode = useCallback(async (phone: string): Promise<string | null> => {
+    if (OFFLINE_MODE) return null; // 登录墙离线不可达，防御性兜底
     const res = await api.post<{ sent: boolean; expiresAt: string; devCode?: string }>(
       '/auth/send-code',
       { phone },
@@ -141,6 +170,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const login = useCallback(async (phone: string, code: string) => {
+    if (OFFLINE_MODE) return; // 单机形态无登录，防御性兜底
     const res = await api.post<{
       accessToken: string;
       refreshToken: string;
@@ -159,6 +189,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [persistTokens, switchUser]);
 
   const logout = useCallback(async () => {
+    if (OFFLINE_MODE) return; // 离线无会话可退出；不清用户数据（避免误删生词本）
     try {
       const rt = await StorageService._rawGetItem(AUTH_KEYS.REFRESH_TOKEN);
       if (rt) {
@@ -176,6 +207,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [persistTokens, switchUser]);
 
   const refreshEntitlement = useCallback(async () => {
+    if (OFFLINE_MODE) return; // 单机形态权益恒为本地 Pro
     if (!user) return;
     const result = await api.get<{ user: AuthUser; entitlement: Entitlement }>('/me');
     setEntitlement(result.entitlement);

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView, Alert, Linking, Platform, Pressable } from 'react-native';
-import { Text, Switch, SegmentedButtons } from 'react-native-paper';
+import { Text, Switch, SegmentedButtons, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import StorageService from '../services/StorageService';
 import FileService from '../services/FileService';
-import { UI_CONFIG } from '../constants';
+import { UI_CONFIG, AI_PROVIDERS } from '../constants';
 import { AppSettings } from '../types';
+import { OFFLINE_MODE } from '../config/appMode';
+import { LocalAIEngine } from '../services/ai/localAIEngine';
 import { useAppTheme } from '../theme/theme';
 import { useAppNavigation } from '../navigation/types';
 import { useAuth } from '../providers/AuthProvider';
@@ -89,6 +91,12 @@ export default function SettingsScreen() {
   });
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  // 单机形态（OFFLINE_MODE）专用：本地 AI Key 配置态
+  const [apiKey, setApiKey] = useState('');
+  const [isEditingApiKey, setIsEditingApiKey] = useState(false);
+  const [isTestingApi, setIsTestingApi] = useState(false);
+  const [apiTestMessage, setApiTestMessage] = useState('');
+  const [apiTestOk, setApiTestOk] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -102,6 +110,8 @@ export default function SettingsScreen() {
     try {
       const savedSettings = await StorageService.getSettings();
       setSettings(prev => ({ ...prev, ...savedSettings }));
+      // 单机形态：回填本地 AI Key（在线形态该 state 不被渲染，无行为影响）
+      setApiKey(savedSettings.apiKey || '');
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -118,6 +128,50 @@ export default function SettingsScreen() {
       setSettings(latestSettings);
     } catch (error) {
       console.error('Failed to save settings:', error);
+    }
+  };
+
+  // —— 单机形态（OFFLINE_MODE）专用：本地 AI Key 的保存与连通性测试 ——
+  const handleSaveAISettings = async () => {
+    if (!apiKey.trim()) {
+      showMessage('未填写 API Key', '请先填写 DeepSeek API Key');
+      return;
+    }
+    await saveSettings({
+      apiKey: apiKey.trim(),
+      aiProvider: 'deepseek',
+      aiModel: AI_PROVIDERS.deepseek.defaultModel,
+    });
+    LocalAIEngine.invalidateConfigCache();
+    showMessage('保存成功', 'DeepSeek API 设置已保存');
+  };
+
+  const handleTestAISettings = async () => {
+    if (!apiKey.trim()) {
+      setApiTestOk(false);
+      setApiTestMessage('请先填写 DeepSeek API Key');
+      showMessage('配置不完整', '请先填写 DeepSeek API Key');
+      return;
+    }
+    setIsTestingApi(true);
+    setApiTestOk(null);
+    setApiTestMessage('正在测试连接，请稍候...');
+    try {
+      const engine = new LocalAIEngine({ apiKey: apiKey.trim() });
+      const ok = await engine.testApiKey();
+      const message = ok
+        ? 'DeepSeek API 可用'
+        : '连接失败，请检查 API Key、模型 ID 或网络连接';
+      setApiTestOk(ok);
+      setApiTestMessage(message);
+      showMessage(ok ? '连接成功' : '连接失败', message);
+    } catch (error: any) {
+      const message = error.message || '请检查 API 设置';
+      setApiTestOk(false);
+      setApiTestMessage(message);
+      showMessage('连接失败', message);
+    } finally {
+      setIsTestingApi(false);
     }
   };
 
@@ -368,38 +422,97 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* AI 功能订阅 */}
-      <SectionHeader title="AI 功能订阅" icon="crown-outline" />
-      <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
-        <View style={styles.subRow}>
-          <View style={[styles.planBadge, { backgroundColor: isPro ? colors.primaryContainer : colors.surfaceVariant }]}>
-            <Text style={[styles.planBadgeText, { color: isPro ? colors.primary : colors.onSurfaceVariant }]}>
-              {isPro ? `Pro · ${PLAN_LABEL[entitlement?.plan ?? ''] ?? '会员'}` : '免费版'}
+      {/* AI 功能订阅（在线）/ 本地 AI 设置（单机） */}
+      {OFFLINE_MODE ? (
+        <>
+          <SectionHeader title="AI 设置" icon="key-variant" />
+          <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+            <Text style={styles.apiInfo}>
+              配置 DeepSeek API Key，用于单词分析、文章生成和 AI 出题。密钥仅保存在本机。
+            </Text>
+            <TextInput
+              mode="outlined"
+              label={`${AI_PROVIDERS.deepseek.name} API Key`}
+              placeholder={AI_PROVIDERS.deepseek.keyPlaceholder}
+              value={apiKey}
+              onChangeText={setApiKey}
+              secureTextEntry={!isEditingApiKey}
+              style={{ marginTop: spacing.sm }}
+              right={
+                <TextInput.Icon
+                  icon={isEditingApiKey ? 'eye-off' : 'eye'}
+                  onPress={() => setIsEditingApiKey(!isEditingApiKey)}
+                />
+              }
+            />
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+              <View style={{ flex: 1 }}>
+                <AppButton
+                  title={isTestingApi ? '测试中...' : '测试连接'}
+                  onPress={handleTestAISettings}
+                  variant="secondary"
+                  fullWidth
+                  disabled={isTestingApi}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppButton title="保存 AI 设置" onPress={handleSaveAISettings} variant="primary" fullWidth />
+              </View>
+            </View>
+            {apiTestMessage ? (
+              <Text
+                style={[
+                  styles.apiInfo,
+                  { marginTop: spacing.sm, color: apiTestOk === true ? colors.primary : colors.error },
+                ]}
+              >
+                {apiTestMessage}
+              </Text>
+            ) : null}
+            <Text style={[styles.apiInfo, { marginTop: spacing.sm }]}>
+              🔗 前往{' '}
+              <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(AI_PROVIDERS.deepseek.getKeyUrl)}>
+                {AI_PROVIDERS.deepseek.name}
+              </Text>{' '}
+              获取 API Key
             </Text>
           </View>
-          {isPro && entitlement?.expiresAt && (
-            <Text style={styles.expiryText}>到期 {format(new Date(entitlement.expiresAt), 'yyyy-MM-dd')}</Text>
-          )}
-        </View>
-        {isPro && entitlement && (
-          <Text style={styles.quotaText}>
-            本月已用 {entitlement.quota.used} / {entitlement.quota.monthlyLimit} 次（剩余 {entitlement.quota.remaining}）
-          </Text>
-        )}
-        <Text style={styles.apiInfo}>
-          {isPro
-            ? '感谢支持！订阅期内可无限制使用 AI 单词分析、文章生成、AI 出题、真题解析。'
-            : 'AI 功能（单词分析、文章生成、AI 出题、真题解析）需要订阅解锁，订阅后由云端统一提供 DeepSeek 算力。'}
-        </Text>
-        <AppButton
-          title={isPro ? '管理订阅' : '立即升级到 Pro'}
-          onPress={() => navigation.navigate('Subscription')}
-          variant={isPro ? 'secondary' : 'primary'}
-          size="lg"
-          fullWidth
-          leftIcon={<MaterialCommunityIcons name={isPro ? 'card-account-details' : 'star'} size={20} color={isPro ? colors.primary : colors.onPrimary} />}
-        />
-      </View>
+        </>
+      ) : (
+        <>
+          <SectionHeader title="AI 功能订阅" icon="crown-outline" />
+          <View style={[surface, { padding: spacing.md }, colors.shadow.hairline]}>
+            <View style={styles.subRow}>
+              <View style={[styles.planBadge, { backgroundColor: isPro ? colors.primaryContainer : colors.surfaceVariant }]}>
+                <Text style={[styles.planBadgeText, { color: isPro ? colors.primary : colors.onSurfaceVariant }]}>
+                  {isPro ? `Pro · ${PLAN_LABEL[entitlement?.plan ?? ''] ?? '会员'}` : '免费版'}
+                </Text>
+              </View>
+              {isPro && entitlement?.expiresAt && (
+                <Text style={styles.expiryText}>到期 {format(new Date(entitlement.expiresAt), 'yyyy-MM-dd')}</Text>
+              )}
+            </View>
+            {isPro && entitlement && (
+              <Text style={styles.quotaText}>
+                本月已用 {entitlement.quota.used} / {entitlement.quota.monthlyLimit} 次（剩余 {entitlement.quota.remaining}）
+              </Text>
+            )}
+            <Text style={styles.apiInfo}>
+              {isPro
+                ? '感谢支持！订阅期内可无限制使用 AI 单词分析、文章生成、AI 出题、真题解析。'
+                : 'AI 功能（单词分析、文章生成、AI 出题、真题解析）需要订阅解锁，订阅后由云端统一提供 DeepSeek 算力。'}
+            </Text>
+            <AppButton
+              title={isPro ? '管理订阅' : '立即升级到 Pro'}
+              onPress={() => navigation.navigate('Subscription')}
+              variant={isPro ? 'secondary' : 'primary'}
+              size="lg"
+              fullWidth
+              leftIcon={<MaterialCommunityIcons name={isPro ? 'card-account-details' : 'star'} size={20} color={isPro ? colors.primary : colors.onPrimary} />}
+            />
+          </View>
+        </>
+      )}
 
       {/* 数据管理 */}
       <SectionHeader title="数据管理" icon="database-outline" />

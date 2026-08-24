@@ -12,6 +12,7 @@ import { makeStyles } from '../utils/useStyles';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import { AppSettings, Word, StudyRecord } from '../types';
+import { OFFLINE_MODE } from '../config/appMode';
 import { useAuth } from '../providers/AuthProvider';
 import AppButton from '../components/ds/AppButton';
 import StatStrip from '../components/ds/StatStrip';
@@ -169,18 +170,29 @@ export default function StatsScreen() {
             fullWidth
             leftIcon={<MaterialCommunityIcons name="chart-line" size={20} color={colors.onPrimary} />}
           />
-          <AppButton
-            title={isPro ? '管理订阅' : '立即升级到 Pro'}
-            onPress={() => navigation.navigate('Subscription')}
-            variant={isPro ? 'secondary' : 'primary'}
-            size="lg"
-            fullWidth
-            leftIcon={
-              isPro
-                ? <MaterialCommunityIcons name="card-account-details" size={20} color={colors.primary} />
-                : <MaterialCommunityIcons name="star" size={20} color={colors.onPrimary} />
-            }
-          />
+          {OFFLINE_MODE ? (
+            <AppButton
+              title="单机版 · AI 使用本地密钥"
+              onPress={() => {}}
+              variant="secondary"
+              size="lg"
+              fullWidth
+              leftIcon={<MaterialCommunityIcons name="key-variant" size={20} color={colors.primary} />}
+            />
+          ) : (
+            <AppButton
+              title={isPro ? '管理订阅' : '立即升级到 Pro'}
+              onPress={() => navigation.navigate('Subscription')}
+              variant={isPro ? 'secondary' : 'primary'}
+              size="lg"
+              fullWidth
+              leftIcon={
+                isPro
+                  ? <MaterialCommunityIcons name="card-account-details" size={20} color={colors.primary} />
+                  : <MaterialCommunityIcons name="star" size={20} color={colors.onPrimary} />
+              }
+            />
+          )}
         </View>
 
         {/* 三指标 */}
@@ -194,8 +206,35 @@ export default function StatsScreen() {
           />
         </View>
 
-        {/* 账号卡 */}
-        {user && (
+        {/* 账号卡：单机形态展示本地模式信息；在线形态展示账号/订阅/配额 */}
+        {user && OFFLINE_MODE && (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.outline,
+                borderRadius: radius.lg,
+              },
+              colors.shadow.hairline,
+            ]}
+          >
+            <View style={styles.accountHeader}>
+              <View style={[styles.avatarBadge, { backgroundColor: colors.primaryContainer }]}>
+                <MaterialCommunityIcons name="laptop" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.onSurface, fontSize: typography.bodyLg.size, fontWeight: '600' }}>
+                  本地用户
+                </Text>
+                <Text style={{ color: colors.onSurfaceVariant, fontSize: typography.caption.size, marginTop: 4 }}>
+                  单机版 · 数据保存在本机，AI 使用自配密钥
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+        {user && !OFFLINE_MODE && (
           <View
             style={[
               styles.card,
@@ -283,17 +322,19 @@ export default function StatsScreen() {
           </View>
         </View>
 
-        {/* 退出登录 */}
-        <View style={{ marginTop: spacing.xl }}>
-          <AppButton
-            title="退出登录"
-            onPress={() => logout()}
-            variant="danger"
-            size="lg"
-            fullWidth
-            leftIcon={<MaterialCommunityIcons name="logout" size={20} color={colors.onPrimary} />}
-          />
-        </View>
+        {/* 退出登录（仅在线形态） */}
+        {user && !OFFLINE_MODE && (
+          <View style={{ marginTop: spacing.xl }}>
+            <AppButton
+              title="退出登录"
+              onPress={() => logout()}
+              variant="danger"
+              size="lg"
+              fullWidth
+              leftIcon={<MaterialCommunityIcons name="logout" size={20} color={colors.onPrimary} />}
+            />
+          </View>
+        )}
 
         {/* 版本信息 */}
         <View style={styles.footer}>

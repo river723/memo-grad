@@ -14,9 +14,10 @@
 import storiesFallback from '../data/stories.json';
 import StorageService from '../services/StorageService';
 import { StoryApi, StorySeriesMetaWire, StoryChapterWire } from '../services/StoryApi';
+import { REMOTE_CONTENT } from '../config/appMode';
 import type { StorySeries } from '../types';
 
-const USE_REMOTE = process.env.EXPO_PUBLIC_USE_REMOTE_CONTENT !== 'false';
+const USE_REMOTE = REMOTE_CONTENT;
 
 const fallbackStories = storiesFallback as unknown as StorySeries;
 

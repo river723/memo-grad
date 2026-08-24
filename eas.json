@@ -20,6 +20,16 @@
         "EXPO_PUBLIC_API_URL": "http://192.168.1.8:5888"
       }
     },
+    "offline-apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_OFFLINE_MODE": "1",
+        "EXPO_PUBLIC_USE_REMOTE_CONTENT": "false"
+      }
+    },
     "production": {
       "distribution": "store",
       "ios": {
