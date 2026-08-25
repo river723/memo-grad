@@ -21,6 +21,7 @@ type RouteParams = {
   passage?: RealExamReadingPassage;   // reading 模式带
   paper?: RealExamClozePaper;         // cloze 模式带
   setId?: 'english1' | 'english2';    // 英语一/英语二标识
+  archived?: boolean;                 // 从练习历史打开的归档回顾
 };
 
 /**
@@ -37,10 +38,11 @@ export default function RealExamResultScreen() {
   const styles = useStyles();
   const savedRef = useRef(false);
 
-  const { session, passage, paper, setId } = (route.params || {}) as RouteParams;
+  const { session, passage, paper, setId, archived } = (route.params || {}) as RouteParams;
 
   useEffect(() => {
-    if (savedRef.current || !session) return;
+    // archived（历史归档回顾）不重复落库，也不重算错题本
+    if (savedRef.current || !session || archived) return;
     savedRef.current = true;
     (async () => {
       try {
@@ -73,6 +75,11 @@ export default function RealExamResultScreen() {
   }, []);
 
   const handleBackToList = () => {
+    // 归档回顾从练习历史进入，返回应回到历史页而非真题列表
+    if (archived) {
+      navigation.goBack();
+      return;
+    }
     navigation.navigate('RealExamList');
   };
 

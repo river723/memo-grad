@@ -24,7 +24,10 @@ export default function ExamAnswerScreen() {
 
   const routeParams = route.params || {};
   const questionType = routeParams.questionType || 'definition';
-  const sessionId = routeParams.sessionId;
+  // 套题归属与来源：重做传根记录 id（originId），错题复习传 source='wrong_review'；
+  // 新生成两者皆缺省。完成时随结果一起落库，用于题库分组。
+  const originId = routeParams.originId;
+  const source = routeParams.source;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<ExamAnswerType[]>([]);
@@ -106,7 +109,8 @@ export default function ExamAnswerScreen() {
           questions,
           answers: finalAnswers,
           questionType,
-          sessionId,
+          originId,
+          source,
         });
       } else {
         const nextIndex = currentIndex + 1;
@@ -141,7 +145,8 @@ export default function ExamAnswerScreen() {
         questions,
         answers: updatedAnswers,
         questionType,
-        sessionId,
+        originId,
+        source,
       });
     } else {
       const nextIndex = currentIndex + 1;
@@ -159,7 +164,8 @@ export default function ExamAnswerScreen() {
         questions,
         answers,
         questionType,
-        sessionId,
+        originId,
+        source,
       });
     } else {
       const nextIndex = currentIndex + 1;
@@ -382,8 +388,8 @@ function renderOption(
   );
 }
 
-// ---- 工具函数 ----
-function parseWordHighlight(sentence: string, word: string): { text: string; isWord: boolean }[] {
+// ---- 工具函数（套题详情只读浏览也复用） ----
+export function parseWordHighlight(sentence: string, word: string): { text: string; isWord: boolean }[] {
   // AI 用 *word* 标记，也兼容没有标记的情况
   const parts: { text: string; isWord: boolean }[] = [];
   const regex = /\*([^*]+)\*/g;
@@ -425,7 +431,7 @@ function parseWordHighlight(sentence: string, word: string): { text: string; isW
  * 找不到再按目标词为前缀匹配更长的屈折形式（abandon -> abandoned）。
  * 找不到返回 null。匹配不区分大小写。
  */
-function findWordRange(sentence: string, word: string): { start: number; end: number } | null {
+export function findWordRange(sentence: string, word: string): { start: number; end: number } | null {
   if (!sentence || !word) return null;
   const lower = sentence.toLowerCase();
   const w = word.trim().toLowerCase();

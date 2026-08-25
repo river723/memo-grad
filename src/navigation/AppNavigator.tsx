@@ -34,6 +34,8 @@ import ExamAnswerScreen from '../screens/ExamAnswerScreen';
 import ExamResultScreen from '../screens/ExamResultScreen';
 import WrongQuestionReviewScreen from '../screens/WrongQuestionReviewScreen';
 import ExamHistoryScreen from '../screens/ExamHistoryScreen';
+import ExamSetBankScreen from '../screens/ExamSetBankScreen';
+import ExamSetDetailScreen from '../screens/ExamSetDetailScreen';
 import RealExamListScreen from '../screens/RealExamListScreen';
 import RealExamReadingScreen from '../screens/RealExamReadingScreen';
 import RealExamClozeScreen from '../screens/RealExamClozeScreen';
@@ -155,6 +157,8 @@ function PracticeStack() {
         })}
       />
       <Stack.Screen name="ExamHistory" component={ExamHistoryScreen} options={makeTabHeaderOptions('练习历史', 'history')} />
+      <Stack.Screen name="ExamSetBank" component={ExamSetBankScreen} options={makeTabHeaderOptions('AI 题库', 'library')} />
+      <Stack.Screen name="ExamSetDetail" component={ExamSetDetailScreen} options={makeTabHeaderOptions('套题详情', 'card-text')} />
       <Stack.Screen name="RealExamList" component={RealExamListScreen} options={makeTabHeaderOptions('真题练习', 'book-open-page-variant')} />
       <Stack.Screen name="RealExamReading" component={RealExamReadingScreen} options={makeTabHeaderOptions('阅读理解', 'book-open-page-variant')} />
       <Stack.Screen name="RealExamCloze" component={RealExamClozeScreen} options={makeTabHeaderOptions('完形填空', 'book-open-page-variant')} />

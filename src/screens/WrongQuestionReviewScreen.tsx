@@ -61,7 +61,7 @@ export default function WrongQuestionReviewScreen() {
     const questions: ExamQuestion[] = filteredWrong.map(wq => wq.question);
     if (questions.length === 0) return;
     const questionType: ExamQuestionType = questions[0]?.type ?? 'definition';
-    navigation.navigate('ExamAnswer', { questions, questionType });
+    navigation.navigate('ExamAnswer', { questions, questionType, source: 'wrong_review' });
   };
 
   const handleOpenPaper = (wq: RealExamWrongQuestion) => {

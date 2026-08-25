@@ -50,22 +50,33 @@ export type ReadStackParamList = {
   ArticleDetail: { articleId: string };
 };
 
+/**
+ * 练习历史的来源筛选：全部 / 仅 AI 出题记录 / 仅真题记录。
+ */
+export type ExamHistoryFilter = 'all' | 'ai' | 'real';
+
 export type PracticeStackParamList = {
   PracticeHub: undefined;
   ExamSetup: undefined;
   ExamAnswer: {
     questions: ExamQuestion[];
     questionType: ExamQuestionType;
-    sessionId?: string;
+    originId?: string;
+    source?: 'generation' | 'wrong_review';
   };
   ExamResult: {
     questions: ExamQuestion[];
     answers: ExamAnswer[];
     questionType: ExamQuestionType;
-    sessionId?: string;
+    originId?: string;
+    source?: 'generation' | 'wrong_review';
   };
   WrongQuestionReview: undefined;
-  ExamHistory: undefined;
+  ExamHistory: { initialFilter?: ExamHistoryFilter } | undefined;
+  /** AI 题库：每套出题一张卡。 */
+  ExamSetBank: undefined;
+  /** 套题只读详情 + 重做入口。 */
+  ExamSetDetail: { rootId: string };
   RealExamList: undefined;
   RealExamReading: { year: number; setId: 'english1' | 'english2'; passageId: string };
   RealExamCloze: { year: number; setId: 'english1' | 'english2'; paperId: string };
@@ -77,6 +88,8 @@ export type PracticeStackParamList = {
     passage?: RealExamReadingPassage;
     paper?: RealExamClozePaper;
     setId?: 'english1' | 'english2';
+    /** 从练习历史打开的归档回顾：不再重复落库/写错题本，返回键回到历史页。 */
+    archived?: boolean;
   };
 };
 

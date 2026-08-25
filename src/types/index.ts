@@ -168,14 +168,16 @@ export interface ExamAnswer {
 
 export type ExamQuestionType = 'definition' | 'cloze';
 
-// 一次练习的完整记录
+// 一次练习的完整记录（一次作答一行）
 export interface ExamSession extends SyncMeta {
   id: string;
   questions: ExamQuestion[];
   answers: ExamAnswer[];
   question_type: ExamQuestionType;
   accuracy: number;             // 0-1
-  created_at: string;
+  created_at: string;           // 本次作答时间
+  origin_id?: string | null;    // 所属套题根记录 id；首次生成的根记录为 null
+  source?: 'generation' | 'wrong_review'; // 记录来源：出题练习 / 错题本复习
 }
 
 // AI 出题答题中途草稿（transient，不进 sync）：存整套题 + 已答答案 + 当前题号，

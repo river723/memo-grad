@@ -20,7 +20,9 @@ export default function ExamResultScreen() {
   const questions: ExamQuestion[] = route.params?.questions || [];
   const answers: ExamAnswerType[] = route.params?.answers || [];
   const questionType: ExamQuestionType = route.params?.questionType || 'definition';
-  const sessionId: string | undefined = route.params?.sessionId;
+  // 套题归属与来源（重做=根记录 id；错题复习='wrong_review'；新生成皆缺省）
+  const originId: string | undefined = route.params?.originId;
+  const source = route.params?.source ?? 'generation';
   // 用 ref 而非 state 做防重入守卫：persist 是长 async 链，setSaved(true) 要等
   // 一串 await 跑完才置位；React Navigation 在开发模式下会对屏幕双挂载，第二次
   // effect 在两个 await 之间进入时 state 守卫仍是 false，会再存一条一模一样的
@@ -40,18 +42,17 @@ export default function ExamResultScreen() {
     savedRef.current = true;
     const persist = async () => {
       try {
-        const sessionData = {
+        // 每次作答都插入新行：重做行经 origin_id 归属同一套题，
+        // 题库按组聚合最新成绩，练习历史保留每一次记录
+        await StorageService.saveExamSession({
           questions,
           answers,
           question_type: questionType,
           accuracy,
           created_at: new Date().toISOString(),
-        };
-        if (sessionId !== undefined) {
-          await StorageService.updateExamSession(sessionId, sessionData);
-        } else {
-          await StorageService.saveExamSession(sessionData);
-        }
+          origin_id: originId ?? null,
+          source,
+        });
         await StorageService.clearExamDraft();
 
         let anyWrong = false;

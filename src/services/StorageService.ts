@@ -490,13 +490,17 @@ class StorageService {
     }
   }
 
-  // 考题练习记录操作
-  async saveExamSession(session: Omit<ExamSession, 'id'>): Promise<string> {
+  // 考题练习记录操作（一次作答一行；重做/错题复习都插入新行）
+  async saveExamSession(
+    session: Omit<ExamSession, 'id'> & { origin_id?: string | null; source?: 'generation' | 'wrong_review' }
+  ): Promise<string> {
     await this.ensureMigrated();
     const sessions = await this.getAllExamSessionsRaw();
     const newId = generateId();
     const newSession: ExamSession = {
       ...session,
+      origin_id: session.origin_id ?? null,
+      source: session.source ?? 'generation',
       id: newId,
       updated_at: nowIso(),
       deleted_at: null,
@@ -519,7 +523,17 @@ class StorageService {
 
   async getExamSessions(): Promise<ExamSession[]> {
     await this.ensureMigrated();
-    return excludeDeleted(await this.getAllExamSessionsRaw());
+    const raw = await this.getAllExamSessionsRaw();
+    return excludeDeleted(
+      await this.dedupeByIdentity(this.key(this.KEYS.EXAM_SESSIONS), raw, s =>
+        JSON.stringify({
+          type: s.question_type,
+          questions: s.questions,
+          answers: s.answers.map(a => [a.question_index, a.selected_answer, a.is_correct]),
+        }),
+        s => new Date(s.created_at).getTime()
+      )
+    );
   }
 
   async deleteExamSession(id: string): Promise<void> {
@@ -533,14 +547,62 @@ class StorageService {
     }
   }
 
-  async updateExamSession(id: string, session: Omit<ExamSession, 'id'>): Promise<void> {
+  /** 删除整套题：软删除根记录及其全部重做行，随同步传播。 */
+  async deleteExamSet(rootId: string): Promise<void> {
     await this.ensureMigrated();
     const sessions = await this.getAllExamSessionsRaw();
-    const index = sessions.findIndex(s => s.id === id);
-    if (index !== -1) {
-      sessions[index] = { ...session, id, updated_at: nowIso(), deleted_at: null, dirty: true };
-      await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(sessions));
+    const now = nowIso();
+    let changed = false;
+    const merged = sessions.map(s => {
+      if (s.id === rootId || s.origin_id === rootId) {
+        changed = true;
+        return { ...s, deleted_at: now, updated_at: now, dirty: true };
+      }
+      return s;
+    });
+    if (changed) {
+      await AsyncStorage.setItem(this.key(this.KEYS.EXAM_SESSIONS), JSON.stringify(merged));
     }
+  }
+
+  /**
+   * 自愈：合并"内容完全相同且几乎同时写入"的重复记录（按 storageKey 指定实体表）。
+   * 旧版结果屏在 React Navigation 开发模式双挂载时会把同一次作答存两条
+   * （见 ExamResultScreen savedRef 注释），脏数据已随同步扩散，这里读取时
+   * 顺手把多余副本软删除并标记 dirty，让删除事实传播到其他设备/服务端。
+   * 仅活跃记录参与配对：用户已手动删除的记录不作为孪生依据。
+   */
+  private async dedupeByIdentity<T extends { id: string; deleted_at?: string | null }>(
+    storageKey: string,
+    raw: T[],
+    sigOf: (e: T) => string,
+    timeOf: (e: T) => number
+  ): Promise<T[]> {
+    const DUP_WINDOW_MS = 5000;
+    const kept: { id: string; sig: string; time: number }[] = [];
+    const removedIds = new Set<string>();
+    for (const e of [...raw].sort((a, b) => timeOf(a) - timeOf(b))) {
+      if (e.deleted_at) continue;
+      const sig = sigOf(e);
+      const time = timeOf(e);
+      const isTwin = kept.some(k => k.sig === sig && Math.abs(k.time - time) <= DUP_WINDOW_MS);
+      if (isTwin) {
+        removedIds.add(e.id);
+      } else {
+        kept.push({ id: e.id, sig, time });
+      }
+    }
+    if (removedIds.size === 0) return raw;
+
+    console.warn(`[Storage] 去重合并 ${removedIds.size} 条重复记录 (${storageKey})`);
+    const now = nowIso();
+    const merged = raw.map(e =>
+      removedIds.has(e.id)
+        ? { ...e, deleted_at: now, updated_at: now, dirty: true }
+        : e
+    );
+    await AsyncStorage.setItem(storageKey, JSON.stringify(merged));
+    return merged.filter(e => !e.deleted_at);
   }
 
   // ==================== AI 出题答题草稿（中途暂存，重进可恢复）====================
@@ -667,7 +729,30 @@ class StorageService {
 
   async getRealExamSessions(): Promise<RealExamSession[]> {
     await this.ensureMigrated();
-    return excludeDeleted(await this.getAllRealExamSessionsRaw());
+    const raw = await this.getAllRealExamSessionsRaw();
+    return excludeDeleted(
+      await this.dedupeByIdentity(this.key(this.KEYS.REAL_EXAM_SESSIONS), raw, s =>
+        JSON.stringify({
+          paperId: s.paperId,
+          mode: s.mode,
+          score: s.score,
+          total: s.total,
+          answers: s.answers.map(a => [a.questionId, a.selected, a.correct]),
+        }),
+        s => new Date(s.createdAt).getTime()
+      )
+    );
+  }
+
+  async deleteRealExamSession(id: string): Promise<void> {
+    await this.ensureMigrated();
+    const sessions = await this.getAllRealExamSessionsRaw();
+    const index = sessions.findIndex(s => s.id === id);
+    if (index !== -1) {
+      const now = nowIso();
+      sessions[index] = { ...sessions[index], deleted_at: now, updated_at: now, dirty: true };
+      await AsyncStorage.setItem(this.key(this.KEYS.REAL_EXAM_SESSIONS), JSON.stringify(sessions));
+    }
   }
 
   // ==================== 真题错题本操作 ====================

@@ -10,6 +10,7 @@ import { spring } from '../theme/motion';
 import StorageService from '../services/StorageService';
 import { ExamSession, WrongQuestion, RealExamSession, RealExamWrongQuestion } from '../types';
 import AppButton from '../components/ds/AppButton';
+import AppIcon from '../components/ds/AppIcon';
 import SectionHeader from '../components/ds/SectionHeader';
 
 /** 统一的"最近练习"视图模型，合并考题与真题两套 session。 */
@@ -87,7 +88,9 @@ export default function PracticeHubScreen() {
     ...examSessions.map(s => ({
       key: `exam-${s.id}`,
       createdAt: s.created_at,
-      label: s.question_type === 'definition' ? '释义选择题' : '完形填空题',
+      label:
+        (s.source === 'wrong_review' ? '错题复习·' : '') +
+        (s.question_type === 'definition' ? '释义选择题' : '完形填空题'),
       count: s.questions?.length || 0,
       accuracy: s.accuracy || 0,
     })),
@@ -182,7 +185,7 @@ export default function PracticeHubScreen() {
             {/* 分组入口：AI 题库 / 错题本 */}
             <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
               <Pressable
-                onPress={() => navigation.navigate('ExamHistory')}
+                onPress={() => navigation.navigate('ExamSetBank')}
                 style={({ pressed }) => [
                   styles.entryRow,
                   {
@@ -194,14 +197,18 @@ export default function PracticeHubScreen() {
                 ]}
               >
                 <View style={[styles.entryIcon, { backgroundColor: colors.status.active.bg }]}>
-                  <MaterialCommunityIcons name="history" size={20} color={colors.primary} />
+                  <AppIcon name="library" size={20} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.onSurface, fontSize: typography.bodyLg.size, fontWeight: '600' }}>
                     AI 题库
                   </Text>
                   <Text style={{ color: colors.onSurfaceVariant, fontSize: typography.caption.size, marginTop: 2 }}>
-                    {examSessions.length > 0 ? `${examSessions.length} 次 AI 出题记录` : '暂无记录'}
+                    {(() => {
+                      const gens = examSessions.filter(s => s.source !== 'wrong_review');
+                      const setCount = gens.filter(s => !s.origin_id).length;
+                      return setCount > 0 ? `${setCount} 套题 · ${gens.length} 次练习` : '暂无套题';
+                    })()}
                   </Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={20} color={colors.tertiary} />
