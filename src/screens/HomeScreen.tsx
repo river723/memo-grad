@@ -10,6 +10,8 @@ import { radius, spacing } from '../theme/tokens';
 import { spring, timingSlow } from '../theme/motion';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
+import AutoWordService from '../services/AutoWordService';
+import { useToast } from '../components/ds/Toast';
 import { Word, WeeklyStudyTrend } from '../types';
 import { format } from 'date-fns';
 import { useAnnouncements } from '../providers/AnnouncementProvider';
@@ -179,12 +181,16 @@ export default function HomeScreen() {
   const navigation = useAppNavigation();
   const { colors, dark: _ } = useAppTheme();
   const typography = colors.typography;
+  const toast = useToast();
   const [todayStats, setTodayStats] = useState<TodayStats>(DEFAULT_TODAY_STATS);
   const [todaySuggestion, setTodaySuggestion] = useState<TodaySuggestion>(DEFAULT_SUGGESTION);
   const [recentWords, setRecentWords] = useState<Word[]>([]);
   const [weeklyTrend, setWeeklyTrend] = useState<WeeklyStudyTrend[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // 自动配词开关（决定「再来一组」入口是否显示）+ 补词进行中状态
+  const [autoAddEnabled, setAutoAddEnabled] = useState(true);
+  const [refilling, setRefilling] = useState(false);
 
   // 进场动效
   const heroOpacity = useRef(new Animated.Value(0)).current;
@@ -195,6 +201,14 @@ export default function HomeScreen() {
     setLoading(true);
     setError(false);
     try {
+      // 自动配词开关状态（控制首页「再来一组」入口是否显示）
+      const settings = await StorageService.getSettings();
+      setAutoAddEnabled(settings.autoAddNewWords !== false);
+      // 每日自动配词：按考频把生词本补足到「每日新词数」（当天只跑一次）
+      const autoAdded = await AutoWordService.fillTodayIfNeeded();
+      if (autoAdded > 0) {
+        toast.info(`已按考频自动加入 ${autoAdded} 个新词`);
+      }
       const today = format(new Date(), 'yyyy-MM-dd');
       const [allWords, allPlans, todayRecords, allRecords, wrongQuestions] = await Promise.all([
         StorageService.getWords(),
@@ -245,7 +259,7 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useFocusEffect(
     useCallback(() => {
@@ -276,6 +290,9 @@ export default function HomeScreen() {
 
   const totalPlanned = todayStats.todayTotal;
   const progress = totalPlanned > 0 ? todayStats.todayCompleted / totalPlanned : 0;
+  // 英雄卡"还能学多少"：优先看当日计划剩余；计划还没建（自动配词/手工加词后
+  // 尚未进学习页）时看生词本未学存量，避免刚补完词英雄卡仍显示 0。
+  const availableCount = Math.max(todayStats.todayPending, todayStats.unstudiedNewWordCount);
   const accuracyPercent = Math.round(todayStats.accuracy * 100);
   const weeklyStudied = weeklyTrend.reduce((s, d) => s + d.studiedWordCount, 0);
   const weeklySessions = weeklyTrend.reduce((s, d) => s + d.studyCount, 0);
@@ -294,6 +311,30 @@ export default function HomeScreen() {
       navigation.navigate('AddWord' as any);
     } else {
       navigation.navigate('Study' as any, route.params as any);
+    }
+  };
+
+  // 追平态（当日计划已清空且生词本无未学存量）时提供「再来一组」：
+  // 否则主 CTA 会指向 AI 出题/错题等非学习入口，首页就没有开新组的路了。
+  const canStartAnotherGroup =
+    !loading &&
+    autoAddEnabled &&
+    todayStats.todayPending === 0 &&
+    todayStats.unstudiedNewWordCount === 0;
+
+  const handleAnotherGroup = async () => {
+    setRefilling(true);
+    try {
+      // 强制补充跳过日期守卫；成功后进学习页，新词由 loadStudyWords 常规路径捞起
+      const added = await AutoWordService.fillTodayIfNeeded({ force: true });
+      if (added > 0) {
+        toast.info(`已自动补充 ${added} 个新词`);
+        navigation.navigate('Study' as any);
+      } else {
+        toast.info('词库已全部学完，没有更多新词了');
+      }
+    } finally {
+      setRefilling(false);
     }
   };
 
@@ -336,7 +377,7 @@ export default function HomeScreen() {
             >
               <View style={{ flex: 1, gap: 6 }}>
                 <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.caption.size, letterSpacing: 0.6 }}>
-                  {todayStats.todayPending > 0 ? '今日待学' : todayStats.todayTotal > 0 ? '今日任务' : '今日'}
+                  {availableCount > 0 ? '今日待学' : todayStats.todayTotal > 0 ? '今日任务' : '今日'}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
                   <Text
@@ -348,7 +389,7 @@ export default function HomeScreen() {
                       letterSpacing: -1,
                     }}
                   >
-                    {todayStats.todayPending > 0 ? todayStats.todayPending : todayStats.todayCompleted}
+                    {availableCount > 0 ? availableCount : todayStats.todayCompleted}
                   </Text>
                   <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: typography.bodyLg.size, fontWeight: '500' }}>
                     个词
@@ -385,6 +426,17 @@ export default function HomeScreen() {
                   size="md"
                   fullWidth
                   leftIcon={<MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.primary} />}
+                />
+              )}
+              {canStartAnotherGroup && (
+                <AppButton
+                  title="再来一组"
+                  onPress={handleAnotherGroup}
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  loading={refilling}
+                  leftIcon={<AppIcon name="refresh" size={20} color={colors.primary} />}
                 />
               )}
             </View>

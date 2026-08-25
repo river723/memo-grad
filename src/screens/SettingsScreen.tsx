@@ -85,6 +85,7 @@ export default function SettingsScreen() {
     articleLength: 200,
     examQuestionCount: 10,
     examAutoAdvance: true,
+    autoAddNewWords: true,
     aiProvider: 'deepseek',
     aiModel: 'deepseek-v4-flash',
     apiKey: '',
@@ -242,7 +243,7 @@ export default function SettingsScreen() {
         dailyNewWords: 10, reviewInterval: [1, 2, 4, 7, 15], soundEnabled: true, theme: 'light',
         fontSize: 14, autoPlaySound: false, showRareSense: true, showEtymology: true,
         articleWordCount: 10, articleLength: 200, examQuestionCount: 10, examAutoAdvance: true,
-        aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '',
+        aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', autoAddNewWords: true,
       });
       setThemeMode('light');
       showMessage('已清除', '所有数据已清除');
@@ -256,7 +257,7 @@ export default function SettingsScreen() {
         dailyNewWords: 10, reviewInterval: [1, 2, 4, 7, 15], soundEnabled: true, theme: 'light',
         fontSize: 14, autoPlaySound: false, showRareSense: true, showEtymology: true,
         articleWordCount: 10, articleLength: 200, examQuestionCount: 10, examAutoAdvance: true,
-        aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '',
+        aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', autoAddNewWords: true,
       });
       setThemeMode('light');
       showMessage('已恢复', '所有设置已恢复为默认值');
@@ -378,6 +379,8 @@ export default function SettingsScreen() {
           () => handleAdjustDailyNewWords(-1),
           () => handleAdjustDailyNewWords(1)
         )}
+        <View style={styles.divider} />
+        {toggleRow('robot-outline', '🤖 自动配词', settings.autoAddNewWords !== false ? `每天按考频自动补足到 ${settings.dailyNewWords} 个新词` : '关闭后仅手动添加生词', settings.autoAddNewWords !== false, v => saveSettings({ autoAddNewWords: v }))}
         <View style={styles.divider} />
         {renderStepper(
           'AI 出题练习题数',

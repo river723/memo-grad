@@ -79,6 +79,7 @@ export interface AppSettings {
   articleLength: number;
   examQuestionCount: number;
   examAutoAdvance: boolean; // 考题答对后是否自动跳转下一题（关闭则手动点击）
+  autoAddNewWords: boolean; // 自动配词：每天按考频从词库自动补足生词本到每日新词数
 }
 
 export interface DailyStats {

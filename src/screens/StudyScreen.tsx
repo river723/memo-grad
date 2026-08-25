@@ -14,6 +14,7 @@ import {
 } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
 import StorageService from '../services/StorageService';
+import AutoWordService from '../services/AutoWordService';
 import { Word, StudyRecord, AppSettings, Article } from '../types';
 import { REVIEW_INTERVALS } from '../constants';
 import { format, addDays } from 'date-fns';
@@ -25,6 +26,7 @@ import { useAppTheme } from '../theme/theme';
 import { palette, radius, spacing } from '../theme/tokens';
 import FlashcardStudy from '../components/FlashcardStudy';
 import WordDictModal from '../components/WordDictModal';
+import { useToast } from '../components/ds/Toast';
 
 type StudyScreenMode = 'flashcard' | 'listening' | 'quiz' | 'article';
 
@@ -87,6 +89,7 @@ export default function StudyScreen() {
   const route = useAppRoute<'Study'>();
   const { colors } = useAppTheme();
   const styles = useStyles();
+  const toast = useToast();
   const customWordIds = Array.isArray(route.params?.wordIds)
     ? route.params.wordIds.filter((id: unknown): id is string => typeof id === 'string' && id !== '')
     : [];
@@ -138,6 +141,8 @@ export default function StudyScreen() {
   const pendingIndexRef = useRef<number>(0);
   // 本轮新词 id 集合，用于在 finishWord 时按新词/复习词分别累计真实完成数
   const newWordIdSetRef = useRef<Set<string>>(new Set());
+  // 「太简单」移出生词本的词数：全靠它清空队列且未学一词时也能触发完成卡
+  const removedCountRef = useRef(0);
   const [completedByType, setCompletedByType] = useState({ newDone: 0, reviewDone: 0 });
 
   useEffect(() => {
@@ -146,7 +151,7 @@ export default function StudyScreen() {
 
   // 监听浮层关闭 + 队列为空 → 触发完成卡片
   useEffect(() => {
-    if (!showResult && words.length === 0 && studyStats.completed > 0) {
+    if (!showResult && words.length === 0 && (studyStats.completed > 0 || removedCountRef.current > 0)) {
       setShowCompletion(true);
     }
   }, [showResult, words.length]);
@@ -171,8 +176,28 @@ export default function StudyScreen() {
       setArticleError(null);
       setShowArticleTranslation(false);
 
-      const todayPlans = await StorageService.getTodayStudyPlan();
+      // 学习页首载也做一次被动补充（日期守卫保证每天只跑一次）；
+      // 「再来一组」入口则强制补充，跳过守卫。自定义复习会话不动生词本。
+      if (customWordIds.length === 0) {
+        const autoAdded = await AutoWordService.fillTodayIfNeeded(
+          exceedDailyLimit ? { force: true } : undefined
+        );
+        if (autoAdded > 0) {
+          toast.info(`已自动补充 ${autoAdded} 个新词`);
+        }
+      }
+
       const allWords = await StorageService.getWords();
+      const todayPlansRaw = await StorageService.getTodayStudyPlan();
+      // 自愈：清理指向已删除词的未完成计划（旧版「太简单」遗留的幽灵待学——
+      // 首页显示有待学、学习页却捞不到词）。收尾后首页计数即恢复。
+      const validWordIds = new Set(allWords.map(w => w.id));
+      for (const plan of todayPlansRaw) {
+        if (!validWordIds.has(plan.word_id)) {
+          await StorageService.completeStudyPlan(plan.id);
+        }
+      }
+      const todayPlans = todayPlansRaw.filter(p => validWordIds.has(p.word_id));
       const allRecords = await StorageService.getStudyRecords();
       const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -212,6 +237,7 @@ export default function StudyScreen() {
         setShowCompletion(false);
         retryMapRef.current = new Map();
         newWordIdSetRef.current = new Set();
+        removedCountRef.current = 0;
         setCompletedByType({ newDone: 0, reviewDone: 0 });
         setTrulyCompleted(0);
         return;
@@ -222,6 +248,7 @@ export default function StudyScreen() {
       if (todayPlans.length > 0) {
         // 空 word_id 是"新词占位"计划，不对应具体单词，需排除
         const wordIds = todayPlans.map(p => p.word_id).filter(id => id !== '');
+        const plannedIdSet = new Set(wordIds);
         studyWords = allWords.filter(w => wordIds.includes(w.id));
         newWordList = studyWords.filter(w =>
           todayPlans.some(p => p.word_id === w.id && p.plan_type === 'new')
@@ -229,6 +256,37 @@ export default function StudyScreen() {
         reviewWordList = studyWords.filter(w =>
           todayPlans.some(p => p.word_id === w.id && p.plan_type === 'review')
         );
+
+        // 合并计划外的生词本未学新词（手工添加 / 自动配词补充的词），
+        // 否则只要存在未完成计划，当日新加的词就永远进不了学习队列。
+        // 新词总量仍以「每日新词数」封顶。
+        const studiedIdSet = new Set(allRecords.map(r => r.word_id));
+        const extraNew = allWords.filter(w =>
+          !plannedIdSet.has(w.id) && !studiedIdSet.has(w.id)
+        );
+        newWordList = [...newWordList, ...extraNew].slice(0, dailyLimit);
+        const mergedNewIds = new Set(newWordList.map(w => w.id));
+        studyWords = [...newWordList, ...reviewWordList];
+
+        // 计划里的词可能已全部被移除（如「太简单」）——队列空时按"今日已完成"处理，
+        // 给出「再来一组」出口；否则会落到没有按钮的「暂无单词」死胡同。
+        if (studyWords.length === 0) {
+          setAllStudiedToday(true);
+          setWords([]);
+          return;
+        }
+
+        // 为计划外新词补建当日计划，保持仪表盘"今日计划"计数一致
+        for (const word of studyWords) {
+          if (mergedNewIds.has(word.id) && !plannedIdSet.has(word.id)) {
+            await StorageService.addStudyPlan({
+              word_id: word.id,
+              plan_date: today,
+              plan_type: 'new',
+              completed: false
+            });
+          }
+        }
       } else {
         const allNewWords: Word[] = [];
         const allReviewWords: Word[] = [];
@@ -296,6 +354,7 @@ export default function StudyScreen() {
       setIsContinueSession(exceedDailyLimit);
       setShowCompletion(false);
       retryMapRef.current = new Map();
+      removedCountRef.current = 0;
       setTrulyCompleted(0);
     } catch (error) {
       console.error('Failed to load study words:', error);
@@ -453,6 +512,43 @@ export default function StudyScreen() {
 
     } catch (error) {
       console.error('Failed to save study record:', error);
+    }
+  };
+
+  /**
+   * 「太简单」：当前词已认识，移出生词本并跳下一词。
+   * 与 handleResult 的差异：不写 StudyRecord、不进错题重试、不排复习计划，
+   * 只软删除（dirty 标记随同步走）+ 收尾当日未完成计划 + 队列出队 + 进度分母减一。
+   */
+  const handleTooEasy = async () => {
+    const currentWord = getCurrentWord();
+    if (!currentWord || currentMode === 'article') return;
+
+    try {
+      await StorageService.deleteWord(currentWord.id);
+      // 计划在载入时就已创建；词被移除后必须同步标记完成，
+      // 否则首页一直显示"今日还有 N 个生词"、点进去却找不到词（幽灵待学）。
+      await StorageService.completeTodayPlansForWord(currentWord.id);
+      removedCountRef.current += 1;
+
+      // 新词/复习词各自计数减一，保持头部统计一致
+      const isNewWord = newWordIdSetRef.current.has(currentWord.id);
+      setWordTypeCounts(prev => ({
+        newCount: Math.max(0, prev.newCount - (isNewWord ? 1 : 0)),
+        reviewCount: Math.max(0, prev.reviewCount - (isNewWord ? 0 : 1)),
+      }));
+
+      setIsFlipped(false);
+      const wasLast = currentIndex >= words.length - 1;
+      pendingIndexRef.current = wasLast ? 0 : currentIndex;
+
+      setWords(prev => prev.filter((_, i) => i !== currentIndex));
+      setStudyStats(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+      setCurrentIndex(pendingIndexRef.current);
+
+      toast.info(`已将 "${currentWord.word}" 移出生词本`);
+    } catch (error) {
+      console.error('Failed to remove word:', error);
     }
   };
 
@@ -780,6 +876,7 @@ export default function StudyScreen() {
       <FlashcardStudy
         currentWord={currentWord}
         onResult={handleResult}
+        onRemove={handleTooEasy}
         speakWord={speakWord}
         speechEnabled={speechSettings.soundEnabled}
         onEnhance={enhanceCurrentWord}
@@ -916,7 +1013,7 @@ export default function StudyScreen() {
               <>
                 <Text style={styles.emptyTitle}>今日任务已完成！</Text>
                 <Text style={styles.emptyText}>
-                  你今天已经学完了所有可用单词。明天再来复习，或者添加更多单词到生词本吧。
+                  你今天已经学完了所有可用单词。想继续可以再来一组，也可以添加更多单词到生词本。
                 </Text>
               </>
             ) : (
@@ -926,6 +1023,16 @@ export default function StudyScreen() {
                   请先添加一些单词到生词本
                 </Text>
               </>
+            )}
+            {!isCustomReview && allStudiedToday && (
+              <Button
+                mode="contained"
+                icon="refresh"
+                onPress={() => loadStudyWords(true)}
+                style={styles.addWordBtn}
+              >
+                再来一组
+              </Button>
             )}
             {!isCustomReview && (
               <Button
@@ -1003,6 +1110,10 @@ export default function StudyScreen() {
         />
       </View>
 
+      {/* 单词卡模式不套外层 ScrollView：小屏手机上底部三按钮会被挤出首屏（要上划才可见）。
+          FlashcardStudy 自身是「卡片 flex 撑满 + 底部按钮固定」的弹性布局，给它有界高度即可，
+          释义面过长由其内部 ScrollView 兜底；完成卡/听写/释义/短文内容高度不定，保留滚动。 */}
+      {!(currentMode === 'flashcard' && !showCompletion) && (
       <ScrollView style={styles.content}>
         {showCompletion ? (
           <Card style={styles.completionCard}>
@@ -1062,57 +1173,63 @@ export default function StudyScreen() {
               </View>
             </Card.Content>
           </Card>
-        ) : (
+        ) : null}
+        {!showCompletion && (
           <>
-            {currentMode === 'flashcard' && renderFlashcardMode()}
             {currentMode === 'listening' && renderListeningMode()}
             {currentMode === 'quiz' && renderQuizMode()}
             {currentMode === 'article' && renderArticleMode()}
           </>
         )}
-        {showResult && (
-          <View style={styles.resultOverlay}>
+      </ScrollView>
+      )}
+
+      {/* 无外层滚动的单词卡模式：卡片弹性占满剩余空间，底部三按钮固定可见 */}
+      {currentMode === 'flashcard' && !showCompletion && renderFlashcardMode()}
+
+      {/* 答题结果浮层提到根容器：绝对定位覆盖全屏，两种渲染分支下行为一致 */}
+      {showResult && (
+        <View style={styles.resultOverlay}>
+          <View
+            style={[
+              styles.resultSurface,
+              currentResult === 'correct'
+                ? styles.resultSurfaceCorrect
+                : styles.resultSurfaceIncorrect,
+            ]}
+          >
             <View
               style={[
-                styles.resultSurface,
+                styles.resultIconBubble,
                 currentResult === 'correct'
-                  ? styles.resultSurfaceCorrect
-                  : styles.resultSurfaceIncorrect,
+                  ? styles.resultIconBubbleCorrect
+                  : styles.resultIconBubbleIncorrect,
               ]}
             >
-              <View
-                style={[
-                  styles.resultIconBubble,
-                  currentResult === 'correct'
-                    ? styles.resultIconBubbleCorrect
-                    : styles.resultIconBubbleIncorrect,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.resultIconGlyph,
-                    currentResult === 'correct'
-                      ? styles.resultIconGlyphCorrect
-                      : styles.resultIconGlyphIncorrect,
-                  ]}
-                >
-                  {currentResult === 'correct' ? '✓' : '✕'}
-                </Text>
-              </View>
               <Text
                 style={[
-                  styles.resultText,
+                  styles.resultIconGlyph,
                   currentResult === 'correct'
-                    ? styles.resultTextCorrect
-                    : styles.resultTextIncorrect,
+                    ? styles.resultIconGlyphCorrect
+                    : styles.resultIconGlyphIncorrect,
                 ]}
               >
-                {currentResult === 'correct' ? '认识' : '不认识'}
+                {currentResult === 'correct' ? '✓' : '✕'}
               </Text>
             </View>
+            <Text
+              style={[
+                styles.resultText,
+                currentResult === 'correct'
+                  ? styles.resultTextCorrect
+                  : styles.resultTextIncorrect,
+              ]}
+            >
+              {currentResult === 'correct' ? '认识' : '不认识'}
+            </Text>
           </View>
-        )}
-      </ScrollView>
+        </View>
+      )}
 
       {/* Exit confirmation Modal */}
       <Modal

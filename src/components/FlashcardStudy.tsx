@@ -28,6 +28,8 @@ import { Button } from 'react-native-paper';
 interface FlashcardStudyProps {
   currentWord: Word;
   onResult: (correct: boolean) => void;
+  /** 翻面后点击「太简单」：把当前词移出生词本。未传时左按钮退回旧「再想想」行为。 */
+  onRemove?: () => void;
   speakWord: (w: string) => void;
   speechEnabled: boolean;
   onEnhance?: () => void;
@@ -38,6 +40,7 @@ interface FlashcardStudyProps {
 export default function FlashcardStudy({
   currentWord,
   onResult,
+  onRemove,
   speakWord,
   speechEnabled,
   onEnhance,
@@ -47,6 +50,9 @@ export default function FlashcardStudy({
   const { colors } = useAppTheme();
   const typography = colors.typography;
   const [flipped, setFlipped] = useState(false);
+  // 实测卡片区高度，给卡片显式 height：避免 minHeight 硬下限把卡片顶溢出
+  // （向上撞进度条、向下压三按钮）。首帧为 0 → 回退 flex:1，onLayout 回填后切显式高度。
+  const [areaH, setAreaH] = useState(0);
 
   // 正面单词字号按长度自适应，避免长单词在窄屏换行
   const wordLen = currentWord.word?.length || 0;
@@ -109,7 +115,13 @@ export default function FlashcardStudy({
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* 卡片区（剧场式） */}
-      <View style={{ flex: 1, padding: spacing.lg, justifyContent: 'center' }}>
+      <View
+        style={{ flex: 1, padding: spacing.lg, justifyContent: 'center' }}
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0 && h !== areaH) setAreaH(h);
+        }}
+      >
         <Animated.View
           style={[
             styles.card,
@@ -117,7 +129,7 @@ export default function FlashcardStudy({
               backgroundColor: colors.surface,
               borderColor: colors.outline,
               borderRadius: radius.lg,
-              minHeight: 420,
+              height: areaH > 0 ? Math.max(0, areaH - 2 * spacing.lg) : undefined,
               transform: [{ translateX: shakeX }, { perspective: 1000 }, { rotateY: frontRotate }],
               opacity: frontOpacity,
             },
@@ -261,7 +273,6 @@ export default function FlashcardStudy({
               left: spacing.lg,
               right: spacing.lg,
               bottom: spacing.lg,
-              minHeight: 420,
               transform: [{ perspective: 1000 }, { rotateY: backRotate }],
               opacity: backOpacity,
             },
@@ -476,7 +487,7 @@ export default function FlashcardStudy({
         </Animated.View>
       </View>
 
-      {/* 底部三按钮（始终可见，但 flipped=false 时"再想想"不可用） */}
+      {/* 底部三按钮（始终可见，但 flipped=false 时全部不可用） */}
       <View
         style={{
           flexDirection: 'row',
@@ -487,7 +498,14 @@ export default function FlashcardStudy({
         }}
       >
         <Pressable
-          onPress={() => flipped && handleAnswer(false)}
+          onPress={() => {
+            if (!flipped) return;
+            if (onRemove) {
+              onRemove();
+            } else {
+              handleAnswer(false);
+            }
+          }}
           disabled={!flipped}
           style={({ pressed }) => [
             styles.bottomBtn,
@@ -499,8 +517,14 @@ export default function FlashcardStudy({
             },
           ]}
         >
-          <MaterialCommunityIcons name="reload" size={18} color={colors.onSurfaceVariant} />
-          <Text style={{ color: colors.onSurfaceVariant, fontSize: 14, fontWeight: '500' }}>再想想</Text>
+          <MaterialCommunityIcons
+            name={onRemove ? 'lightning-bolt-outline' : 'reload'}
+            size={18}
+            color={colors.onSurfaceVariant}
+          />
+          <Text style={{ color: colors.onSurfaceVariant, fontSize: 14, fontWeight: '500' }}>
+            {onRemove ? '太简单' : '再想想'}
+          </Text>
         </Pressable>
         <Pressable
           onPress={() => flipped && handleAnswer(false)}

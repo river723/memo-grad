@@ -56,6 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   articleLength: 200,
   examQuestionCount: 10,
   examAutoAdvance: true,
+  autoAddNewWords: true,
 };
 
 class StorageService {
@@ -152,6 +153,7 @@ class StorageService {
     EXAM_SESSIONS: 'kaoyan_exam_sessions',
     WRONG_QUESTIONS: 'kaoyan_wrong_questions',
     IGNORED_WORDBANK_WORDS: 'kaoyan_ignored_wordbank_words',
+    AUTO_FILL_LAST_DATE: 'kaoyan_auto_fill_last_date',
     REAL_EXAM_SESSIONS: 'kaoyan_real_exam_sessions',
     REAL_EXAM_WRONG_QUESTIONS: 'kaoyan_real_exam_wrong_questions',
     REAL_EXAM_DRAFTS: 'kaoyan_real_exam_drafts',
@@ -265,6 +267,28 @@ class StorageService {
     }
   }
 
+  /**
+   * 生词本全部词条的小写词形集合，**包含软删除记录**。
+   * 自动配词用它做排除——用户删过的词不能次日又被自动加回。
+   */
+  async getWordbookKeysIncludingDeleted(): Promise<Set<string>> {
+    const words = await this.getAllWordsRaw();
+    return new Set(words.map(w => w.word.toLowerCase()));
+  }
+
+  /** 自动配词的当日幂等守卫：已执行过则返回当天日期，否则 null。 */
+  async getAutoFillLastDate(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(this.key(this.KEYS.AUTO_FILL_LAST_DATE));
+    } catch {
+      return null;
+    }
+  }
+
+  async setAutoFillLastDate(date: string): Promise<void> {
+    await AsyncStorage.setItem(this.key(this.KEYS.AUTO_FILL_LAST_DATE), date);
+  }
+
   // 词库忽略词操作
   async getIgnoredWordbankWords(): Promise<string[]> {
     try {
@@ -374,6 +398,30 @@ class StorageService {
 
     if (index !== -1) {
       plans[index] = { ...plans[index], completed: true, updated_at: nowIso(), dirty: true };
+      await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
+    }
+  }
+
+  /**
+   * 完成某词当日所有未完成计划。
+   * 「太简单」移除词时收尾用：词已软删、学习页捞不到，
+   * 若计划还挂着未完成，首页会一直显示有待学（幽灵待学数）。
+   */
+  async completeTodayPlansForWord(wordId: string): Promise<void> {
+    await this.ensureMigrated();
+    // 本地日期，与计划创建侧（date-fns format）保持一致
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const plans = await this.getAllStudyPlansRaw();
+    let changed = false;
+    for (let i = 0; i < plans.length; i++) {
+      const p = plans[i];
+      if (p.word_id === wordId && p.plan_date === today && !p.completed) {
+        plans[i] = { ...p, completed: true, updated_at: nowIso(), dirty: true };
+        changed = true;
+      }
+    }
+    if (changed) {
       await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
     }
   }
@@ -971,7 +1019,8 @@ class StorageService {
       this.key(this.KEYS.REAL_EXAM_WRONG_QUESTIONS),
       this.key(this.KEYS.REAL_EXAM_DRAFTS),
       this.key(this.KEYS.SETTINGS),
-      this.key(this.KEYS.MIGRATION_BACKUP)
+      this.key(this.KEYS.MIGRATION_BACKUP),
+      this.key(this.KEYS.AUTO_FILL_LAST_DATE)
     ]);
     // 保留 SCHEMA_VERSION：数据虽清空，本地 schema 仍是最新版，无需再迁移
   }
