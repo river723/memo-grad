@@ -9,6 +9,11 @@ name: Build Unsigned iOS IPA
 #     offline → 单机版（EXPO_PUBLIC_OFFLINE_MODE=1，免登录/AI 本地 Key/本地内容）
 #   两种 ipa 的 Sideloadly 重签名安装流程完全相同，仅 JS bundle 内联的
 #   EXPO_PUBLIC_* 环境变量不同。
+#
+# 单机版差异化（2026-08-26 起，与 build-android.yml 一致）：mode=offline 时在
+# prebuild 前临时改 app.json——bundle id 改为 com.kaoyan.vocabulary.offline、
+# 显示名改为「考研单词·离线」，与网络版可共存于一台设备，数据各自沙箱。
+# 注意：不同 bundle id 在免费 Apple ID 下各占一个签名名额（约 10 个上限）。
 # 详见 .claude/plans/ipad-iphone-sprightly-moore.md
 
 on:
@@ -76,6 +81,21 @@ jobs:
           sudo xcode-select -s "$XC"
           xcodebuild -version
           swiftc --version
+
+      # 单机版差异化：push 触发时 inputs.mode 为空自动跳过（= 网络版默认值）。
+      # ios/ 由下一步 prebuild 从 app.json 生成，改 expo.name 即驱动
+      # CFBundleDisplayName/workspace/scheme 名，bundle id 同步替换。
+      - name: Differentiate offline build (bundle id + display name)
+        if: inputs.mode == 'offline'
+        run: |
+          node -e "
+            const fs = require('fs');
+            const j = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            j.expo.name = '考研单词·离线';
+            j.expo.ios.bundleIdentifier = 'com.kaoyan.vocabulary.offline';
+            fs.writeFileSync('app.json', JSON.stringify(j, null, 2));
+          "
+          grep -E '"name"|bundleIdentifier' app.json
 
       # Expo SDK 55 使用本地 CLI（npx expo），无需全局 expo-cli / eas-cli。
       # prebuild 会根据 app.json 生成 ios/ 原生工程。

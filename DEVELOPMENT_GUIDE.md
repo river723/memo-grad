@@ -120,11 +120,11 @@ export const REMOTE_CONTENT =
 
 | 形态 \ 平台 | 安卓 APK | Windows 桌面 | iOS（未签名 ipa） |
 |---|---|---|---|
-| **网络版（在线）** | `eas build -p android --profile preview` | `npm run tauri:build` | Actions 手动触发，mode=online |
-| **单机版（离线）** | `eas build -p android --profile offline-apk` | `npm run tauri:build:offline` | Actions 手动触发，mode=offline |
+| **网络版（在线）** | Actions 触发 mode=online（或 EAS：`eas build -p android --profile preview`） | `npm run tauri:build` | Actions 手动触发，mode=online |
+| **单机版（离线）** | Actions 触发 mode=offline（或 EAS：`eas build -p android --profile offline-apk`） | `npm run tauri:build:offline` | Actions 手动触发，mode=offline |
 
 ```bash
-# —— 在线安卓 APK（EAS 云构建，本机无 JDK/SDK 不能本地构建）——
+# —— 在线安卓 APK（EAS 云构建；免费额度每月有限，见下方 Actions 方案）——
 eas build -p android --profile preview
 
 # —— 单机安卓 APK（offline-apk profile 自带 OFFLINE_MODE 环境变量）——
@@ -164,9 +164,44 @@ gh run download          # 解压得 kaoyan-unsigned-<online|offline>.ipa
 注意：
 
 - **push 到 NetDict 的自动触发只出网络版包**（零回归）；单机版仅手动触发。
+- **单机版与网络版可共存**（与 Android 一致）：mode=offline 时 bundle id 改为
+  `com.kaoyan.vocabulary.offline`、显示名改为「考研单词·离线」。注意不同 bundle id
+  在免费 Apple ID 下各占一个签名名额（约 10 个上限），两个常驻 id 无压力。
 - 两种形态的 Sideloadly 安装流程完全相同，仅 JS bundle 内联的 `EXPO_PUBLIC_*` 不同。
 - 单机版 ipa 装机后冒烟：免登录直达主界面、设置出现 AI 设置区块、飞行模式下加单词/复习/AI 出题可用。
 - 不走 EAS 构建 iOS：内部分发需要付费开发者账号做 ad-hoc 签名。
+
+### Android 构建（GitHub Actions，绕开 EAS 配额）
+
+EAS 免费额度每月有限（2026-08 用尽过一次），安卓 APK 改走 GitHub 托管 ubuntu runner：
+工作流 [.github/workflows/build-android.yml](.github/workflows/build-android.yml)。
+公开仓库 Actions 分钟数免费不限量；ubuntu 镜像自带 Android SDK/NDK。
+
+```bash
+# 方式一：gh CLI 触发（--field 选形态）
+gh workflow run build-android.yml -f mode=online     # 网络版
+gh workflow run build-android.yml -f mode=offline    # 单机版
+
+# 跟踪进度 / 下载产物（artifact 保留 14 天）
+gh run watch
+gh run download          # 解压得 kaoyan-<online|offline>.apk
+```
+
+方式二：GitHub 网页 → Actions → "Build Android APK" → Run workflow → 选 mode。
+
+注意：
+
+- **单机版与网络版可共存于一台手机**：mode=offline 时包名改为
+  `com.kaoyan.vocabulary.offline`、显示名改为「考研单词·离线」、versionName 加 `-offline`
+  后缀，两图标并存、数据各自沙箱；网络版保持「考研英语生词本AI版」/ `com.kaoyan.vocabulary` 不变。
+- **push 到 main/NetDict 的自动触发只出网络版包**（与 iOS 工作流一致）；单机版仅手动触发。
+- CI **直接构建已提交的 android/**（stock prebuild 产物，app.json 无 config plugins），
+  不在 CI 跑 prebuild——改了 app.json 的原生配置时，本地 `npx expo prebuild -p android` 后提交。
+- 签名用仓库内 `android/app/debug.keystore`（标准调试证书），自装够用且跨次构建稳定可覆盖安装；
+  但与 EAS 生成的 keystore 不同，**两种来源的包互覆盖装前需先卸载旧包**。
+- EAS 命令仍可用（额度重置后），profile 不变：preview=网络版 / offline-apk=单机版；
+  但 EAS 产出的包**不带上述命名/包名区分**（eas.json 不支持按 profile 覆盖 package），
+  与 Actions 包互覆盖装前需卸载。
 
 ### 新功能开发守则
 

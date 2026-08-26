@@ -1,0 +1,133 @@
+name: Build Android APK
+
+# 本机无 JDK17+SDK 不能本地构建；EAS 免费额度每月有限（2026-08 用尽），
+# 改用 GitHub 托管的 ubuntu runner 直接跑 gradle 出 APK，完全绕开 EAS。
+# 公开仓库 Actions 分钟数免费不限量。ubuntu 镜像自带 Android SDK/NDK。
+#
+# 双形态（与 build-ios.yml 同机制）：
+#   手动触发时选 mode：
+#     online  → 网络版（默认；push 自动触发也固定出网络版）
+#     offline → 单机版（EXPO_PUBLIC_OFFLINE_MODE=1，免登录/AI 本地 Key/本地内容）
+#   Metro 在 createBundleReleaseJsAndAssets 阶段静态内联 EXPO_PUBLIC_*。
+#
+# 单机版差异化（2026-08-26 起，与 iOS 工作流一致）：mode=offline 时把
+# applicationId 改为 com.kaoyan.vocabulary.offline、显示名改为「考研单词·离线」、
+# versionName 加 -offline 后缀——两版可共存于一台手机，数据各自沙箱。
+#
+# 为什么不在这里跑 expo prebuild：android/ 是完整提交的 stock prebuild 产物
+# （app.json 无 config plugins），CI 直接构建提交内容 = 与 EAS 行为一致、
+# 且签名稳定可覆盖安装。改了 app.json 的原生相关配置时，本地手动
+# `npx expo prebuild -p android` 后提交即可。
+#
+# 签名：release 构建用 android/app/debug.keystore（标准调试证书，随仓库提交），
+# 自装 sideload 够用；但与 EAS 生成的 keystore 不同——两种来源的包互覆盖装
+# 前需先卸载旧包。
+
+on:
+  workflow_dispatch:      # 允许在 Actions 页面手动触发
+    inputs:
+      mode:
+        description: '构建形态：online=网络版 / offline=单机版'
+        type: choice
+        options: [online, offline]
+        default: online
+  push:
+    branches: [main, NetDict]
+    paths:
+      - 'src/**'
+      - 'App.tsx'
+      - 'app.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
+      - 'babel.config.js'
+      - 'metro.config.js'
+      - 'webpack.config.js'
+      - 'assets/**'
+      - 'android/**'
+      - '.github/workflows/build-android.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      EXPO_PUBLIC_API_URL: http://192.168.1.8:5888
+      # 形态开关：手动触发按 mode 派生；push 触发 inputs.mode 为空 → 固定 online
+      EXPO_PUBLIC_OFFLINE_MODE: ${{ inputs.mode == 'offline' && '1' || '0' }}
+      EXPO_PUBLIC_USE_REMOTE_CONTENT: ${{ inputs.mode == 'offline' && 'false' || 'true' }}
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 单机版差异化：push 触发时 inputs.mode 为空自动跳过（= 网络版默认值）。
+      # 只改 applicationId 不改 namespace，源码包名与 R 类不受影响；
+      # strings.xml 是 Manifest 唯一的 label 引用（android:label="@string/app_name"）。
+      - name: Differentiate offline build (app id + display name)
+        if: inputs.mode == 'offline'
+        working-directory: android
+        run: |
+          sed -i "s/applicationId 'com.kaoyan.vocabulary'/applicationId 'com.kaoyan.vocabulary.offline'/" app/build.gradle
+          sed -i 's|<string name="app_name">考研英语生词本AI版</string>|<string name="app_name">考研单词·离线</string>|' app/src/main/res/values/strings.xml
+          sed -i -E 's/versionName "([^"]+)"/versionName "\1-offline"/' app/build.gradle
+          grep -nE "applicationId|versionName" app/build.gradle
+          grep -n "app_name" app/src/main/res/values/strings.xml
+
+      # RN 0.83 的 gradle 插件要求 JDK 17+；缓存 ~/.gradle 让二次构建快数倍
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      # 完整输出存 build.log，失败时由下一步提取真正的 error 行
+      - name: Gradle assembleRelease
+        id: gradle
+        working-directory: android
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
+
+      - name: Extract build errors (on failure)
+        if: failure() && steps.gradle.outcome == 'failure'
+        working-directory: android
+        run: |
+          echo "↓↓↓ gradle error lines ↓↓↓"
+          grep -E "error:|FAILURE|What went wrong" build.log | head -80 || true
+          echo "↑↑↑ end of error lines ↑↑↑"
+
+      - name: Upload build log (on failure)
+        if: failure() && steps.gradle.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-log
+          path: android/build.log
+          retention-days: 7
+
+      # 文件名带形态后缀，与 ipa 命名习惯一致
+      - name: Rename APK
+        working-directory: android/app/build/outputs/apk/release
+        run: |
+          MODE=${{ inputs.mode == 'offline' && 'offline' || 'online' }}
+          for f in app-release.apk app-arm64-v8a-release.apk; do
+            if [ -f "$f" ]; then cp "$f" "kaoyan-${MODE}.apk"; fi
+          done
+          ls -lh kaoyan-*.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaoyan-apk-${{ inputs.mode == 'offline' && 'offline' || 'online' }}
+          path: android/app/build/outputs/apk/release/kaoyan-*.apk
+          retention-days: 14
