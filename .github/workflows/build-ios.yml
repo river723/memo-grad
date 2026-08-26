@@ -58,10 +58,10 @@ jobs:
       # 在原生端抛 ReferenceError），已在 App.tsx/AppNavigator.tsx 修复并加了全局兜底。
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -150,7 +150,7 @@ jobs:
 
       - name: Upload build log (on failure)
         if: failure() && steps.xcbuild.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: xcodebuild-log
           path: ios/build/xcodebuild.log
@@ -164,12 +164,12 @@ jobs:
           mkdir -p build/Payload
           cp -r build/app.xcarchive/Products/Applications/*.app build/Payload/
           cd build
-          zip -r -q "kaoyan-unsigned-${MODE}.ipa" Payload
+          zip -r -q "../kaoyan-unsigned-${MODE}.ipa" Payload
           cd ..
           echo "IPA size: $(du -h kaoyan-unsigned-${MODE}.ipa | cut -f1)"
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kaoyan-unsigned-${{ inputs.mode == 'offline' && 'offline' || 'online' }}-ipa
           path: ios/kaoyan-unsigned-*.ipa
