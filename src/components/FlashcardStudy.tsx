@@ -116,7 +116,7 @@ export default function FlashcardStudy({
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* 卡片区（剧场式） */}
       <View
-        style={{ flex: 1, padding: spacing.lg, justifyContent: 'center' }}
+        style={{ flex: 1, padding: spacing.lg, justifyContent: 'center', overflow: 'hidden' }}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
           if (h > 0 && h !== areaH) setAreaH(h);

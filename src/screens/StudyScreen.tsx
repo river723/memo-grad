@@ -143,6 +143,8 @@ export default function StudyScreen() {
   const newWordIdSetRef = useRef<Set<string>>(new Set());
   // 「太简单」移出生词本的词数：全靠它清空队列且未学一词时也能触发完成卡
   const removedCountRef = useRef(0);
+  // 选择题选项生成的序号：异步拉全词库作干扰项时，丢弃过期请求防止写回上一个词的选项
+  const quizSeqRef = useRef(0);
   const [completedByType, setCompletedByType] = useState({ newDone: 0, reviewDone: 0 });
 
   useEffect(() => {
@@ -156,11 +158,16 @@ export default function StudyScreen() {
     }
   }, [showResult, words.length]);
 
+  // 当前词 id：答对出队/答错回队尾后 currentIndex 常保持不变，仅靠索引无法察觉「换词」，
+  // 必须以词 id 作为依赖，否则选择题选项会停留在上一个词（四个选项里没有当前词的正确释义）。
+  const currentWordId = words[currentIndex]?.id;
+
   useEffect(() => {
     if (currentMode === 'quiz' && words.length > 0) {
       generateQuizOptions();
     }
-  }, [currentMode, currentIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMode, currentWordId]);
 
   useEffect(() => {
     if (currentMode === 'article' && words.length > 0 && !generatedArticle) {
@@ -497,18 +504,26 @@ export default function StudyScreen() {
 
       pendingIndexRef.current = nextIndex;
 
-      // 4. 显示结果浮层
-      setCurrentResult(isCorrect ? 'correct' : 'incorrect');
-      setShowResult(true);
-
-      setTimeout(() => {
-        setShowResult(false);
-        setCurrentIndex(pendingIndexRef.current);
+      // 4. 反馈 + 推进
+      if (currentMode === 'flashcard') {
+        // 单词卡是自评：翻面后已看到释义，卡片自身也有飘字/抖动反馈（FlashcardStudy 内 320ms），
+        // 无需再弹全屏对错浮层、不停留，直接切下一张。
+        setCurrentIndex(nextIndex);
         setIsFlipped(false);
-        setSelectedAnswer('');
-        setShowQuizResult(false);
-        setListenAnswer('');
-      }, wordFinished ? 1500 : 1200);
+      } else {
+        // 选择/听写：需要停留看清正确答案，保留全屏对错浮层 1.2~1.5s 再推进
+        setCurrentResult(isCorrect ? 'correct' : 'incorrect');
+        setShowResult(true);
+
+        setTimeout(() => {
+          setShowResult(false);
+          setCurrentIndex(pendingIndexRef.current);
+          setIsFlipped(false);
+          setSelectedAnswer('');
+          setShowQuizResult(false);
+          setListenAnswer('');
+        }, wordFinished ? 1500 : 1200);
+      }
 
     } catch (error) {
       console.error('Failed to save study record:', error);
@@ -571,18 +586,45 @@ export default function StudyScreen() {
     }
   };
 
-  const generateQuizOptions = () => {
+  const generateQuizOptions = async () => {
     const currentWord = getCurrentWord();
     if (!currentWord) return;
 
-    const correctMeaning = currentWord.definitions[0]?.meaning || '';
-    const otherWords = words.filter(w => w.id !== currentWord.id);
-    const wrongOptions = otherWords
-      .slice(0, 3)
-      .map(w => w.definitions[0]?.meaning || 'Unknown meaning');
+    const correctMeaning = currentWord.definitions[0]?.meaning?.trim();
+    if (!correctMeaning) return;
+
+    // 干扰项必须取自整本生词本而非当前队列：队列答到末尾会出队、所剩无几，凑不满 3 个干扰项。
+    const seq = ++quizSeqRef.current;
+    let poolWords: Word[] = words;
+    try {
+      const all = await StorageService.getWords();
+      if (Array.isArray(all) && all.length > 0) poolWords = all;
+    } catch {
+      // 读词库失败则退回用当前队列
+    }
+    // await 期间若已切到下一个词，丢弃本次结果，避免写回上一个词的选项
+    if (quizSeqRef.current !== seq) return;
+
+    // 去重 + 排除当前词、空释义、与正确释义相同的项
+    const pool = Array.from(
+      new Set(
+        poolWords
+          .filter(w => w.id !== currentWord.id)
+          .map(w => w.definitions[0]?.meaning?.trim())
+          .filter((m): m is string => !!m && m !== correctMeaning)
+      )
+    );
+    // Fisher–Yates 洗牌后取前 3 个
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const wrongOptions = pool.slice(0, 3);
 
     const allOptions = [correctMeaning, ...wrongOptions].sort(() => Math.random() - 0.5);
     setQuizOptions(allOptions);
+    setSelectedAnswer('');
+    setShowQuizResult(false);
   };
 
   const handleQuizAnswer = (answer: string) => {
@@ -1085,7 +1127,7 @@ export default function StudyScreen() {
       <View style={styles.progressCard}>
         <View style={styles.progressHeader}>
           <Text style={styles.progressText}>
-            {currentIndex + 1} / {words.length}
+            {trulyCompleted} / {studyStats.total}
           </Text>
           <View style={styles.progressRight}>
             <Text style={styles.accuracyText}>
@@ -1104,7 +1146,7 @@ export default function StudyScreen() {
           </View>
         </View>
         <ProgressBar
-          progress={(currentIndex + 1) / Math.max(words.length, 1)}
+          progress={trulyCompleted / Math.max(studyStats.total, 1)}
           color={colors.primary}
           style={styles.progressBar}
         />
