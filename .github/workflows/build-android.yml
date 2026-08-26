@@ -97,6 +97,8 @@ jobs:
         working-directory: android
         run: |
           set -o pipefail
+          # Windows 提交可能丢可执行位，这里兜底（根治靠 git update-index --chmod=+x）
+          chmod +x gradlew
           ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
 
       - name: Extract build errors (on failure)
