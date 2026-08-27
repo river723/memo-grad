@@ -78,9 +78,7 @@ export default function SettingsScreen() {
     soundEnabled: true,
     theme: 'light',
     fontSize: 14,
-    autoPlaySound: false,
-    showRareSense: true,
-    showEtymology: true,
+    autoPlaySound: true,
     articleWordCount: 10,
     articleLength: 200,
     examQuestionCount: 10,
@@ -241,7 +239,7 @@ export default function SettingsScreen() {
       await StorageService.clearAllData();
       setSettings({
         dailyNewWords: 10, reviewInterval: [1, 2, 4, 7, 15], soundEnabled: true, theme: 'light',
-        fontSize: 14, autoPlaySound: false, showRareSense: true, showEtymology: true,
+        fontSize: 14, autoPlaySound: true,
         articleWordCount: 10, articleLength: 200, examQuestionCount: 10, examAutoAdvance: true,
         aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', autoAddNewWords: true,
       });
@@ -255,7 +253,7 @@ export default function SettingsScreen() {
       if (!confirmed) return;
       await saveSettings({
         dailyNewWords: 10, reviewInterval: [1, 2, 4, 7, 15], soundEnabled: true, theme: 'light',
-        fontSize: 14, autoPlaySound: false, showRareSense: true, showEtymology: true,
+        fontSize: 14, autoPlaySound: true,
         articleWordCount: 10, articleLength: 200, examQuestionCount: 10, examAutoAdvance: true,
         aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', autoAddNewWords: true,
       });
@@ -380,8 +378,6 @@ export default function SettingsScreen() {
           () => handleAdjustDailyNewWords(1)
         )}
         <View style={styles.divider} />
-        {toggleRow('robot-outline', '🤖 自动配词', settings.autoAddNewWords !== false ? `每天按考频自动补足到 ${settings.dailyNewWords} 个新词` : '关闭后仅手动添加生词', settings.autoAddNewWords !== false, v => saveSettings({ autoAddNewWords: v }))}
-        <View style={styles.divider} />
         {renderStepper(
           'AI 出题练习题数',
           settings.examQuestionCount || 10,
@@ -395,9 +391,8 @@ export default function SettingsScreen() {
         )}
         <View style={styles.divider} />
         {toggleRow('lightning-bolt', '⚡ 答题自动跳转', settings.examAutoAdvance ? '答对后 2.5 秒自动下一题' : '手动点击下一题', settings.examAutoAdvance, v => saveSettings({ examAutoAdvance: v }))}
+        {toggleRow('robot-outline', '🤖 自动配词', settings.autoAddNewWords !== false ? `每天按考频自动补足到 ${settings.dailyNewWords} 个新词` : '关闭后仅手动添加生词', settings.autoAddNewWords !== false, v => saveSettings({ autoAddNewWords: v }))}
         {toggleRow('volume-high', '🔊 发音功能', '朗读单词发音', settings.soundEnabled, v => saveSettings({ soundEnabled: v }))}
-        {toggleRow('book-alert', '🔇 熟词僻义', '显示特殊用法标注', settings.showRareSense, v => saveSettings({ showRareSense: v }))}
-        {toggleRow('magnify-scan', '🔍 词根词缀', '显示词源分析', settings.showEtymology, v => saveSettings({ showEtymology: v }))}
         {toggleRow('volume-vibrate', '🔊 自动发音', settings.soundEnabled ? '学新单词时自动朗读' : '需先开启发音功能', settings.soundEnabled && settings.autoPlaySound, v => saveSettings({ autoPlaySound: v }), !settings.soundEnabled)}
       </View>
 
@@ -577,7 +572,7 @@ export default function SettingsScreen() {
       <View style={styles.footer}>
         <MaterialCommunityIcons name="book-open-variant" size={20} color={colors.tertiary} />
         <Text style={styles.footerText}>版本 1.0.0</Text>
-        <Text style={styles.footerSub}>考研英语生词本AI版</Text>
+        <Text style={styles.footerSub}>{OFFLINE_MODE ? '考研单词·离线版' : '考研单词·在线版'}</Text>
         <Text style={styles.footerSub}>专注考研 · 科学背词</Text>
       </View>
     </ScrollView>

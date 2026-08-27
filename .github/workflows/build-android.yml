@@ -11,7 +11,7 @@ name: Build Android APK
 #   Metro 在 createBundleReleaseJsAndAssets 阶段静态内联 EXPO_PUBLIC_*。
 #
 # 单机版差异化（2026-08-26 起，与 iOS 工作流一致）：mode=offline 时把
-# applicationId 改为 com.kaoyan.vocabulary.offline、显示名改为「考研单词·离线」、
+# applicationId 改为 com.kaoyan.vocabulary.offline、显示名改为「考研单词·离线版」、
 # versionName 加 -offline 后缀——两版可共存于一台手机，数据各自沙箱。
 #
 # 为什么不在这里跑 expo prebuild：android/ 是完整提交的 stock prebuild 产物
@@ -78,7 +78,7 @@ jobs:
         working-directory: android
         run: |
           sed -i "s/applicationId 'com.kaoyan.vocabulary'/applicationId 'com.kaoyan.vocabulary.offline'/" app/build.gradle
-          sed -i 's|<string name="app_name">考研英语生词本AI版</string>|<string name="app_name">考研单词·离线</string>|' app/src/main/res/values/strings.xml
+          sed -i -E 's|(<string name="app_name">)[^<]*(</string>)|\1考研单词·离线版\2|' app/src/main/res/values/strings.xml
           sed -i -E 's/versionName "([^"]+)"/versionName "\1-offline"/' app/build.gradle
           grep -nE "applicationId|versionName" app/build.gradle
           grep -n "app_name" app/src/main/res/values/strings.xml

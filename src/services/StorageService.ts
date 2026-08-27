@@ -47,8 +47,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoPlaySound: false,
   theme: 'light',
   fontSize: 14,
-  showRareSense: true,
-  showEtymology: true,
   apiKey: '',
   aiProvider: 'deepseek',
   aiModel: AI_PROVIDERS.deepseek.defaultModel,
@@ -189,6 +187,20 @@ class StorageService {
   async addWord(word: Omit<Word, 'id'>): Promise<string> {
     await this.ensureMigrated();
     const words = await this.getAllWordsRaw();
+
+    // 检查是否已存在同名单词（忽略大小写，不计入已软删除的记录）
+    const alreadyExists = words.some(
+      w => w.word.toLowerCase() === word.word.toLowerCase() && !w.deleted_at
+    );
+
+    if (alreadyExists) {
+      // 返回现有词的 ID，避免物理重复
+      const existing = words.find(
+        w => w.word.toLowerCase() === word.word.toLowerCase() && !w.deleted_at
+      );
+      return existing!.id;
+    }
+
     const newId = generateId();
     const now = nowIso();
 

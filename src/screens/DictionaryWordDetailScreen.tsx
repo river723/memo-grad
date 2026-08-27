@@ -52,8 +52,6 @@ export default function DictionaryWordDetailScreen() {
   const [word, setWord] = useState<Word | null>(null);
   const [inWordbook, setInWordbook] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [showRareSense, setShowRareSense] = useState(true);
-  const [showEtymology, setShowEtymology] = useState(true);
   const [showMemoryTip, setShowMemoryTip] = useState(true);
 
   // 加载词条：从词库读取并转成应用内 Word 结构（异步）
@@ -92,8 +90,6 @@ export default function DictionaryWordDetailScreen() {
             !!key && words.some((w) => w.word.toLowerCase() === key)
           );
           setSoundEnabled(settings.soundEnabled !== false);
-          setShowRareSense(settings.showRareSense !== false);
-          setShowEtymology(settings.showEtymology !== false);
         } catch {
           setInWordbook(false);
         }
@@ -182,7 +178,7 @@ export default function DictionaryWordDetailScreen() {
               {def.is_core ? (
                 <Chip compact style={styles.chip}>核心</Chip>
               ) : null}
-              {def.is_rare_sense && showRareSense ? (
+              {def.is_rare_sense ? (
                 <Chip compact style={styles.chip}>熟词僻义</Chip>
               ) : null}
             </View>
@@ -194,7 +190,7 @@ export default function DictionaryWordDetailScreen() {
         ))}
       </Surface>
 
-      {word.etymology && showEtymology ? (
+      {word.etymology ? (
         <Surface style={styles.card}>
           <Text style={styles.sectionTitle}>词根词缀</Text>
           <Text style={styles.sectionText}>{word.etymology}</Text>

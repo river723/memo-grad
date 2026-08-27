@@ -135,7 +135,7 @@ npm run tauri:build
 
 # —— 桌面单机版（beforeBuildCommand 经 scripts/build-web-offline.mjs
 #    注入 OFFLINE_MODE 后导出 web，再用 src-tauri/tauri.offline.conf.json
-#    差量覆写打包，productName 区分为"考研英语生词本单机版"）——
+#    差量覆写打包，productName 区分为"考研单词·离线版"）——
 npm run tauri:build:offline
 
 # 仅导出 web 不打包桌面：
@@ -165,7 +165,7 @@ gh run download          # 解压得 kaoyan-unsigned-<online|offline>.ipa
 
 - **push 到 NetDict 的自动触发只出网络版包**（零回归）；单机版仅手动触发。
 - **单机版与网络版可共存**（与 Android 一致）：mode=offline 时 bundle id 改为
-  `com.kaoyan.vocabulary.offline`、显示名改为「考研单词·离线」。注意不同 bundle id
+  `com.kaoyan.vocabulary.offline`、显示名改为「考研单词·离线版」。注意不同 bundle id
   在免费 Apple ID 下各占一个签名名额（约 10 个上限），两个常驻 id 无压力。
 - 两种形态的 Sideloadly 安装流程完全相同，仅 JS bundle 内联的 `EXPO_PUBLIC_*` 不同。
 - 单机版 ipa 装机后冒烟：免登录直达主界面、设置出现 AI 设置区块、飞行模式下加单词/复习/AI 出题可用。
@@ -192,8 +192,8 @@ gh run download          # 解压得 kaoyan-<online|offline>.apk
 注意：
 
 - **单机版与网络版可共存于一台手机**：mode=offline 时包名改为
-  `com.kaoyan.vocabulary.offline`、显示名改为「考研单词·离线」、versionName 加 `-offline`
-  后缀，两图标并存、数据各自沙箱；网络版保持「考研英语生词本AI版」/ `com.kaoyan.vocabulary` 不变。
+  `com.kaoyan.vocabulary.offline`、显示名改为「考研单词·离线版」、versionName 加 `-offline`
+  后缀，两图标并存、数据各自沙箱；网络版保持「考研单词·在线版」/ `com.kaoyan.vocabulary` 不变。
 - **push 到 main/NetDict 的自动触发只出网络版包**（与 iOS 工作流一致）；单机版仅手动触发。
 - CI **直接构建已提交的 android/**（stock prebuild 产物，app.json 无 config plugins），
   不在 CI 跑 prebuild——改了 app.json 的原生配置时，本地 `npx expo prebuild -p android` 后提交。
@@ -487,7 +487,7 @@ npm run build:web              # 在线形态导出 web → web-build/
 npm run build:web:offline      # 单机形态导出 web（脚本内注入 OFFLINE_MODE=1）
 npm run tauri:dev              # 桌面开发模式（在线形态）
 npm run tauri:build            # 在线桌面包（nsis + msi）
-npm run tauri:build:offline    # 单机桌面包，productName 为"考研英语生词本单机版"
+npm run tauri:build:offline    # 单机桌面包，productName 为"考研单词·离线版"
 ```
 
 单机桌面打包链：`src-tauri/tauri.offline.conf.json` 差量覆写 `beforeBuildCommand` 指向

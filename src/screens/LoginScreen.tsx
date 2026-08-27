@@ -157,7 +157,7 @@ export default function LoginScreen() {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.title}>考研英语生词本</Text>
+            <Text style={styles.title}>考研单词·在线版</Text>
             <Text style={styles.subtitle}>手机号登录 · 同步学习数据至云端</Text>
           </Animated.View>
 

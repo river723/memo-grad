@@ -201,8 +201,25 @@ export default function StoryDetailScreen() {
               {chapter.word_count} 词 · {chapter.words.length} 个目标词
             </Text>
           </View>
-          <View style={styles.heroIcon}>
-            <MaterialCommunityIcons name="book-open-page-variant" size={24} color={colors.onPrimary} />
+          <View style={styles.heroRight}>
+            <View style={styles.heroIcon}>
+              <MaterialCommunityIcons name="book-open-page-variant" size={24} color={colors.onPrimary} />
+            </View>
+            {chapter.translation ? (
+              <Pressable
+                onPress={() => setShowTranslation(!showTranslation)}
+                style={({ pressed }) => [styles.heroToggle, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <MaterialCommunityIcons
+                  name={showTranslation ? 'eye-off' : 'eye'}
+                  size={14}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.heroToggleLabel}>
+                  {showTranslation ? '隐藏译文' : '显示译文'}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -327,6 +344,11 @@ const useStyles = makeStyles(colors => ({
     gap: 12,
     marginBottom: 16,
   },
+  heroRight: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
   heroIcon: {
     width: 48,
     height: 48,
@@ -334,6 +356,22 @@ const useStyles = makeStyles(colors => ({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  heroToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  heroToggleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   contentCard: {
     padding: 16,

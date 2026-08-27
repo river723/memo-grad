@@ -14,6 +14,7 @@ import { ThemeProvider } from './src/providers/ThemeProvider';
 import AuthProvider from './src/providers/AuthProvider';
 import { AnnouncementProvider } from './src/providers/AnnouncementProvider';
 import { ConfirmDialogProvider } from './src/providers/ConfirmDialogProvider';
+import { OFFLINE_MODE } from './src/config/appMode';
 
 // 使用 @expo/vector-icons 替代 react-native-vector-icons
 // react-native-vector-icons 在 Expo SDK 55 + New Architecture 下字体加载可能失败
@@ -177,7 +178,7 @@ export default function App() {
       <PaperProvider theme={lightTheme} settings={paperSettings}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: lightTheme.colors.background }}>
           <Text style={{ fontSize: 18, color: lightTheme.colors.primary }}>加载中...</Text>
-          <Text style={{ fontSize: 14, color: lightTheme.colors.onSurfaceVariant, marginTop: 10 }}>考研英语生词本</Text>
+          <Text style={{ fontSize: 14, color: lightTheme.colors.onSurfaceVariant, marginTop: 10 }}>{OFFLINE_MODE ? '考研单词·离线版' : '考研单词·在线版'}</Text>
         </View>
       </PaperProvider>
     );

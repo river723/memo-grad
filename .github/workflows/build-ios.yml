@@ -12,7 +12,7 @@ name: Build Unsigned iOS IPA
 #
 # 单机版差异化（2026-08-26 起，与 build-android.yml 一致）：mode=offline 时在
 # prebuild 前临时改 app.json——bundle id 改为 com.kaoyan.vocabulary.offline、
-# 显示名改为「考研单词·离线」，与网络版可共存于一台设备，数据各自沙箱。
+# 显示名改为「考研单词·离线版」，与网络版可共存于一台设备，数据各自沙箱。
 # 注意：不同 bundle id 在免费 Apple ID 下各占一个签名名额（约 10 个上限）。
 # 详见 .claude/plans/ipad-iphone-sprightly-moore.md
 
@@ -91,7 +91,7 @@ jobs:
           node -e "
             const fs = require('fs');
             const j = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-            j.expo.name = '考研单词·离线';
+            j.expo.name = '考研单词·离线版';
             j.expo.ios.bundleIdentifier = 'com.kaoyan.vocabulary.offline';
             fs.writeFileSync('app.json', JSON.stringify(j, null, 2));
           "

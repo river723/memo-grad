@@ -1,14 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
-import { Text, SegmentedButtons, ActivityIndicator } from 'react-native-paper';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { Text, SegmentedButtons } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
+import WordDictModal from '../components/WordDictModal';
 import ReviewOption from '../components/ReviewOption';
-import { WrongQuestion, ExamQuestion, ExamQuestionType, RealExamWrongQuestion, RealExamOptionLetter } from '../types';
+import { WrongQuestion, ExamQuestion, ExamQuestionType, RealExamWrongQuestion, RealExamOptionLetter, Word, WordDictEntry } from '../types';
+import { getLocalWordDictResult, wordDictEntryToWord } from '../utils/wordUtils';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
@@ -32,6 +34,8 @@ export default function WrongQuestionReviewScreen() {
   const [wrongCountFilter, setWrongCountFilter] = useState<'all' | 'ge2' | 'ge3'>('all');
   const [explLoading, setExplLoading] = useState<Record<string, boolean>>({});
   const [explOverride, setExplOverride] = useState<Record<string, string>>({});
+  const [showWordModal, setShowWordModal] = useState(false);
+  const [selectedWord, setSelectedWord] = useState<Word | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,13 +108,35 @@ export default function WrongQuestionReviewScreen() {
     }
   };
 
+  const handleWordTap = async (wordId: string | undefined, wordText: string) => {
+    // 优先从生词本取（含用户 AI 增强的词根/口诀/易混词）
+    let word: Word | null = wordId ? await StorageService.getWordById(wordId) : null;
+    // 生词本没有（可能已软删）→ 回落到全局词库构造临时 Word
+    if (!word) {
+      const dict = await getLocalWordDictResult(wordText);
+      if (dict) {
+        // AIResponse 与 WordDictEntry 字段结构兼容，复用转换逻辑
+        const base = wordDictEntryToWord(wordText, dict as unknown as WordDictEntry);
+        word = { ...base, id: `dict-${wordText.toLowerCase()}` } as Word;
+      }
+    }
+    if (word) {
+      setSelectedWord(word);
+      setShowWordModal(true);
+    }
+  };
+
   const renderWordQuestionContent = (wq: WrongQuestion) => {
     const q = wq.question;
     if (q.type === 'definition') {
       return (
         <View>
           <Text style={styles.qSentence}>{q.sentence.replace(/\*/g, '')}</Text>
-          <Text style={styles.qWordTag}>目标词: {q.word}</Text>
+          <Pressable onPress={() => handleWordTap(q.word_id, q.word)}>
+            <Text style={[styles.qWordTag, { textDecorationLine: 'underline' }]}>
+              目标词: {q.word}
+            </Text>
+          </Pressable>
           <Text style={styles.qCorrectAnswer}>✓ {q.correct_definition}</Text>
           <Text style={styles.qWrongAnswer}>✗ 你的选择: {wq.wrong_answer}</Text>
         </View>
@@ -120,7 +146,11 @@ export default function WrongQuestionReviewScreen() {
       <View>
         <Text style={styles.qSentence}>{q.sentence.replace('[BLANK]', '______')}</Text>
         {q.chinese_hint ? <Text style={styles.qHint}>💡 {q.chinese_hint}</Text> : null}
-        <Text style={styles.qCorrectAnswer}>✓ {q.correct_answer}</Text>
+        <Pressable onPress={() => handleWordTap(q.word_id, q.target_word)}>
+          <Text style={[styles.qCorrectAnswer, { textDecorationLine: 'underline' }]}>
+            ✓ {q.correct_answer}
+          </Text>
+        </Pressable>
         <Text style={styles.qWrongAnswer}>✗ 你的选择: {wq.wrong_answer}</Text>
       </View>
     );
@@ -141,6 +171,7 @@ export default function WrongQuestionReviewScreen() {
   } as const;
 
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['2xl'] }}>
       <SegmentedButtons
         value={tab}
@@ -342,6 +373,12 @@ export default function WrongQuestionReviewScreen() {
         </>
       )}
     </ScrollView>
+    <WordDictModal
+      visible={showWordModal}
+      onClose={() => setShowWordModal(false)}
+      word={selectedWord}
+    />
+    </>
   );
 }
 

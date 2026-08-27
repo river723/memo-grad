@@ -45,8 +45,6 @@ export default function StatsScreen() {
     theme: 'light',
     fontSize: 14,
     autoPlaySound: false,
-    showRareSense: true,
-    showEtymology: true,
     articleWordCount: 10,
     articleLength: 200,
     examQuestionCount: 10,
@@ -340,7 +338,7 @@ export default function StatsScreen() {
         {/* 版本信息 */}
         <View style={styles.footer}>
           <MaterialCommunityIcons name="book-open-variant" size={20} color={colors.tertiary} />
-          <Text style={styles.footerText}>考研英语生词本AI版</Text>
+          <Text style={styles.footerText}>{OFFLINE_MODE ? '考研单词·离线版' : '考研单词·在线版'}</Text>
           <Text style={styles.footerSub}>v1.0.0 · 专注考研 · 科学背词</Text>
         </View>
       </ScrollView>

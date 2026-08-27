@@ -70,8 +70,6 @@ export interface AppSettings {
   autoPlaySound: boolean;
   theme: 'light' | 'dark' | 'system';  // 支持浅色/深色/跟随系统三种模式
   fontSize: number;
-  showRareSense: boolean;
-  showEtymology: boolean;
   apiKey: string;
   aiProvider: AIProviderId;
   aiModel: string;

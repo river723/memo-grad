@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "考研英语生词本单机版",
+  "productName": "考研单词·离线版",
   "build": {
     "beforeBuildCommand": "node scripts/build-web-offline.mjs"
   },
@@ -8,7 +8,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "考研英语生词本单机版",
+        "title": "考研单词·离线版",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

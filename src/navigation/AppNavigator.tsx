@@ -8,6 +8,7 @@ import AppIcon, { type IconName } from '../components/ds/AppIcon';
 import { useAppTheme, lightNavTheme, darkNavTheme } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import { useAuth } from '../providers/AuthProvider';
+import { OFFLINE_MODE } from '../config/appMode';
 import LoginScreen from '../screens/LoginScreen';
 
 // --- 学习 Tab 组件 ---
@@ -275,10 +276,11 @@ export default function AppNavigator() {
     if (Platform.OS !== 'web') {
       return;
     }
-    document.title = '考研英语生词本AI版';
+    const title = OFFLINE_MODE ? '考研单词·离线版' : '考研单词·在线版';
+    document.title = title;
     const interval = setInterval(() => {
-      if (document.title !== '考研英语生词本AI版') {
-        document.title = '考研英语生词本AI版';
+      if (document.title !== title) {
+        document.title = title;
       }
     }, 100);
     return () => clearInterval(interval);
