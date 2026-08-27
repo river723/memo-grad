@@ -1,15 +1,15 @@
 <WixLocalization Culture="en-us" xmlns="http://schemas.microsoft.com/wix/2006/localization">
     <String Id="TauriLanguage">1033</String>
     <String Id="TauriCodepage">1252</String>
-    <String Id="LaunchApp">Launch 考研英语生词本AI版</String>
-    <String Id="DowngradeErrorMessage">A newer version of 考研英语生词本AI版 is already installed.</String>
-    <String Id="PathEnvVarFeature">Add the install location of the 考研英语生词本AI版 executable to the PATH system environment variable.</String>
-    <String Id="InstallAppFeature">Installs 考研英语生词本AI版.</String>
-    <String Id="ProductName">考研英语生词本AI版</String>
+    <String Id="LaunchApp">Launch 考研单词·在线版</String>
+    <String Id="DowngradeErrorMessage">A newer version of 考研单词·在线版 is already installed.</String>
+    <String Id="PathEnvVarFeature">Add the install location of the 考研单词·在线版 executable to the PATH system environment variable.</String>
+    <String Id="InstallAppFeature">Installs 考研单词·在线版.</String>
+    <String Id="ProductName">考研单词·在线版</String>
     <String Id="ProductVersion">1.0.0</String>
     <String Id="Manufacturer">kaoyan</String>
     <String Id="UpgradeCode">904f6beb-f128-5d19-9946-ead0db9f9b56</String>
-    <String Id="RegistryKey">kaoyan\考研英语生词本AI版</String>
-    <String Id="ShortcutName">考研英语生词本AI版</String>
+    <String Id="RegistryKey">kaoyan\考研单词·在线版</String>
+    <String Id="ShortcutName">考研单词·在线版</String>
     <String Id="AppUserModelId">com.kaoyan.vocabulary</String>
 </WixLocalization>
