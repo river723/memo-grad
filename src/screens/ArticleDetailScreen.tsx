@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -12,7 +12,7 @@ import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { showConfirm } from '../providers/ConfirmDialogProvider';
 import { Article, Word } from '../types';
-import { parseArticleContent, TextSegment } from '../utils/storyUtils';
+import { parseArticleContent, buildBilingualPairs } from '../utils/storyUtils';
 import { getLocalWordDictResult } from '../utils/wordUtils';
 import AppButton from '../components/ds/AppButton';
 import WordDictModal from '../components/WordDictModal';
@@ -36,7 +36,6 @@ export default function ArticleDetailScreen() {
 
   const [article, setArticle] = useState<Article | null>(null);
   const [wordMap, setWordMap] = useState<Map<string, Word>>(new Map());
-  const [segments, setSegments] = useState<TextSegment[]>([]);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
   const [showWordModal, setShowWordModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -79,9 +78,6 @@ export default function ArticleDetailScreen() {
       }
       setWordMap(wMap);
 
-      const segs = parseArticleContent(art.content, art.words, wMap);
-      setSegments(segs);
-
       await StorageService.getSettings();
 
       const newReadCount = (art.read_count || 0) + 1;
@@ -95,6 +91,16 @@ export default function ArticleDetailScreen() {
       console.error('Failed to load article:', error);
     }
   };
+
+  const pairsWithSegs = useMemo(() => {
+    if (!article) return [];
+    const pairs = buildBilingualPairs(article.content, article.translation);
+    return pairs.map(p => ({
+      en: p.en,
+      zh: p.zh,
+      segs: parseArticleContent(p.en, article.words, wordMap),
+    }));
+  }, [article, wordMap]);
 
   const handleWordTap = (wordObj?: Word) => {
     if (wordObj) {
@@ -220,22 +226,37 @@ export default function ArticleDetailScreen() {
             </View>
           ) : (
             <>
-              <Text style={styles.articleText}>
-                {segments.map((seg, index) => {
-                  if (seg.isWord) {
-                    return (
-                      <Text
-                        key={index}
-                        style={styles.highlightedWord}
-                        onPress={() => handleWordTap(seg.wordObj)}
-                      >
-                        {seg.text}
+              {pairsWithSegs.map((pair, index) => {
+                const showEn = !!pair.en;
+                const showZh = !!pair.zh && showTranslation;
+                if (!showEn && !showZh) return null;
+                return (
+                  <View key={index} style={styles.bilingualPara}>
+                    {showEn ? (
+                      <Text style={styles.articleText}>
+                        {pair.segs.map((seg, j) => {
+                          if (seg.isWord) {
+                            return (
+                              <Text
+                                key={j}
+                                style={styles.highlightedWord}
+                                onPress={() => handleWordTap(seg.wordObj)}
+                              >
+                                {seg.text}
+                              </Text>
+                            );
+                          }
+                          return <Text key={j}>{seg.text}</Text>;
+                        })}
                       </Text>
-                    );
-                  }
-                  return <Text key={index}>{seg.text}</Text>;
-                })}
-              </Text>
+                    ) : null}
+                    {showZh ? (
+                      <Text style={styles.bilingualZh}>{pair.zh}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+
               {article.translation ? (
                 <View style={styles.translationToggleArea}>
                   <Pressable
@@ -256,13 +277,6 @@ export default function ArticleDetailScreen() {
                   </Pressable>
                 </View>
               ) : null}
-              {article.translation && showTranslation && (
-                <View>
-                  <View style={styles.translationDivider} />
-                  <Text style={styles.translationLabel}>中文翻译</Text>
-                  <Text style={styles.translationContent}>{article.translation}</Text>
-                </View>
-              )}
             </>
           )}
         </View>
@@ -402,21 +416,17 @@ const useStyles = makeStyles(colors => ({
     fontWeight: '600',
     color: colors.primary,
   },
-  translationDivider: {
-    height: 1,
-    backgroundColor: colors.outline,
-    marginVertical: 16,
+  bilingualPara: {
+    marginBottom: 16,
   },
-  translationLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 8,
-  },
-  translationContent: {
-    fontSize: 15,
+  bilingualZh: {
+    fontSize: 14,
     color: colors.onSurfaceVariant,
-    lineHeight: 26,
+    lineHeight: 22,
+    marginTop: 6,
+    paddingLeft: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primaryContainer,
   },
   tapHint: {
     fontSize: 12,
