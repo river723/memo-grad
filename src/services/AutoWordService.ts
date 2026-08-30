@@ -16,6 +16,8 @@ import { format } from 'date-fns';
 import StorageService from './StorageService';
 import { getLocalWordDictWords } from '../utils/wordUtils';
 import { Word } from '../types';
+import { StudyRecord } from '../types';
+import { REVIEW_INTERVALS } from '../constants';
 
 class AutoWordService {
   private static instance: AutoWordService;
@@ -34,43 +36,49 @@ class AutoWordService {
    * 补足生词本到「每日新词数」。
    * 默认每天只跑一次（日期守卫）；`force: true` 跳过守卫——
    * 用于学习页「再来一组」按需补充下一批，开关关闭时同样不动作。
+   * `forceRefill: true` 专用于"再来一组"：跳过 gap 检查、按 dailyLimit 强制补一批，
+   * 但**仍尊重自动配词开关**（开关关闭则不补词）。
    */
-  async fillTodayIfNeeded(options?: { force?: boolean }): Promise<number> {
+  async fillTodayIfNeeded(options?: {
+    force?: boolean;
+    forceRefill?: boolean;
+  }): Promise<number> {
     if (!this.inflight) {
-      this.inflight = this.doFill(options?.force === true).finally(() => {
-        this.inflight = null;
-      });
+      this.inflight = this.doFill(options?.force === true, options?.forceRefill === true)
+        .finally(() => { this.inflight = null; });
     }
     return this.inflight;
   }
 
-  private async doFill(force: boolean): Promise<number> {
+  private async doFill(force: boolean, forceRefill: boolean): Promise<number> {
     try {
       const settings = await StorageService.getSettings();
+
+      // 🔧 开关关闭 → 任何模式都直接返回 0（含 forceRefill）
       if (settings.autoAddNewWords !== true) {
-        console.info('[AutoWordService] 开关关闭，跳过');
+        console.info('[AutoWordService] 自动配词开关关闭，跳过');
         return 0;
       }
 
       const today = format(new Date(), 'yyyy-MM-dd');
-      if (!force && (await StorageService.getAutoFillLastDate()) === today) {
+      // forceRefill 时也跳过日期守卫（"再来一组"当天可点多次）
+      if (!force && !forceRefill && (await StorageService.getAutoFillLastDate()) === today) {
         console.info('[AutoWordService] 今日已执行过，跳过');
         return 0;
       }
 
-      const dailyLimit = typeof settings.dailyNewWords === 'number'
-        ? settings.dailyNewWords
-        : 10;
+      const dailyLimit = typeof settings.dailyNewWords === 'number' ? settings.dailyNewWords : 10;
 
-      // 缺口 = 每日新词数 − 生词本里从未学过的新词存量
       const [words, records] = await Promise.all([
         StorageService.getWords(),
         StorageService.getStudyRecords(),
       ]);
       const studiedIds = new Set(records.map(r => r.word_id));
       const unstudiedCount = words.filter(w => !studiedIds.has(w.id)).length;
-      const gap = dailyLimit - unstudiedCount;
-      if (gap <= 0) {
+
+      // 🔧 forceRefill 时无视 gap，直接按 dailyLimit 补
+      const gap = forceRefill ? dailyLimit : dailyLimit - unstudiedCount;
+      if (!forceRefill && gap <= 0) {
         await StorageService.setAutoFillLastDate(today);
         return 0;
       }
@@ -82,18 +90,23 @@ class AutoWordService {
         getLocalWordDictWords(),
       ]);
       const ignored = new Set(ignoredList.map(w => w.toLowerCase()));
-      const candidates = wordbank.filter(entry => {
+      let candidates = wordbank.filter(entry => {
         const key = entry.word.toLowerCase();
         return !wordbookKeys.has(key) && !ignored.has(key);
       });
 
-      let added = 0;
+      // 🔧 兜底：候选池空 → 从已学词里按复习间隔抽（不重复当天已复习的）
       if (candidates.length === 0) {
-        // 词库已耗尽（全部已有/忽略/软删）：不写守卫，下次进入可重试
-        console.warn('[AutoWordService] 词库无候选词可补');
-        return 0;
+        console.warn('[AutoWordService] 候选池空，启用复习词兜底');
+        candidates = this.pickReviewFallback(words, records, dailyLimit);
+        if (candidates.length === 0) {
+          console.warn('[AutoWordService] 兜底也无词，彻底没词了');
+          return 0;
+        }
       }
+
       const ordered = this.pickByFrequency(candidates, today);
+      let added = 0;
       for (const entry of ordered.slice(0, gap)) {
         await StorageService.addWord(entry);
         added++;
@@ -108,6 +121,52 @@ class AutoWordService {
       console.error('[AutoWordService] 自动配词失败:', error);
       return 0;
     }
+  }
+
+  /**
+   * 复习词兜底选择器：从已学词中按艾宾浩斯间隔挑选到期复习的词
+   * 优先级：离上次复习越久（遗忘程度越高）越靠前
+   */
+  private pickReviewFallback(
+    myWords: Word[],
+    records: StudyRecord[],
+    limit: number
+  ): Omit<Word, 'id' | 'created_at' | 'updated_at'>[] {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const todayReviewed = new Set(
+      records.filter(r => r.study_date === today && r.result === 1).map(r => r.word_id)
+    );
+
+    // 按艾宾浩斯间隔找该复习的词
+    const dueWords = myWords.filter(w => {
+      if (todayReviewed.has(w.id)) return false; // 今天已复习过
+      const wordRecords = records.filter(r => r.word_id === w.id);
+      if (wordRecords.length === 0) return false;
+      const lastStudy = wordRecords.reduce((latest, r) =>
+        r.study_date > latest ? r.study_date : latest, '');
+      const diffDays = Math.floor(
+        (new Date(today).getTime() - new Date(lastStudy).getTime()) / (1000*60*60*24)
+      );
+      return REVIEW_INTERVALS.includes(diffDays);
+    });
+
+    // 按遗忘程度排序（离上次复习越久越前）
+    dueWords.sort((a, b) => {
+      const ra = records.filter(r => r.word_id === a.id);
+      const rb = records.filter(r => r.word_id === b.id);
+      const la = ra.length ? Math.max(...ra.map(r => new Date(r.study_date).getTime())) : 0;
+      const lb = rb.length ? Math.max(...rb.map(r => new Date(r.study_date).getTime())) : 0;
+      return la - lb; // 越久没复习越靠前
+    });
+
+    return dueWords.slice(0, limit).map(w => ({
+      word: w.word,
+      definitions: w.definitions,
+      pronunciation_uk: w.pronunciation_uk,
+      pronunciation_us: w.pronunciation_us,
+      frequency: w.frequency,
+      difficulty: w.difficulty,
+    }));
   }
 
   /**

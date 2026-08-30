@@ -464,7 +464,7 @@ export default function WordbankPickerScreen() {
       </View>
 
       {/* 搜索框 */}
-      <Card style={styles.searchCard}>
+      <Card style={styles.searchCard} elevation={0}>
         <TextInput
           mode="flat"
           placeholder="搜索单词或释义..."
@@ -603,7 +603,7 @@ export default function WordbankPickerScreen() {
           onPress={() => setShowSortModal(false)}
         >
           <TouchableOpacity activeOpacity={1}>
-            <Surface style={styles.sortModalContent}>
+            <Surface style={styles.sortModalContent} elevation={0}>
               <Text style={styles.sortModalTitle}>排序方式</Text>
               {SORT_ORDER.map((mode) => {
                 const active = sortMode === mode;
@@ -671,7 +671,8 @@ const useStyles = makeStyles(colors => ({
   searchCard: {
     marginHorizontal: 12,
     marginBottom: 8,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.outline,
     borderRadius: 8,
   },
   searchInput: {
@@ -708,7 +709,8 @@ const useStyles = makeStyles(colors => ({
     width: 240,
     paddingVertical: 12,
     borderRadius: 14,
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: colors.outline,
     backgroundColor: colors.surface,
   },
   sortModalTitle: {
@@ -749,7 +751,8 @@ const useStyles = makeStyles(colors => ({
     marginBottom: 4,
     borderRadius: 8,
     backgroundColor: colors.surface,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.outline,
     overflow: 'hidden',
   },
   rowContent: {
@@ -762,7 +765,8 @@ const useStyles = makeStyles(colors => ({
   },
   rowSelected: {
     backgroundColor: colors.primaryContainer,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.outline,
   },
   checkCol: {
     width: 32,

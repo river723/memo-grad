@@ -45,6 +45,8 @@ export interface AppColors {
   onSurfaceVariant: string;
   tertiary: string;
   outline: string;
+  // 细边框色（扁平风格用）
+  hairline: string;
   // 语义常量
   accent: string;
   success: string;
@@ -82,6 +84,7 @@ const lightColors: AppColors = {
   onSurfaceVariant: palette.textSecondary,
   tertiary: palette.textTertiary,
   outline: palette.border,
+  hairline: palette.hairline,
   accent: palette.accent,
   success: palette.success,
   danger: palette.danger,
@@ -112,6 +115,7 @@ const darkColors: AppColors = {
   onSurfaceVariant: palette.textSecondaryDark,
   tertiary: palette.textTertiaryDark,
   outline: palette.borderDark,
+  hairline: palette.hairlineDark,
   accent: palette.accent,
   success: palette.success,
   danger: palette.danger,

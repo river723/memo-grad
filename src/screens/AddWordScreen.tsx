@@ -244,7 +244,7 @@ export default function AddWordScreen() {
   };
 
   const renderAnalysisSummaryItem = (word: string, analysis: AIResponse) => (
-    <Surface key={word} style={styles.batchWordItem}>
+    <Surface key={word} style={styles.batchWordItem} elevation={0}>
       <View style={styles.batchWordHeader}>
         <Text style={styles.batchWordTitle}>{word}</Text>
         {renderSuggestedDifficulty(analysis, true)}
@@ -445,7 +445,7 @@ export default function AddWordScreen() {
       />
 
       {activeTab === 'wordbank' && (
-        <Card style={styles.card}>
+        <Card style={styles.card} elevation={0}>
           <Card.Content>
             <View style={styles.pickerEntryRow}>
               <MaterialIcons name="library-books" size={40} color={colors.primary} />
@@ -467,7 +467,7 @@ export default function AddWordScreen() {
       )}
 
       {activeTab === 'manual' && (
-        <Card style={styles.card}>
+        <Card style={styles.card} elevation={0}>
           <Card.Title title="手工添加新单词" titleStyle={styles.cardTitle} />
           <Card.Content>
           {/* 单词输入 */}
@@ -542,7 +542,7 @@ export default function AddWordScreen() {
       )}
 
       {activeTab === 'manual' && isAnalyzing && (
-        <Card style={styles.card}>
+        <Card style={styles.card} elevation={0}>
           <Card.Content style={styles.loadingContainer}>
             <ActivityIndicator size="large" />
             <Text style={styles.loadingText}>正在查找本地词库，必要时调用 AI...</Text>
@@ -552,7 +552,7 @@ export default function AddWordScreen() {
 
       {/* 分析结果 - 单个单词 */}
       {activeTab === 'manual' && analysisResult && isSingleWordResult() && (
-        <Card style={styles.card}>
+        <Card style={styles.card} elevation={0}>
           <Card.Title title={getSingleResultTitle()} titleStyle={styles.cardTitle} />
           <Card.Content>
             {renderSuggestedDifficulty(analysisResult as AIResponse)}
@@ -561,7 +561,7 @@ export default function AddWordScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📚 考研释义</Text>
               {(analysisResult as AIResponse).definitions?.map((def, index) => (
-                <Surface key={index} style={styles.definitionItem}>
+                <Surface key={index} style={styles.definitionItem} elevation={0}>
                   <View style={styles.definitionHeader}>
                     <Text style={styles.partOfSpeech}>{def.part_of_speech}</Text>
                     {def.is_core && <Chip mode="flat" compact>核心</Chip>}
@@ -579,7 +579,7 @@ export default function AddWordScreen() {
             {(analysisResult as AIResponse).etymology && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>🔍 词根词缀</Text>
-                <Surface style={styles.etymologyContainer}>
+                <Surface style={styles.etymologyContainer} elevation={0}>
                   <Text style={styles.etymologyText}>{(analysisResult as AIResponse).etymology}</Text>
                 </Surface>
               </View>
@@ -589,7 +589,7 @@ export default function AddWordScreen() {
             {(analysisResult as AIResponse).memoryTip && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>💡 记忆口诀</Text>
-                <Surface style={styles.etymologyContainer}>
+                <Surface style={styles.etymologyContainer} elevation={0}>
                   <Text style={styles.etymologyText}>{(analysisResult as AIResponse).memoryTip}</Text>
                 </Surface>
               </View>
@@ -600,7 +600,7 @@ export default function AddWordScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>⚠️ 易混词提醒</Text>
                 {(analysisResult as AIResponse).similar_words!.map((similar, index) => (
-                  <Surface key={index} style={styles.similarWordItem}>
+                  <Surface key={index} style={styles.similarWordItem} elevation={0}>
                     <Text style={styles.similarWord}>
                       {similar.word} ({similar.relation}): {similar.description}
                     </Text>
@@ -616,7 +616,7 @@ export default function AddWordScreen() {
       {activeTab === 'manual' && analysisResult && analysisSources && !isSingleWordResult() && (
         <>
           {analysisSources.local.size > 0 && (
-            <Card style={styles.card}>
+            <Card style={styles.card} elevation={0}>
               <Card.Title title={`本地词库命中 (${analysisSources.local.size}个单词)`} titleStyle={styles.cardTitle} />
               <Card.Content>
                 {Array.from(analysisSources.local.entries()).map(([word, analysis]) =>
@@ -627,7 +627,7 @@ export default function AddWordScreen() {
           )}
 
           {analysisSources.ai.size > 0 && (
-            <Card style={styles.card}>
+            <Card style={styles.card} elevation={0}>
               <Card.Title title={`AI 分析结果 (${analysisSources.ai.size}个单词)`} titleStyle={styles.cardTitle} />
               <Card.Content>
                 {Array.from(analysisSources.ai.entries()).map(([word, analysis]) =>
@@ -641,7 +641,7 @@ export default function AddWordScreen() {
 
       {/* 手动添加释义（仅单个单词且无分析时显示） */}
       {activeTab === 'manual' && wordCount === 1 && !analysisResult && (
-        <Card style={styles.card}>
+        <Card style={styles.card} elevation={0}>
           <Card.Title title="手动添加释义" titleStyle={styles.cardTitle} />
           <Card.Content>
             <TextInput
@@ -732,7 +732,9 @@ const useStyles = makeStyles(colors => ({
   },
   card: {
     marginBottom: 16,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    borderRadius: 12,
   },
   pageHeader: {
     marginBottom: 12,
@@ -816,7 +818,8 @@ const useStyles = makeStyles(colors => ({
     padding: 12,
     marginBottom: 16,
     borderRadius: 8,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.outline,
     backgroundColor: colors.primaryContainer,
   },
   previewHeader: {
@@ -881,7 +884,8 @@ const useStyles = makeStyles(colors => ({
     padding: 12,
     marginBottom: 8,
     borderRadius: 8,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.outline,
   },
   definitionHeader: {
     flexDirection: 'row',
@@ -906,7 +910,8 @@ const useStyles = makeStyles(colors => ({
   etymologyContainer: {
     padding: 12,
     borderRadius: 8,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.outline,
   },
   etymologyText: {
     fontSize: 14,
@@ -916,7 +921,8 @@ const useStyles = makeStyles(colors => ({
     padding: 12,
     marginBottom: 8,
     borderRadius: 8,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.outline,
   },
   similarWord: {
     fontSize: 14,
@@ -971,7 +977,8 @@ const useStyles = makeStyles(colors => ({
     padding: 12,
     marginBottom: 8,
     borderRadius: 8,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.outline,
   },
   batchWordHeader: {
     flexDirection: 'row',

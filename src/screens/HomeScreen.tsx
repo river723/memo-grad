@@ -325,13 +325,19 @@ export default function HomeScreen() {
   const handleAnotherGroup = async () => {
     setRefilling(true);
     try {
-      // 强制补充跳过日期守卫；成功后进学习页，新词由 loadStudyWords 常规路径捞起
-      const added = await AutoWordService.fillTodayIfNeeded({ force: true });
+      // forceRefill: 跳过 gap 检查、按 dailyLimit 强制补一批；但仍尊重自动配词开关
+      const added = await AutoWordService.fillTodayIfNeeded({ force: true, forceRefill: true });
       if (added > 0) {
         toast.info(`已自动补充 ${added} 个新词`);
         navigation.navigate('Study' as any);
       } else {
-        toast.info('词库已全部学完，没有更多新词了');
+        // 区分：开关关闭 vs 词库耗尽
+        const settings = await StorageService.getSettings();
+        if (settings.autoAddNewWords !== true) {
+          toast.info('自动配词已关闭，请在设置中开启或手动添加单词');
+        } else {
+          toast.info('词库已用尽，可去「词库」手动挑选或调整每日词量');
+        }
       }
     } finally {
       setRefilling(false);
