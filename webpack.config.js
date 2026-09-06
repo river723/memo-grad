@@ -78,5 +78,14 @@ module.exports = async function (env, argv) {
     '@tauri-apps/plugin-fs': 'commonjs @tauri-apps/plugin-fs',
   };
 
+  // 体积告警阈值放宽：数据 JSON（离线词库/真题）已拆成按需加载的独立 chunk，
+  // 但单文件仍可达数 MB（worddict.json ~4.9MB），属预期体积而非回归；
+  // Tauri 离线包走本地协议，文件大小无网络成本。默认 244KiB/586KiB 会每次误报。
+  config.performance = {
+    ...config.performance,
+    maxAssetSize: 6 * 1024 * 1024, // 单个资源 6MB（兜住最大的 worddict chunk）
+    maxEntrypointSize: 3 * 1024 * 1024, // 入口包 3MB（拆分后 main.js 约 1~1.5MB）
+  };
+
   return config;
 };

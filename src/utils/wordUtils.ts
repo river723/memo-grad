@@ -13,7 +13,7 @@
  */
 
 import { Word, AppSettings, AIResponse, WordDictEntry, WordDictJson } from '../types';
-import worddictJson from '../data/worddict.json';
+import { loadJson } from './lazyJson';
 import StorageService from '../services/StorageService';
 import { WordDictApi, WordDictEntryWire, WordDictMeta } from '../services/WordDictApi';
 import { REMOTE_CONTENT } from '../config/appMode';
@@ -23,14 +23,22 @@ import { REMOTE_CONTENT } from '../config/appMode';
 // 单机形态（OFFLINE_MODE）强制走本地 JSON，见 src/config/appMode.ts。
 const USE_REMOTE = REMOTE_CONTENT;
 
-const localFallback = worddictJson as WordDictJson;
+const localFallbackVersion = 'local-fallback';
+const localFallbackEtag = 'local-fallback';
+const localFallbackPublishedAt = '1970-01-01T00:00:00.000Z';
 
-const fallbackMeta: WordDictMeta = {
-  version: 'local-fallback',
-  wordCount: Object.keys(localFallback.results).length,
-  etag: 'local-fallback',
-  publishedAt: '1970-01-01T00:00:00.000Z',
-};
+/**
+ * 本地 fallback 词库（4.9MB JSON）的懒加载入口。
+ * 动态 import() 让 webpack 把它拆成独立 chunk，只有真正落到 fallback 时才加载；
+ * 在线场景走远程 + AsyncStorage，完全不会触发。
+ */
+let localFallbackPromise: Promise<WordDictJson> | null = null;
+function getLocalFallback(): Promise<WordDictJson> {
+  if (!localFallbackPromise) {
+    localFallbackPromise = loadJson<WordDictJson>(() => import('../data/worddict.json'));
+  }
+  return localFallbackPromise;
+}
 
 type CachedShape = {
   version: string;
@@ -108,11 +116,12 @@ async function ensureLoaded(): Promise<CachedShape> {
     if (!USE_REMOTE) {
       if (!memCache) {
         // 降级开关下用本地 JSON 当 cache，等价于老行为
+        const fb = await getLocalFallback();
         memCache = {
-          version: fallbackMeta.version,
-          etag: fallbackMeta.etag,
+          version: localFallbackVersion,
+          etag: localFallbackEtag,
           savedAt: Date.now(),
-          entries: localFallback.results as unknown as Record<string, WordDictEntryWire>,
+          entries: fb.results as unknown as Record<string, WordDictEntryWire>,
         };
       }
       return memCache;
@@ -160,11 +169,12 @@ async function ensureLoaded(): Promise<CachedShape> {
 
     // 3. 三道保险都没成功时，落到 import JSON
     if (!memCache) {
+      const fb = await getLocalFallback();
       memCache = {
-        version: fallbackMeta.version,
-        etag: fallbackMeta.etag,
+        version: localFallbackVersion,
+        etag: localFallbackEtag,
         savedAt: Date.now(),
-        entries: localFallback.results as unknown as Record<string, WordDictEntryWire>,
+        entries: fb.results as unknown as Record<string, WordDictEntryWire>,
       };
     }
 
@@ -244,11 +254,22 @@ export async function getLocalWordDictWords(): Promise<Omit<Word, 'id' | 'create
  */
 export async function getLocalWordDictMeta(): Promise<WordDictMeta> {
   await ensureLoaded();
+  if (memCache) {
+    return {
+      version: memCache.version,
+      wordCount: Object.keys(memCache.entries).length,
+      etag: memCache.etag,
+      publishedAt: new Date(memCache.savedAt).toISOString(),
+    };
+  }
+  // memCache 理论上被 ensureLoaded 保证非空；万一为空（未来改动引入回归），
+  // 直接读 fallback 兜底，避免抛错。
+  const fb = await getLocalFallback();
   return {
-    version: memCache?.version ?? fallbackMeta.version,
-    wordCount: memCache ? Object.keys(memCache.entries).length : fallbackMeta.wordCount,
-    etag: memCache?.etag ?? fallbackMeta.etag,
-    publishedAt: memCache ? new Date(memCache.savedAt).toISOString() : fallbackMeta.publishedAt,
+    version: localFallbackVersion,
+    wordCount: Object.keys(fb.results).length,
+    etag: localFallbackEtag,
+    publishedAt: localFallbackPublishedAt,
   };
 }
 

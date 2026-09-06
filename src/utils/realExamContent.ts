@@ -12,7 +12,7 @@
  *   与老代码行为等价。
  */
 
-import realExamsFallback from '../data/realExams.json';
+import { loadJson } from './lazyJson';
 import StorageService from '../services/StorageService';
 import { RealExamApi } from '../services/RealExamApi';
 import { REMOTE_CONTENT } from '../config/appMode';
@@ -20,7 +20,17 @@ import type { RealExamYear } from '../types';
 
 const USE_REMOTE = REMOTE_CONTENT;
 
-const fallbackExams = realExamsFallback as unknown as RealExamYear[];
+/**
+ * 本地 fallback 真题集（3MB JSON）的懒加载入口。
+ * 动态 import() 拆成独立 chunk，只有走到 fallback 路径时才加载。
+ */
+let fallbackExamsPromise: Promise<RealExamYear[]> | null = null;
+function getFallbackExams(): Promise<RealExamYear[]> {
+  if (!fallbackExamsPromise) {
+    fallbackExamsPromise = loadJson<RealExamYear[]>(() => import('../data/realExams.json'));
+  }
+  return fallbackExamsPromise;
+}
 
 export type SetId = 'english1' | 'english2';
 
@@ -101,6 +111,7 @@ export async function getExamSet(year: number, setId: SetId): Promise<ExamSet> {
   }
 
   if (!USE_REMOTE) {
+    const fallbackExams = await getFallbackExams();
     const y = fallbackExams.find((x) => x.year === year);
     if (!y) throw new Error(`未找到 ${year} 年真题`);
     const set = y[setId];
@@ -132,6 +143,7 @@ export async function getExamSet(year: number, setId: SetId): Promise<ExamSet> {
   }
 
   // 远程不可用且无缓存 → fallback
+  const fallbackExams = await getFallbackExams();
   const y = fallbackExams.find((x) => x.year === year);
   if (!y) throw new Error(`未找到 ${year} 年真题`);
   return y[setId];
@@ -140,6 +152,7 @@ export async function getExamSet(year: number, setId: SetId): Promise<ExamSet> {
 /** 年份列表（倒序）。来源：远程 /api/exams/years 或本地 fallback。 */
 export async function getExamYears(): Promise<number[]> {
   if (!USE_REMOTE) {
+    const fallbackExams = await getFallbackExams();
     return [...fallbackExams].sort((a, b) => b.year - a.year).map((y) => y.year);
   }
   try {
@@ -154,6 +167,7 @@ export async function getExamYears(): Promise<number[]> {
   } catch (err) {
     console.warn('[realExamContent] 拉取年份列表失败，使用 fallback：', err);
   }
+  const fallbackExams = await getFallbackExams();
   return [...fallbackExams].sort((a, b) => b.year - a.year).map((y) => y.year);
 }
 
@@ -178,7 +192,8 @@ export async function getExamQuestion(questionId: string): Promise<{
 }
 
 /** 在本地 fallback JSON 里找单题（与远程形态对齐）。 */
-function findQuestionInFallback(questionId: string) {
+async function findQuestionInFallback(questionId: string) {
+  const fallbackExams = await getFallbackExams();
   const m = /^(\d{4}-e[12]-text[1-4])-q(\d+)$/.exec(questionId);
   if (!m) return null;
   const passageId = m[1];

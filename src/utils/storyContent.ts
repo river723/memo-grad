@@ -11,7 +11,7 @@
  * - 降级开关 EXPO_PUBLIC_USE_REMOTE_CONTENT=false 时走 import 的本地 JSON
  */
 
-import storiesFallback from '../data/stories.json';
+import { loadJson } from './lazyJson';
 import StorageService from '../services/StorageService';
 import { StoryApi, StorySeriesMetaWire, StoryChapterWire } from '../services/StoryApi';
 import { REMOTE_CONTENT } from '../config/appMode';
@@ -19,7 +19,17 @@ import type { StorySeries } from '../types';
 
 const USE_REMOTE = REMOTE_CONTENT;
 
-const fallbackStories = storiesFallback as unknown as StorySeries;
+/**
+ * 本地 fallback 故事集（745KB JSON）的懒加载入口。
+ * 动态 import() 拆成独立 chunk，只有走到 fallback 路径时才加载。
+ */
+let storiesFallbackPromise: Promise<StorySeries> | null = null;
+function getFallbackStories(): Promise<StorySeries> {
+  if (!storiesFallbackPromise) {
+    storiesFallbackPromise = loadJson<StorySeries>(() => import('../data/stories.json'));
+  }
+  return storiesFallbackPromise;
+}
 
 /** 系列元信息 + 章节列表（不含正文）。 */
 export type StorySeriesMeta = {
@@ -78,7 +88,8 @@ function wireChapterToChapter(wire: StoryChapterWire): StoryChapterFull {
 }
 
 /** fallback 的系列元信息（本地 JSON 形态转换）。 */
-function fallbackMeta(): StorySeriesMeta {
+async function fallbackMeta(): Promise<StorySeriesMeta> {
+  const fallbackStories = await getFallbackStories();
   return {
     storyId: 'local-fallback',
     seriesTitle: fallbackStories.series_title,
@@ -146,7 +157,7 @@ export async function getStorySeries(): Promise<StorySeriesMeta> {
   if (fromStorage) memSeries = fromStorage;
 
   if (!USE_REMOTE) {
-    memSeries = fallbackMeta();
+    memSeries = await fallbackMeta();
     return memSeries;
   }
 
@@ -164,7 +175,7 @@ export async function getStorySeries(): Promise<StorySeriesMeta> {
     if (fromStorage) return fromStorage;
   }
 
-  memSeries = fallbackMeta();
+  memSeries = await fallbackMeta();
   return memSeries;
 }
 
@@ -180,6 +191,7 @@ export async function getStoryChapter(chapterId: number): Promise<StoryChapterFu
   if (fromStorage) memChapters.set(chapterId, fromStorage);
 
   if (!USE_REMOTE) {
+    const fallbackStories = await getFallbackStories();
     const ch = fallbackStories.chapters.find((c) => c.id === chapterId);
     if (ch) memChapters.set(chapterId, ch);
     return ch ?? null;
@@ -189,6 +201,7 @@ export async function getStoryChapter(chapterId: number): Promise<StoryChapterFu
     const series = await getStorySeries();
     if (series.storyId === 'local-fallback') {
       // 后端没数据：直接用 fallback
+      const fallbackStories = await getFallbackStories();
       const ch = fallbackStories.chapters.find((c) => c.id === chapterId);
       return ch ?? null;
     }
@@ -204,6 +217,7 @@ export async function getStoryChapter(chapterId: number): Promise<StoryChapterFu
     if (fromStorage) return fromStorage;
   }
 
+  const fallbackStories = await getFallbackStories();
   const ch = fallbackStories.chapters.find((c) => c.id === chapterId);
   return ch ?? null;
 }
