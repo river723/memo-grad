@@ -7,10 +7,11 @@
         </trust-anchors>
     </base-config>
 
-    <!-- 仅对以下内网地址放行明文 HTTP：后端部署在飞牛 NAS 局域网
-         http://192.168.1.8:5888。上架/公网部署时应改用 HTTPS 并移除本节。
-         127.0.0.1 用于开发态本机后端调试。 -->
+    <!-- 放行明文 HTTP 的地址：后端 API 走 http://dict.river723.work:5888
+         （公网域名，DNS 指向飞牛 NAS 的 5888 端口）；内网开发/调试仍可直连
+         192.168.1.8 与 127.0.0.1。上架/公网正式部署应改用 HTTPS 并移除本节。 -->
     <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">dict.river723.work</domain>
         <domain includeSubdomains="false">192.168.1.8</domain>
         <domain includeSubdomains="false">127.0.0.1</domain>
         <domain includeSubdomains="false">localhost</domain>

@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      EXPO_PUBLIC_API_URL: http://192.168.1.8:5888
+      EXPO_PUBLIC_API_URL: http://dict.river723.work:5888
       # 形态开关：手动触发按 mode 派生；push 触发 inputs.mode 为空 → 固定 online
       EXPO_PUBLIC_OFFLINE_MODE: ${{ inputs.mode == 'offline' && '1' || '0' }}
       EXPO_PUBLIC_USE_REMOTE_CONTENT: ${{ inputs.mode == 'offline' && 'false' || 'true' }}

@@ -20,9 +20,14 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "dict.river723.work": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
         },
-        "NSLocalNetworkUsageDescription": "需要访问本地网络以连接生词本同步服务（192.168.1.8）。"
+        "NSLocalNetworkUsageDescription": "需要访问网络以连接生词本同步服务。"
       }
     },
     "android": {

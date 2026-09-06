@@ -112,7 +112,7 @@ export const REMOTE_CONTENT =
 | 词库/真题/故事 | 后端 API + 缓存 | 本地 JSON 即时加载 |
 | Network 面板预期 | 有 `/api/*`、同步请求 | **零**自家 API 请求；仅 `api.deepseek.com` |
 
-单机形态冒烟要点：免登录直达 → Settings 出现"AI 设置"区块 → 测试连接成功 → Stats 显示"本地用户 · 单机版" → DevTools 无对 `192.168.1.8:5888` 的请求。
+单机形态冒烟要点：免登录直达 → Settings 出现"AI 设置"区块 → 测试连接成功 → Stats 显示"本地用户 · 单机版" → DevTools 无对 `dict.river723.work:5888` 的请求。
 
 **Windows PowerShell 陷阱**：`$env:EXPO_PUBLIC_OFFLINE_MODE='1'` 会持久化整个会话——同一窗口之后跑 `npm run web` 也仍是单机形态。用完执行 `Remove-Item Env:\EXPO_PUBLIC_OFFLINE_MODE`，或始终用 `npm run web:offline` 规避。
 
@@ -497,7 +497,7 @@ npm run tauri:build:offline    # 单机桌面包，productName 为"考研英语�
 ### 安卓（EAS 云构建；本机无 JDK17+SDK，不能本地构建）
 
 ```bash
-eas build -p android --profile preview        # 在线版 APK（指向 NAS API 192.168.1.8:5888）
+eas build -p android --profile preview        # 在线版 APK（指向公网 API dict.river723.work:5888）
 eas build -p android --profile offline-apk    # 单机版 APK（profile.env 注入 OFFLINE_MODE）
 ```
 
