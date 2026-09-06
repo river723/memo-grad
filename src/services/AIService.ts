@@ -13,6 +13,7 @@ import { OFFLINE_MODE } from '../config/appMode';
 import { api, ApiClientError } from './ApiClient';
 import { AIResponse } from '../types';
 import { LocalAIEngine } from './ai/localAIEngine';
+import { API_CONFIG } from '../constants';
 
 /** 服务端 402：配额耗尽或未订阅，前端收到后应导航到订阅页 */
 export class SubscriptionRequiredError extends Error {
@@ -26,10 +27,14 @@ class AIService {
   /** 单机形态的本地引擎实例；在线形态恒为 null（不参与打包后的执行路径） */
   private local: LocalAIEngine | null = OFFLINE_MODE ? new LocalAIEngine() : null;
 
-  /** 调用后端 AI 代理 */
+  /** 调用后端 AI 代理。AI 生成（释义单选等）可能超过默认 30s，显式放宽超时。 */
   private async proxy<T = any>(action: string, params: Record<string, unknown>): Promise<T> {
     try {
-      const res = await api.post<{ success: boolean; data: T }>(`/api/ai/${action}`, params);
+      const res = await api.post<{ success: boolean; data: T }>(
+        `/api/ai/${action}`,
+        params,
+        { timeout: API_CONFIG.TIMEOUT }
+      );
       return res.data;
     } catch (err: any) {
       if (err instanceof ApiClientError) {

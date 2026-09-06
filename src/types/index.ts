@@ -143,6 +143,7 @@ export interface DefinitionQuestion {
   sentence: string;             // 含划线生词的句子（用 *word* 标记）
   correct_definition: string;   // 正确的英文释义
   options: string[];            // 4 个英文释义选项（已打乱）
+  chinese_translation?: string; // 题干完整中文翻译（提交后回顾/题库/错题本展示）
 }
 
 export interface ClozeQuestion {

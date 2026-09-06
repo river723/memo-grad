@@ -7,11 +7,13 @@ import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
 import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import { ExamSession, DefinitionQuestion, ClozeQuestion } from '../types';
+import { ExamSession, DefinitionQuestion, ClozeQuestion, Word, WordDictEntry } from '../types';
 import { parseWordHighlight } from './ExamAnswerScreen';
 import AppButton from '../components/ds/AppButton';
 import AppIcon from '../components/ds/AppIcon';
 import EmptyState from '../components/ds/EmptyState';
+import WordDictModal from '../components/WordDictModal';
+import { getLocalWordDictResult, wordDictEntryToWord } from '../utils/wordUtils';
 
 /**
  * 套题只读详情：浏览一套 AI 出题的全部题目与正确答案，并提供重做入口。
@@ -28,6 +30,24 @@ export default function ExamSetDetailScreen() {
     null
   );
   const [missing, setMissing] = useState(false);
+  const [showWordModal, setShowWordModal] = useState(false);
+  const [selectedWord, setSelectedWord] = useState<Word | null>(null);
+
+  /** 点击目标词弹释义卡片：优先生词本，缺失回落全局词库（复用错题本模式）。 */
+  const handleWordTap = async (wordId: string | undefined, wordText: string) => {
+    let word: Word | null = wordId ? await StorageService.getWordById(wordId) : null;
+    if (!word) {
+      const dict = await getLocalWordDictResult(wordText);
+      if (dict) {
+        const base = wordDictEntryToWord(wordText, dict as unknown as WordDictEntry);
+        word = { ...base, id: `dict-${wordText.toLowerCase()}` } as Word;
+      }
+    }
+    if (word) {
+      setSelectedWord(word);
+      setShowWordModal(true);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -117,9 +137,9 @@ export default function ExamSetDetailScreen() {
         <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>题目与答案</Text>
         {questions.map((q, idx) =>
           q.type === 'definition' ? (
-            <DefinitionReviewCard key={idx} index={idx} question={q as DefinitionQuestion} />
+            <DefinitionReviewCard key={idx} index={idx} question={q as DefinitionQuestion} onWordPress={handleWordTap} />
           ) : (
-            <ClozeReviewCard key={idx} index={idx} question={q as ClozeQuestion} />
+            <ClozeReviewCard key={idx} index={idx} question={q as ClozeQuestion} onWordPress={handleWordTap} />
           )
         )}
       </ScrollView>
@@ -142,6 +162,11 @@ export default function ExamSetDetailScreen() {
           leftIcon={<AppIcon name="restart" size={20} color={colors.onPrimary} />}
         />
       </View>
+      <WordDictModal
+        visible={showWordModal}
+        onClose={() => setShowWordModal(false)}
+        word={selectedWord}
+      />
     </View>
   );
 }
@@ -151,7 +176,17 @@ function formatDate(iso: string) {
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-function SentenceBox({ text, word }: { text: string; word?: string }) {
+function SentenceBox({
+  text,
+  word,
+  wordId,
+  onWordPress,
+}: {
+  text: string;
+  word?: string;
+  wordId?: string;
+  onWordPress?: (wordId: string | undefined, wordText: string) => void;
+}) {
   const { colors } = useAppTheme();
   const styles = useStyles();
   const parts = word ? parseWordHighlight(text, word) : [{ text, isWord: false }];
@@ -160,7 +195,13 @@ function SentenceBox({ text, word }: { text: string; word?: string }) {
       <Text style={styles.sentenceText}>
         {parts.map((p, i) =>
           p.isWord ? (
-            <Text key={i} style={styles.underlinedWord}>{p.text}</Text>
+            <Text
+              key={i}
+              style={styles.underlinedWord}
+              onPress={onWordPress ? () => onWordPress(wordId, p.text) : undefined}
+            >
+              {p.text}
+            </Text>
           ) : (
             <Text key={i}>{p.text}</Text>
           )
@@ -182,13 +223,24 @@ function OptionRow({ letter, text, isCorrect }: { letter: string; text: string; 
   );
 }
 
-function DefinitionReviewCard({ index, question }: { index: number; question: DefinitionQuestion }) {
+function DefinitionReviewCard({
+  index,
+  question,
+  onWordPress,
+}: {
+  index: number;
+  question: DefinitionQuestion;
+  onWordPress: (wordId: string | undefined, wordText: string) => void;
+}) {
   const { colors } = useAppTheme();
   const styles = useStyles();
   return (
     <View style={[styles.qCard, { backgroundColor: colors.surface, borderColor: colors.outline }]}>
       <Text style={[styles.qIndex, { color: colors.primary }]}>Q{index + 1}</Text>
-      <SentenceBox text={question.sentence} word={question.word} />
+      <SentenceBox text={question.sentence} word={question.word} wordId={question.word_id} onWordPress={onWordPress} />
+      {question.chinese_translation ? (
+        <Text style={[styles.translation, { color: colors.primary }]}>题干译文：{question.chinese_translation}</Text>
+      ) : null}
       <Text style={[styles.prompt, { color: colors.onSurfaceVariant }]}>划线单词的正确英文释义：</Text>
       {question.options.map((opt, i) => (
         <OptionRow
@@ -202,7 +254,15 @@ function DefinitionReviewCard({ index, question }: { index: number; question: De
   );
 }
 
-function ClozeReviewCard({ index, question }: { index: number; question: ClozeQuestion }) {
+function ClozeReviewCard({
+  index,
+  question,
+  onWordPress,
+}: {
+  index: number;
+  question: ClozeQuestion;
+  onWordPress: (wordId: string | undefined, wordText: string) => void;
+}) {
   const { colors } = useAppTheme();
   const styles = useStyles();
   const parts = question.sentence.split('[BLANK]');
@@ -222,8 +282,17 @@ function ClozeReviewCard({ index, question }: { index: number; question: ClozeQu
           )}
         </Text>
       </View>
+      {question.chinese_hint ? (
+        <Text style={[styles.translation, { color: colors.warning }]}>题干译文：{question.chinese_hint}</Text>
+      ) : null}
       <Text style={[styles.prompt, { color: colors.onSurfaceVariant }]}>
-        正确答案：{question.target_word}
+        正确答案：
+        <Text
+          style={[styles.underlinedWord, { textDecorationLine: 'underline' }]}
+          onPress={onWordPress ? () => onWordPress(question.word_id, question.target_word) : undefined}
+        >
+          {question.target_word}
+        </Text>
       </Text>
       {question.options.map((opt, i) => (
         <OptionRow
@@ -309,6 +378,11 @@ const useStyles = makeStyles(colors => ({
   },
   prompt: {
     fontSize: 13,
+    marginBottom: 8,
+  },
+  translation: {
+    fontSize: 13,
+    lineHeight: 20,
     marginBottom: 8,
   },
   optionRow: {

@@ -21,7 +21,9 @@ export const AI_PROVIDERS = {
 
 export const API_CONFIG = {
   MAX_RETRIES: 3,
-  TIMEOUT: 30000,
+  // 释义单选每题带题干中文翻译，10 题生成可能超过 30s；
+  // 全局放宽到 120s（在线代理与离线本地引擎共用，超时仅是上限，快请求不受影响）。
+  TIMEOUT: 120000,
   BATCH_SIZE: 5,
   BATCH_MAX_TOKENS: 8000
 };

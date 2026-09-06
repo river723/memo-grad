@@ -28,6 +28,14 @@ async function checkQuota(userId: string): Promise<number> {
 }
 
 /** 调用 OpenAI 兼容 AI 上游（默认 DeepSeek，可指向任何兼容服务：智谱/Kimi/Qwen/OpenAI/Ollama/自部署等）。 */
+
+/**
+ * 上游 fetch 超时。释义单选每题带中文翻译，生成很慢，历史实测会超过 30s；
+ * 这里取 90s，且必须小于前端代理超时（src/constants API_CONFIG.TIMEOUT=120s）——
+ * 否则前端先中断，请求变"孤魂"继续耗上游并扣配额。
+ */
+const AI_UPSTREAM_TIMEOUT_MS = 90_000;
+
 async function chat(
   messages: any[],
   maxTokens: number,
@@ -43,11 +51,20 @@ async function chat(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model: config.ai.model, messages, temperature, max_tokens: maxTokens }),
+      signal: AbortSignal.timeout(AI_UPSTREAM_TIMEOUT_MS),
     });
   } catch (err) {
     // 网络层失败（DNS/连接/TLS/超时）以及 undici 组装请求时抛的异常
     // （如 Authorization 头含非 ASCII 字符的 ByteString TypeError）都在这里。
     // 不包成 ApiError 就会漏到全局兜底，前端只看到含糊的"服务器内部错误"。
+    // AbortSignal.timeout 触发的是 TimeoutError，单独给一个可行动的文案。
+    if ((err as Error)?.name === 'TimeoutError') {
+      log.error({ err }, 'AI 上游响应超时');
+      throw ApiError.internal(
+        'AI_UPSTREAM_TIMEOUT',
+        `AI 服务响应超时（${AI_UPSTREAM_TIMEOUT_MS / 1000} 秒），请稍后重试，或减少出题数量`,
+      );
+    }
     log.error({ err }, 'AI 上游连接失败');
     throw ApiError.internal(
       'AI_UPSTREAM_UNREACHABLE',
@@ -159,7 +176,7 @@ export default async function aiRoutes(app: FastifyInstance) {
       case 'generateDefinitionQuestions': {
         if (!Array.isArray(body.words)) throw ApiError.badRequest('INVALID_PARAMS', '缺少 words');
         const wlist = body.words.map((w: any) => `- ${w.word}: ${w.meaning}`).join('\n');
-        const prompt = `为以下单词各生成一个释义单选题：\n${wlist}\n\n严格要求：sentence 中必须用一对星号把目标词（或其屈折形式，如 abandoned、making）包裹起来，例如 "The *diligent* student studied all night."，这是划线高亮的唯一依据，绝不能省略。\n返回JSON：{"questions":[{"target_word":"","sentence":"用*word*标记目标词的句子","options":["释义A","释义B","释义C","释义D"],"correct_definition":"正确释义"}]}`;
+        const prompt = `为以下单词各生成一个释义单选题：\n${wlist}\n\n严格要求：sentence 中必须用一对星号把目标词（或其屈折形式，如 abandoned、making）包裹起来，例如 "The *diligent* student studied all night."，这是划线高亮的唯一依据，绝不能省略。选项必须是英文释义：提供 4 个选项，1 个正确释义 + 3 个干扰释义，所有选项用英文、长度 3-10 词，干扰项与正确项含义接近但明显不同。\n返回JSON：{"questions":[{"target_word":"","sentence":"用*word*标记目标词的句子","chinese_translation":"该句子的完整中文翻译","options":["正确英文释义","干扰释义1","干扰释义2","干扰释义3"],"correct_definition":"正确英文释义"}]}`;
         const content = await chat([
           { role: 'system', content: '你是考研英语出题老师，请严格用 JSON 格式回答' },
           { role: 'user', content: prompt },

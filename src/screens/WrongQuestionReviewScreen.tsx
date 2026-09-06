@@ -132,6 +132,9 @@ export default function WrongQuestionReviewScreen() {
       return (
         <View>
           <Text style={styles.qSentence}>{q.sentence.replace(/\*/g, '')}</Text>
+          {q.chinese_translation ? (
+            <Text style={styles.qTranslation}>题干译文：{q.chinese_translation}</Text>
+          ) : null}
           <Pressable onPress={() => handleWordTap(q.word_id, q.word)}>
             <Text style={[styles.qWordTag, { textDecorationLine: 'underline' }]}>
               目标词: {q.word}
@@ -392,6 +395,7 @@ const useStyles = makeStyles(colors => ({
   correctCountText: { fontSize: 12, color: colors.success, fontWeight: '500' },
   divider: { height: 1, backgroundColor: colors.outline, marginVertical: 10, opacity: 0.5 },
   qSentence: { fontSize: 15, color: colors.onSurfaceVariant, lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
+  qTranslation: { fontSize: 13, color: colors.primary, lineHeight: 20, marginBottom: 6 },
   qWordTag: { fontSize: 13, color: colors.primary, fontWeight: '600', marginBottom: 4 },
   qHint: { fontSize: 12, color: colors.tertiary, marginBottom: 6 },
   qCorrectAnswer: { fontSize: 14, color: colors.success, fontWeight: '500', marginTop: 4 },

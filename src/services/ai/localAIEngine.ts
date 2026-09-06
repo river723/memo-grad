@@ -526,6 +526,7 @@ ${wordList}
 - 正确释义要准确反映该单词在句子中的实际含义
 - 干扰释义应与正确答案在含义上接近但明显不同，具有迷惑性
 - 所有释义选项使用英文，长度控制在 3-10 词
+- 为每个句子提供完整、准确的中文翻译 chinese_translation
 
 请返回严格的 JSON 格式（只返回 JSON，不要任何额外文本）：
 {
@@ -533,6 +534,7 @@ ${wordList}
     {
       "target_word": "单词",
       "sentence": "包含 *单词* 的完整英文句子",
+      "chinese_translation": "该句子的完整中文翻译",
       "options": ["正确英文释义", "干扰释义1", "干扰释义2", "干扰释义3"],
       "correct_definition": "正确英文释义"
     }
@@ -579,6 +581,7 @@ ${wordList}
               sentence: q.sentence || '',
               options: this.shuffleOptions(Array.isArray(q.options) ? q.options : []),
               correct_definition: q.correct_definition || '',
+              chinese_translation: q.chinese_translation || '',
             }));
           }
         } catch (parseError) {
@@ -592,6 +595,7 @@ ${wordList}
                 sentence: q.sentence || '',
                 options: this.shuffleOptions(Array.isArray(q.options) ? q.options : []),
                 correct_definition: q.correct_definition || '',
+                chinese_translation: q.chinese_translation || '',
               }));
             }
           } catch (fixError) {

@@ -203,6 +203,7 @@ export default function ExamSetupScreen() {
             sentence: q.sentence,
             correct_definition: q.correct_definition,
             options: shuffleOptions(q.options),
+            chinese_translation: q.chinese_translation || '',
           } as DefinitionQuestion;
         });
       } else {
@@ -455,7 +456,7 @@ export default function ExamSetupScreen() {
           <View style={styles.loadingArea}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>AI 正在为你生成题目...</Text>
-            <Text style={styles.loadingHint}>这可能需要 10-30 秒</Text>
+            <Text style={styles.loadingHint}>释义单选生成较慢，可能需要 30-90 秒</Text>
           </View>
         )}
       </View>

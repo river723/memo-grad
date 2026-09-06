@@ -7,9 +7,11 @@ import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
 import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
-import { ExamQuestion, ExamAnswer as ExamAnswerType, ExamQuestionType } from '../types';
+import { ExamQuestion, ExamAnswer as ExamAnswerType, ExamQuestionType, Word, WordDictEntry } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 import AppButton from '../components/ds/AppButton';
+import WordDictModal from '../components/WordDictModal';
+import { getLocalWordDictResult, wordDictEntryToWord } from '../utils/wordUtils';
 
 export default function ExamResultScreen() {
   const { colors } = useAppTheme();
@@ -29,6 +31,24 @@ export default function ExamResultScreen() {
   // session。ref 在 effect 函数体顶部同步置位即可堵住重入。
   const savedRef = useRef(false);
   const [hasWrongQuestions, setHasWrongQuestions] = useState(false);
+  const [showWordModal, setShowWordModal] = useState(false);
+  const [selectedWord, setSelectedWord] = useState<Word | null>(null);
+
+  /** 点击目标词弹释义卡片：优先生词本，缺失回落全局词库（复用错题本模式）。 */
+  const handleWordTap = async (wordId: string | undefined, wordText: string) => {
+    let word: Word | null = wordId ? await StorageService.getWordById(wordId) : null;
+    if (!word) {
+      const dict = await getLocalWordDictResult(wordText);
+      if (dict) {
+        const base = wordDictEntryToWord(wordText, dict as unknown as WordDictEntry);
+        word = { ...base, id: `dict-${wordText.toLowerCase()}` } as Word;
+      }
+    }
+    if (word) {
+      setSelectedWord(word);
+      setShowWordModal(true);
+    }
+  };
 
   const total = questions.length;
   const correctCount = answers.filter(a => a.is_correct).length;
@@ -106,6 +126,7 @@ export default function ExamResultScreen() {
   } as const;
 
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}>
       {/* 总览卡片 */}
       <View style={[surface, { padding: spacing.xl, alignItems: 'center' }, colors.shadow.card]}>
@@ -155,7 +176,14 @@ export default function ExamResultScreen() {
             {question.type === 'definition' ? (
               <View>
                 <Text style={styles.reviewSentence}>{question.sentence.replace(/\*/g, '')}</Text>
-                <Text style={styles.reviewWordTag}>目标词: {question.word}</Text>
+                {question.chinese_translation ? (
+                  <Text style={styles.reviewTranslation}>题干译文：{question.chinese_translation}</Text>
+                ) : null}
+                <Pressable onPress={() => handleWordTap(question.word_id, question.word)}>
+                  <Text style={[styles.reviewWordTag, { textDecorationLine: 'underline' }]}>
+                    目标词: {question.word}
+                  </Text>
+                </Pressable>
                 <Text style={styles.reviewCorrectAnswer}>正确答案：{question.correct_definition}</Text>
                 {isAnswered && !isCorrect && (
                   <Text style={styles.reviewUserAnswer}>
@@ -216,6 +244,12 @@ export default function ExamResultScreen() {
         </Pressable>
       </View>
     </ScrollView>
+    <WordDictModal
+      visible={showWordModal}
+      onClose={() => setShowWordModal(false)}
+      word={selectedWord}
+    />
+    </>
   );
 }
 
@@ -230,6 +264,7 @@ const useStyles = makeStyles((colors) => ({
   reviewVerdict: { fontSize: 14, fontWeight: '700' },
   reviewDivider: { height: 1, backgroundColor: colors.outline, marginVertical: 10, opacity: 0.5 },
   reviewSentence: { fontSize: 15, color: colors.onSurfaceVariant, lineHeight: 24, fontStyle: 'italic', marginBottom: 6 },
+  reviewTranslation: { fontSize: 13, color: colors.primary, lineHeight: 20, marginBottom: 6 },
   reviewWordTag: { fontSize: 13, color: colors.primary, fontWeight: '600', marginBottom: 4 },
   reviewHint: { fontSize: 12, color: colors.tertiary, marginBottom: 6 },
   reviewCorrectAnswer: { fontSize: 14, color: colors.success, fontWeight: '500', marginTop: 4 },
