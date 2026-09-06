@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Platform } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -257,7 +257,24 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={LearnStack} options={{ tabBarLabel: '学习' }} />
       <Tab.Screen name="Read" component={ReadStack} options={{ tabBarLabel: '阅读' }} />
-      <Tab.Screen name="Practice" component={PracticeStack} options={{ tabBarLabel: '练习' }} />
+      <Tab.Screen
+        name="Practice"
+        component={PracticeStack}
+        options={{ tabBarLabel: '练习' }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // 从其它 tab 切回「练习」时落到练习主页（栈底 PracticeHub），
+            // 避免停在 AI 出题/真题等上次停留的子页（bottom-tabs 默认保留子栈状态）。
+            // 已在练习 tab 内重复点击时保持默认 popToTop 行为。
+            if (!navigation.isFocused()) {
+              e.preventDefault();
+              navigation.dispatch(
+                CommonActions.navigate('Practice', { screen: 'PracticeHub' })
+              );
+            }
+          },
+        })}
+      />
       <Tab.Screen name="Stats" component={StatsStack} options={{ tabBarLabel: '我的' }} />
     </Tab.Navigator>
   );
