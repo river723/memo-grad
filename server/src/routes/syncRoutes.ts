@@ -6,7 +6,8 @@
  *   Body: { lastSyncAt: string | null, entities: { word: [...], studyRecord: [...], ... } }
  *   Response: { serverTime: string, entities: { word: [...], studyRecord: [...], ... } }
  *
- * 冲突策略：last-write-wins（比较每条记录的 updated_at）。学习类数据无协同编辑，LWW 足够。
+ * 冲突策略：push 时不做 LWW（客户端推即覆盖），updatedAt 由 @updatedAt 用服务器
+ * 时间自动维护，提供单调时间基；冲突由拉取端 LWW 合并兜底。学习类数据无协同编辑足够。
  * 软删除：deleted_at 非空的记录会传播到服务端，服务端在拉取时也会返回软删除的记录
  * （客户端看到 deleted_at 非空即执行本地软删除），从而完成"删除事实"的跨设备传播。
  */
@@ -39,11 +40,6 @@ interface SyncEntity {
   deleted_at?: string | null;
   dirty?: boolean;
   [key: string]: any;
-}
-
-/** LWW：比较两条记录的 updated_at，返回较新的 */
-function isNewer(a: string, b: string): boolean {
-  return new Date(a).getTime() > new Date(b).getTime();
 }
 
 /** 把 Prisma 模型的 camelCase 转回客户端的 snake_case */
@@ -82,6 +78,11 @@ async function syncEntity(
   };
 
   // 1. 处理客户端推送的每条实体
+  // updatedAt 字段标了 @updatedAt，由 Prisma 用服务器时间自动维护（create 用 now()，
+  // update 自动 bump）。客户端传入的 updated_at 删除不用，否则 create 会落客户端本地时间，
+  // 与 lastSyncAt 游标（也来自服务器时间）不同基，导致增量拉取漏数据。
+  // push 不再做 LWW 比较：原 LWW 比较客户端本地时间，时钟不可靠（离线备份带旧时间戳），
+  // 已造成漏数据；改由 @updatedAt 提供单调服务器时间基，冲突由拉取端 LWW 合并兜底。
   let saved = 0;
   for (const ent of clientEntities) {
     const serverEnt = await model.findUnique({
@@ -94,34 +95,19 @@ async function syncEntity(
     if (tableName === 'word' && dataRaw.definitions == null) {
       dataRaw.definitions = [];
     }
-    // 时间字段显式转换：snake_case ISO 字符串 → camelCase Date
-    if (ent.updated_at) dataRaw.updatedAt = new Date(ent.updated_at);
+    // deleted_at 软删除时间戳：deletedAt 不是 @updatedAt，仍需客户端传入
     if (ent.deleted_at) dataRaw.deletedAt = new Date(ent.deleted_at);
     const data = pickForPrisma(dataRaw);
+    // 删 updatedAt：交给 @updatedAt 自动维护，保证 create 也用服务器时间
+    delete (data as Record<string, unknown>).updatedAt;
 
     if (serverEnt) {
-      // 服务端有记录：LWW
-      if (isNewer(ent.updated_at, serverEnt.updatedAt?.toISOString() || '')) {
-        // 客户端版本更新，覆盖服务端
-        if (ent.deleted_at) {
-          await model.update({
-            where: { id: ent.id },
-            data: { deletedAt: new Date(ent.deleted_at), updatedAt: new Date(ent.updated_at) },
-          });
-        } else {
-          await model.upsert({
-            where: { id: ent.id },
-            create: data,
-            update: data,
-          });
-        }
-        saved++;
-      }
+      // 服务端有记录：客户端推即覆盖（@updatedAt 自动 bump updatedAt）
+      await model.update({ where: { id: ent.id }, data });
     } else {
-      // 服务端无记录：直接创建
       await model.create({ data });
-      saved++;
     }
+    saved++;
   }
 
   // 2. 拉取服务端更新的记录（含软删除的，让客户端知道要删掉）

@@ -209,7 +209,7 @@ model Word {
   difficulty     Int      @default(3)
   frequency      Int      @default(3)
   createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @map("updated_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -227,7 +227,7 @@ model StudyRecord {
   studyDate String   @map("study_date")
   result    Int
   studyMode String   @map("study_mode")
-  updatedAt DateTime @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -245,7 +245,7 @@ model StudyPlan {
   planDate  String   @map("plan_date")
   planType  String   @map("plan_type")
   completed Boolean  @default(false)
-  updatedAt DateTime @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -267,7 +267,7 @@ model Article {
   readCount   Int      @default(0) @map("read_count")
   lastReadAt  DateTime? @map("last_read_at")
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -288,7 +288,7 @@ model ExamSession {
   // 记录来源：generation=AI 出题练习；wrong_review=错题本复习
   source       String   @default("generation") @map("source")
   createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @map("updated_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -306,7 +306,7 @@ model WrongQuestion {
   wrongCount    Int      @default(0) @map("wrong_count")
   lastAttemptAt DateTime @map("last_attempt_at")
   createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @map("updated_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
   deletedAt     DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -325,7 +325,7 @@ model RealExamSession {
   score     Int
   total     Int
   createdAt DateTime @map("created_at")
-  updatedAt DateTime @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -354,7 +354,7 @@ model RealExamWrongQuestion {
   correctCount  Int      @default(0) @map("correct_count")
   lastAttemptAt DateTime @map("last_attempt_at")
   createdAt     DateTime @map("created_at")
-  updatedAt     DateTime @map("updated_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
   deletedAt     DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
