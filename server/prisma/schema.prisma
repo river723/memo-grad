@@ -214,6 +214,10 @@ model Word {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // 唯一性靠 migration 中的「部分表达式唯一索引」保证，Prisma 无法在此声明：
+  //   CREATE UNIQUE INDEX "words_user_word_lower_unique"
+  //     ON "words" ("user_id", lower("word")) WHERE "deleted_at" IS NULL;
+  // 大小写不敏感（业务按 toLowerCase 比对）、软删行不参与（软删后允许重加同词）。
   @@index([userId, updatedAt])
   @@map("words")
 }

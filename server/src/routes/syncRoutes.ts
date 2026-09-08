@@ -32,6 +32,12 @@ const ENTITIES = [
 
 type EntityName = typeof ENTITIES[number];
 
+/** 跨设备同词合并时产生的 id 重定向：废弃 id → 保留（canonical）id。 */
+interface WordRedirect {
+  from: string;
+  to: string;
+}
+
 /** 客户端推送实体时需要的字段 */
 interface SyncEntity {
   id: string;
@@ -39,7 +45,16 @@ interface SyncEntity {
   updated_at: string;
   deleted_at?: string | null;
   dirty?: boolean;
+  word?: string;
   [key: string]: any;
+}
+
+/** 空值判断：null/undefined/空串/空数组/空对象都算"现有行缺失、可被补值"。 */
+function isEmptyVal(v: unknown): boolean {
+  if (v === null || v === undefined || v === '') return true;
+  if (Array.isArray(v) && v.length === 0) return true;
+  if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v as object).length === 0) return true;
+  return false;
 }
 
 /** 把 Prisma 模型的 camelCase 转回客户端的 snake_case */
@@ -53,14 +68,72 @@ function toSnakeCase(record: Record<string, any>): Record<string, any> {
   return result;
 }
 
+/**
+ * word 推送去重：当推送的 id 在服务端不存在时，按 (userId, lower(word)) 查未软删的现有行。
+ * 命中（跨设备同词、各自生成了不同 UUID）→ 把客户端带来的缺失字段补进现有行，**不新建**，
+ * 并记录一条 id 重定向（from=客户端废弃 id，to=服务端保留 id）；未命中 → 正常 create。
+ * 并发撞部分唯一索引（P2002，两端几乎同时提交）时重查再合并，等价 upsert。
+ *
+ * 注：update 即使 patch 为空也会因 @updatedAt 自动 bump updated_at，
+ * 从而让保留行进入本次 pull 的增量结果，客户端据此拿到 canonical 行。
+ */
+async function dedupWordOnPush(
+  model: any,
+  userId: string,
+  ent: SyncEntity,
+  data: Record<string, unknown>,
+  redirects: WordRedirect[]
+): Promise<void> {
+  const findDup = () =>
+    model.findFirst({
+      where: {
+        userId,
+        word: { equals: ent.word as string, mode: 'insensitive' },
+        deletedAt: null,
+      },
+    });
+
+  /** 仅把"现有行缺失而客户端有值"的内容字段补进去；word/difficulty/frequency/deletedAt 保留现有值。 */
+  const mergePatch = (dup: Record<string, unknown>): Record<string, unknown> => {
+    const patch: Record<string, unknown> = {};
+    for (const field of ['definitions', 'pronunciationUk', 'pronunciationUs', 'etymology', 'memoryTip', 'similarWords']) {
+      if (isEmptyVal(dup[field]) && !isEmptyVal(data[field])) patch[field] = data[field];
+    }
+    return patch;
+  };
+
+  let dup = await findDup();
+  if (dup) {
+    await model.update({ where: { id: dup.id }, data: mergePatch(dup) });
+    redirects.push({ from: ent.id, to: dup.id });
+    return;
+  }
+
+  try {
+    await model.create({ data });
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      // 并发：另一设备几乎同时提交了同词行，撞 words_user_word_lower_unique
+      dup = await findDup();
+      if (dup) {
+        await model.update({ where: { id: dup.id }, data: mergePatch(dup) });
+        redirects.push({ from: ent.id, to: dup.id });
+        return;
+      }
+    }
+    throw err;
+  }
+}
+
 /** 对特定实体表执行 upsert 和拉取 */
 async function syncEntity(
   userId: string,
   tableName: EntityName,
   clientEntities: SyncEntity[],
   lastSyncAt: Date | null
-): Promise<{ saved: number; pulled: number; entities: Record<string, any>[] }> {
+): Promise<{ saved: number; pulled: number; entities: Record<string, any>[]; wordRedirects: WordRedirect[] }> {
   const model = (prisma as any)[tableName];
+  const wordRedirects: WordRedirect[] = [];
 
   // 前端 SyncEntity 用 snake_case wire format（与 AsyncStorage 字面量对齐），
   // prisma client 用 camelCase 字段名。直接 `...ent` 会让 prisma 在严格模式下
@@ -104,6 +177,15 @@ async function syncEntity(
     if (serverEnt) {
       // 服务端有记录：客户端推即覆盖（@updatedAt 自动 bump updatedAt）
       await model.update({ where: { id: ent.id }, data });
+    } else if (
+      tableName === 'word' &&
+      typeof ent.word === 'string' &&
+      ent.word.length > 0 &&
+      !ent.deleted_at
+    ) {
+      // 跨设备同词去重：按 (userId, lower(word)) 命中现有词则合并进 canonical 行并记录重定向，
+      // 否则新建。软删词不走此分支（软删行不参与唯一约束，直接 create 传播删除事实）。
+      await dedupWordOnPush(model, userId, ent, data, wordRedirects);
     } else {
       await model.create({ data });
     }
@@ -126,6 +208,7 @@ async function syncEntity(
       ...toSnakeCase(r),
       dirty: false, // 刚从服务端拉取，本地无需再推
     })),
+    wordRedirects,
   };
 }
 
@@ -144,20 +227,38 @@ export default async function syncRoutes(app: FastifyInstance) {
     const clientEntities = body.entities || {};
     const lastSyncAt = body.lastSyncAt ? new Date(body.lastSyncAt) : null;
 
-    const results: Record<string, { saved: number; pulled: number; entities: any[] }> = {};
+    const results: Record<string, { saved: number; pulled: number; entities: any[]; wordRedirects: WordRedirect[] }> = {};
+    const wordRedirects: WordRedirect[] = [];
 
     for (const entityName of ENTITIES) {
       const entities = (clientEntities[entityName] || []).map((e: any) => ({
         ...e,
         userId,
       }));
-      results[entityName] = await syncEntity(userId, entityName, entities, lastSyncAt);
+      const r = await syncEntity(userId, entityName, entities, lastSyncAt);
+      results[entityName] = r;
+      if (r.wordRedirects.length) wordRedirects.push(...r.wordRedirects);
+    }
+
+    // 跨设备同词合并后，把指向被废弃 word id 的列字段外键统一迁移到 canonical id。
+    // 必须在所有表 push 完之后：study_record / study_plan 可能在本次 sync 才刚推送
+    // （word 表在 ENTITIES 中先于它们处理）。updateMany 自动 bump @updatedAt，
+    // 迁移结果经下次增量 pull 下发各端。articles/exam_sessions/wrong_questions 的
+    // JSON 内嵌 id 不在此迁移，由客户端收到重定向后改写并标 dirty 回传对齐。
+    if (wordRedirects.length) {
+      await prisma.$transaction(
+        wordRedirects.flatMap(({ from, to }) => [
+          prisma.studyRecord.updateMany({ where: { userId, wordId: from }, data: { wordId: to } }),
+          prisma.studyPlan.updateMany({ where: { userId, wordId: from }, data: { wordId: to } }),
+        ])
+      );
     }
 
     const serverTime = new Date().toISOString();
 
     return {
       serverTime,
+      wordRedirects,
       results: Object.fromEntries(
         Object.entries(results).map(([key, val]) => [key, { saved: val.saved, pulled: val.pulled }])
       ),
