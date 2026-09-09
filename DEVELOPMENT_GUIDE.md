@@ -482,9 +482,16 @@ npm test
 
 ### Web / 桌面端（Tauri）
 
+### Tauri 构建环境（Windows）
+
+> 本机工具链：Rust `x86_64-pc-windows-gnu` + MinGW（来自 `C:\winlibs\mingw64\bin`）。
+> Tauri 的 `tauri-winres` crate 在构建时需要 `windres.exe`，不在 rustup 自带的工具链里。
+> 用户级 PATH 已预置以下内容，**无需额外安装任何依赖**：
+> - `C:\winlibs\mingw64\bin`（windres / gcc / binutils）
+> - `C:\Users\Administrator\.cargo\bin`
+> - `C:\Users\Administrator\.rustup\toolchains\stable-x86_64-pc-windows-gnu\bin`
+
 ```bash
-npm run build:web              # 在线形态导出 web → web-build/
-npm run build:web:offline      # 单机形态导出 web（脚本内注入 OFFLINE_MODE=1）
 npm run tauri:dev              # 桌面开发模式（在线形态）
 npm run tauri:build            # 在线桌面包（nsis + msi）
 npm run tauri:build:offline    # 单机桌面包，productName 为"考研英语生词本单机版"
