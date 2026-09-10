@@ -523,6 +523,40 @@ npx tsc --noEmit 2>&1 | grep -v src-tauri   # 过滤 Rust 构建产物的 TS1490
 cd server && ./deploy-nas.sh
 ```
 
+## 📱 微信小程序版（独立 repo）
+
+小程序版是**独立全栈**，不在本仓库内。技术栈：原生小程序（WXML/WXSS/JS）+ 微信云开发（云函数 / 云数据库 / 云存储），**只做在线版**，后端与数据库不复用本仓库 `server/`（Fastify + Prisma + NAS Postgres）。独立仓库 `memo-grad-miniprogram`（待建）。
+
+### 与本仓库的关系
+
+| 项 | 关系 |
+|---|---|
+| Git 历史 | 完全独立，不共享分支 / tag |
+| 后端 | 不复用 `server/`（云函数 vs REST；数据模型可参考 `server/prisma/schema.prisma`） |
+| 前端 | 不复用 `src/`（WXML vs RN），仅参考 `src/screens/` 业务流程与 `src/theme/tokens.ts` 设计 token |
+| 数据资源 | **单向依赖**：以本仓库 `src/data/*.json` 为唯一真相源 |
+| 鉴权 | `wx.login` → openid，不走手机验证码 + JWT |
+
+### 数据复用约定
+
+本仓库 `src/data/` 是词库 / 真题 / 故事的**唯一真相源**，小程序仓库不重复维护内容：
+
+| 文件 | 体积 | 小程序版策略 |
+|---|---|---|
+| `worddict.json` | 4.9MB | 导入云数据库 `worddict` 集合，按字母前缀查询（沿用 `by-letter` 思路），**不打包进小程序**（规避 2MB 主包限制） |
+| `realExams.json` | 2.9MB | 放云存储，按需下载缓存到 `wx.storage` |
+| `stories.json` | 745KB | 同上，按章拉取 |
+
+小程序仓库 `scripts/import-*.mjs` 从本仓库 `main` 的 `src/data/*.json` 拉取并幂等导入（按 `word_id` 去重，与 `SyncService` 去重逻辑一致）。**本仓库改了数据后，需在小程序仓库重跑导入脚本同步**。
+
+### 版本管理（摘要）
+
+- 独立 repo，`main` 单分支 + `feature/*`（延续本仓库极简风格，不设 develop/release 长期分支）
+- `git tag vX.Y.Z`（SemVer）标记每次提审快照 + `CHANGELOG.md` 记录变更 / 审核结果
+- 发布：微信开发者工具上传 → 后台提审（与 git 分支解耦）
+- CI：GitHub Actions + `miniprogram-ci` 自动上传体验版（仅需 Node，不受本机缺 JDK/SDK 限制）
+- 云开发红利：后端调用走云函数 SDK 不经 `wx.request`，本仓库后端域名 `dict.river723.work:5888` 无需在小程序后台报备白名单
+
 ## 🎨 UI设计规范
 
 ### 颜色主题

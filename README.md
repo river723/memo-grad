@@ -82,6 +82,8 @@ src/
 - **语音**: expo-speech
 - **状态管理**: React Hooks
 
+> 本仓库覆盖 iOS / Android / Web / Windows 桌面（打包命令见 [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)）。**微信小程序版**是独立全栈仓库（原生小程序 + 微信云开发，只做在线版），不复用本仓库前后端代码，但数据以本仓库 `src/data/*.json` 为唯一真相源；版本管理与数据复用约定详见 [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) 的「微信小程序版」一节。
+
 ## 📊 数据库设计
 
 ### 主要数据表
