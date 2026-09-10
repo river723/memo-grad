@@ -35,8 +35,8 @@ class AutoWordService {
   /**
    * 补足生词本到「每日新词数」。
    * 默认每天只跑一次（日期守卫）；`force: true` 跳过守卫——
-   * 用于学习页「再来一组」按需补充下一批，开关关闭时同样不动作。
-   * `forceRefill: true` 专用于"再来一组"：跳过 gap 检查、按 dailyLimit 强制补一批，
+   * 用于学习页「继续学习」按需补充下一批，开关关闭时同样不动作。
+   * `forceRefill: true` 专用于首页"学习新词"入口：跳过 gap 检查、按 dailyLimit 强制补一批，
    * 但**仍尊重自动配词开关**（开关关闭则不补词）。
    */
   async fillTodayIfNeeded(options?: {
@@ -61,7 +61,7 @@ class AutoWordService {
       }
 
       const today = format(new Date(), 'yyyy-MM-dd');
-      // forceRefill 时也跳过日期守卫（"再来一组"当天可点多次）
+      // forceRefill 时也跳过日期守卫（首页"学习新词"当天可点多次）
       if (!force && !forceRefill && (await StorageService.getAutoFillLastDate()) === today) {
         console.info('[AutoWordService] 今日已执行过，跳过');
         return 0;

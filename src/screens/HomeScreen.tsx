@@ -188,7 +188,7 @@ export default function HomeScreen() {
   const [weeklyTrend, setWeeklyTrend] = useState<WeeklyStudyTrend[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  // 自动配词开关（决定「再来一组」入口是否显示）+ 补词进行中状态
+  // 自动配词开关（决定「学习新词」入口是否显示）+ 补词进行中状态
   const [autoAddEnabled, setAutoAddEnabled] = useState(true);
   const [refilling, setRefilling] = useState(false);
 
@@ -201,7 +201,7 @@ export default function HomeScreen() {
     setLoading(true);
     setError(false);
     try {
-      // 自动配词开关状态（控制首页「再来一组」入口是否显示）
+      // 自动配词开关状态（控制首页「学习新词」入口是否显示）
       const settings = await StorageService.getSettings();
       setAutoAddEnabled(settings.autoAddNewWords !== false);
       // 每日自动配词：按考频把生词本补足到「每日新词数」（当天只跑一次）
@@ -314,7 +314,7 @@ export default function HomeScreen() {
     }
   };
 
-  // 追平态（当日计划已清空且生词本无未学存量）时提供「再来一组」：
+  // 追平态（当日计划已清空且生词本无未学存量）时提供「学习新词」：
   // 否则主 CTA 会指向 AI 出题/错题等非学习入口，首页就没有开新组的路了。
   const canStartAnotherGroup =
     !loading &&
@@ -436,7 +436,7 @@ export default function HomeScreen() {
               )}
               {canStartAnotherGroup && (
                 <AppButton
-                  title="再来一组"
+                  title="学习新词"
                   onPress={handleAnotherGroup}
                   variant="secondary"
                   size="md"

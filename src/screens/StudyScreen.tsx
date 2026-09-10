@@ -184,7 +184,7 @@ export default function StudyScreen() {
       setShowArticleTranslation(false);
 
       // 学习页首载也做一次被动补充（日期守卫保证每天只跑一次）；
-      // 「再来一组」入口则强制补充，跳过守卫。自定义复习会话不动生词本。
+      // 「继续学习」入口则强制补充，跳过守卫。自定义复习会话不动生词本。
       if (customWordIds.length === 0) {
         const autoAdded = await AutoWordService.fillTodayIfNeeded(
           exceedDailyLimit ? { force: true } : undefined
@@ -276,7 +276,7 @@ export default function StudyScreen() {
         studyWords = [...newWordList, ...reviewWordList];
 
         // 计划里的词可能已全部被移除（如「太简单」）——队列空时按"今日已完成"处理，
-        // 给出「再来一组」出口；否则会落到没有按钮的「暂无单词」死胡同。
+        // 给出「继续学习」出口；否则会落到没有按钮的「暂无单词」死胡同。
         if (studyWords.length === 0) {
           setAllStudiedToday(true);
           setWords([]);
@@ -1055,7 +1055,7 @@ export default function StudyScreen() {
               <>
                 <Text style={styles.emptyTitle}>今日任务已完成！</Text>
                 <Text style={styles.emptyText}>
-                  你今天已经学完了所有可用单词。想继续可以再来一组，也可以添加更多单词到生词本。
+                  你今天已经学完了所有可用单词。想继续可以点「继续学习」，也可以添加更多单词到生词本。
                 </Text>
               </>
             ) : (
@@ -1073,7 +1073,7 @@ export default function StudyScreen() {
                 onPress={() => loadStudyWords(true)}
                 style={styles.addWordBtn}
               >
-                再来一组
+                继续学习
               </Button>
             )}
             {!isCustomReview && (
@@ -1202,7 +1202,7 @@ export default function StudyScreen() {
                   style={styles.completionPrimaryBtn}
                   icon="refresh"
                 >
-                  {isCustomReview ? '再练一遍' : '再来一组'}
+                  {isCustomReview ? '再练一遍' : '继续学习'}
                 </Button>
                 <Button
                   mode="outlined"
