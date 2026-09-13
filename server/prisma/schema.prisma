@@ -208,6 +208,10 @@ model Word {
   memoryTip      String?  @map("memory_tip")
   difficulty     Int      @default(3)
   frequency      Int      @default(3)
+  /// 间隔重复复习阶段：null/0=新词，1..6=艾宾浩斯阶梯档位（[1,2,4,7,15,30] 天）
+  reviewStage    Int?     @map("review_stage")
+  /// 下次到期复习日 'yyyy-MM-dd'（客户端本地日期）；null=未排期
+  nextDueDate    String?  @map("next_due_date")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")

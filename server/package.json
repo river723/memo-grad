@@ -18,6 +18,7 @@
     "seed:worddict": "tsx scripts/seed_worddict.ts",
     "seed:exams": "tsx scripts/seed_real_exams.ts",
     "seed:stories": "tsx scripts/seed_stories.ts",
+    "cleanup:plans": "tsx scripts/cleanup_stale_plans.ts",
     "stories:gen:db": "tsx scripts/generateStoriesToDb.ts",
     "test:auth": "node scripts/test-auth.mjs",
     "test:worddict": "bash scripts/test_worddict_api.sh",

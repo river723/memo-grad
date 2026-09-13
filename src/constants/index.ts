@@ -4,7 +4,8 @@ export const STUDY_MODES = {
   quiz: '考题练习'
 };
 
-export const REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30]; // 艾宾浩斯复习间隔（天）
+// 艾宾浩斯复习间隔定义已迁至无 RN 依赖的 ./schedule，此处转发以保持既有引用可用。
+export { REVIEW_INTERVALS, MAX_REVIEW_STAGE, NEW_WORD_STAGE } from './schedule';
 
 export const AI_PROVIDERS = {
   deepseek: {

@@ -23,7 +23,8 @@ const OUT = path.join(ROOT, '.tmp-migration-test');
 function compile() {
   fs.rmSync(OUT, { recursive: true, force: true });
   execSync(
-    `npx -y -p typescript@5.7.2 tsc src/services/migrations.ts src/utils/idUtils.ts ` +
+    `npx -y -p typescript@5.7.2 tsc src/services/migrations.ts src/services/scheduler.ts ` +
+      `src/constants/schedule.ts src/utils/idUtils.ts ` +
       `--outDir ${JSON.stringify(OUT)} --module commonjs --target es2019 --skipLibCheck`,
     { cwd: ROOT, stdio: 'inherit' }
   );
@@ -165,6 +166,19 @@ async function main() {
   const reviewPlan = plans.find((p) => p.plan_type === 'review');
   check('复习计划 word_id 正确指向 abandon', reviewPlan && reviewPlan.word_id === idOf('abandon'));
 
+  // v3：复习调度回填
+  const wAbandon = words.find((w) => w.word === 'abandon');
+  const wBenefit = words.find((w) => w.word === 'benefit');
+  const wCandid = words.find((w) => w.word === 'candid');
+  check('v3: 答对过 1 天 → stage=1、next_due=次日',
+    wAbandon.review_stage === 1 && wAbandon.next_due_date === '2026-08-02',
+    JSON.stringify({ s: wAbandon.review_stage, d: wAbandon.next_due_date }));
+  check('v3: 仅答错/未学 → stage=0、next_due=null',
+    wBenefit.review_stage === 0 && wBenefit.next_due_date === null &&
+    wCandid.review_stage === 0 && wCandid.next_due_date === null);
+  check('v3: 残留未完成计划被软删（deleted_at 已置）',
+    plans.every((p) => Boolean(p.deleted_at)), JSON.stringify(plans.map((p) => p.deleted_at)));
+
   check('Article.word_ids 剔除失效引用 (3→2)', articles[0].word_ids.length === 2,
     JSON.stringify(articles[0].word_ids));
   check('Article.word_ids 全部有效', articles[0].word_ids.every((id) => validWordIds.has(id)));
@@ -206,9 +220,8 @@ async function main() {
   const fresh = makeStorage();
   const freshResult = await migrateToUuidSchema(fresh);
   check('不执行迁移', freshResult.migrated === false);
-  check('reason=empty-install', freshResult.reason === 'empty-install', freshResult.reason);
   check('直接打上最新版本号', fresh.map.get('kaoyan_schema_version') === String(CURRENT_SCHEMA_VERSION));
-  check('不产生无意义备份', !fresh.map.has('kaoyan_migration_backup_v1'));
+  check('不产生无意义备份', !fresh.map.has('kaoyan_migration_backup_v1') && !fresh.map.has('kaoyan_migration_backup_v2'));
 
   // ---------- 场景 4：坏数据不应中断迁移 ----------
   console.log('\n[场景 4] 损坏的 JSON 不中断迁移');
@@ -234,6 +247,70 @@ async function main() {
   const sr = strIds.read('kaoyan_study_records');
   check('"1" 与 1 视为同一个词，记录未被丢弃', sr.length === 1, `实际 ${sr.length}`);
   check('外键正确闭合', sr.length === 1 && sr[0].word_id === sw[0].id);
+
+  // ---------- 场景 6：已是 v2（UUID）→ v3 调度回填 + 膨胀计划清理 ----------
+  console.log('\n[场景 6] v2→v3 复习阶段回填 / 膨胀复习计划软删');
+  const UA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const UB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const UC = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const v2 = makeStorage({
+    kaoyan_schema_version: '2',
+    kaoyan_words: JSON.stringify([
+      { id: UA, word: 'alpha', definitions: [], difficulty: 3, frequency: 5, dirty: false },
+      { id: UB, word: 'bravo', definitions: [], difficulty: 3, frequency: 5, dirty: false },
+      { id: UC, word: 'charlie', definitions: [], difficulty: 3, frequency: 5, dirty: false },
+    ]),
+    kaoyan_study_records: JSON.stringify([
+      // alpha：3 个不同日期答对 → stage 3，最近通过 09-06 → +4 天 = 09-10
+      { id: 'r1', word_id: UA, study_date: '2026-09-01', result: 1, study_mode: 'flashcard' },
+      { id: 'r2', word_id: UA, study_date: '2026-09-03', result: 1, study_mode: 'quiz' },
+      { id: 'r3', word_id: UA, study_date: '2026-09-06', result: 0, study_mode: 'quiz' },
+      { id: 'r4', word_id: UA, study_date: '2026-09-06', result: 1, study_mode: 'flashcard' },
+      // bravo：只有 1 个通过日 → stage 1，+1 天
+      { id: 'r5', word_id: UB, study_date: '2026-09-10', result: 1, study_mode: 'flashcard' },
+      // charlie：无记录 → stage 0
+    ]),
+    kaoyan_study_plans: JSON.stringify([
+      // 旧 bug：同一词每天膨胀出多条未完成复习计划（含空占位）
+      { id: 'p1', word_id: UA, plan_date: '2026-09-07', plan_type: 'review', completed: false },
+      { id: 'p2', word_id: UA, plan_date: '2026-09-08', plan_type: 'review', completed: false },
+      { id: 'p3', word_id: UA, plan_date: '2026-09-10', plan_type: 'review', completed: false },
+      { id: 'p4', word_id: '', plan_date: '2026-09-07', plan_type: 'new', completed: false },
+      // 已完成历史计划：必须保留且不被软删
+      { id: 'p5', word_id: UA, plan_date: '2026-09-01', plan_type: 'new', completed: true },
+    ]),
+  });
+
+  const v2Result = await migrateToUuidSchema(v2);
+  check('v2→v3 返回 migrated=true', v2Result.migrated === true, JSON.stringify(v2Result));
+  const w6 = v2.read('kaoyan_words');
+  const getA = w6.find((w) => w.id === UA);
+  const getB = w6.find((w) => w.id === UB);
+  const getC = w6.find((w) => w.id === UC);
+  check('alpha 3 个通过日 → stage=3', getA.review_stage === 3, String(getA.review_stage));
+  check('alpha next_due = 2026-09-10（最近通过日 +4）', getA.next_due_date === '2026-09-10', getA.next_due_date);
+  check('bravo 1 个通过日 → stage=1、next_due=2026-09-11',
+    getB.review_stage === 1 && getB.next_due_date === '2026-09-11',
+    JSON.stringify({ s: getB.review_stage, d: getB.next_due_date }));
+  check('charlie 无记录 → stage=0 / next_due=null',
+    getC.review_stage === 0 && getC.next_due_date === null);
+  check('回填后所有词置 dirty 待上云', w6.every((w) => w.dirty === true));
+
+  const p6 = v2.read('kaoyan_study_plans');
+  const openPlans = p6.filter((p) => !p.completed);
+  const donePlan = p6.find((p) => p.id === 'p5');
+  check('所有未完成计划被软删（4 条）',
+    openPlans.length === 4 && openPlans.every((p) => Boolean(p.deleted_at)),
+    JSON.stringify(openPlans.map((p) => p.deleted_at)));
+  check('已完成历史计划保留 deleted_at 为空',
+    donePlan && donePlan.completed === true && !donePlan.deleted_at);
+  check('v3 备份已写入', Boolean(v2.map.get('kaoyan_migration_backup_v2')));
+  check('版本号推进到 3', v2.map.get('kaoyan_schema_version') === '3');
+
+  const before6 = v2.map.get('kaoyan_words');
+  const again6 = await migrateToUuidSchema(v2);
+  check('v3 后再跑幂等（migrated=false）', again6.migrated === false);
+  check('幂等不重写数据', v2.map.get('kaoyan_words') === before6);
 
   fs.rmSync(OUT, { recursive: true, force: true });
 

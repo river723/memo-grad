@@ -11,9 +11,9 @@ import { spring, timingSlow } from '../theme/motion';
 import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import AutoWordService from '../services/AutoWordService';
+import { buildDailyQueue, isNewWord, localToday } from '../services/scheduler';
 import { useToast } from '../components/ds/Toast';
 import { Word, WeeklyStudyTrend } from '../types';
-import { format } from 'date-fns';
 import { useAnnouncements } from '../providers/AnnouncementProvider';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import AppButton from '../components/ds/AppButton';
@@ -209,7 +209,7 @@ export default function HomeScreen() {
       if (autoAdded > 0) {
         toast.info(`已按考频自动加入 ${autoAdded} 个新词`);
       }
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today = localToday();
       const [allWords, allPlans, todayRecords, allRecords, wrongQuestions] = await Promise.all([
         StorageService.getWords(),
         StorageService.getStudyPlans(),
@@ -219,19 +219,23 @@ export default function HomeScreen() {
       ]);
       const todayPlans = allPlans.filter((p) => p.plan_date === today);
       const todayCompleted = todayPlans.filter((p) => p.completed).length;
-      const todayPendingPlans = todayPlans.filter((p) => !p.completed);
-      const todayPending = todayPendingPlans.length;
       const todayCorrectCount = todayRecords.filter((r) => r.result === 1).length;
       const accuracy = todayRecords.length > 0 ? todayCorrectCount / todayRecords.length : 0;
-      const studiedWordIds = new Set(allRecords.map((r) => r.word_id));
-      const unstudiedNewWordCount = allWords.filter((w) => !studiedWordIds.has(w.id)).length;
+      // 待学数以调度字段（review_stage/next_due_date）为唯一真相派生，不再数可能膨胀或尚未投影的计划：
+      // 词当天过关后 next_due 变未来即自动离开到期集合、stage 变 1 即离开新词池。
+      const dailyLimit = typeof settings.dailyNewWords === 'number' ? settings.dailyNewWords : 10;
+      const { newWords, dueReviews } = buildDailyQueue(allWords, today, dailyLimit);
+      const newPending = newWords.length;
+      const reviewPending = dueReviews.length;
+      const todayPending = newPending + reviewPending;
+      const unstudiedNewWordCount = allWords.filter((w) => isNewWord(w)).length;
       const baseStats: TodayStats = {
         totalWords: allWords.length,
-        todayTotal: todayPlans.length,
+        todayTotal: todayCompleted + todayPending,
         todayPending,
         todayCompleted,
-        newPending: todayPendingPlans.filter((p) => p.plan_type === 'new').length,
-        reviewPending: todayPendingPlans.filter((p) => p.plan_type === 'review').length,
+        newPending,
+        reviewPending,
         todayStudyCount: todayRecords.length,
         accuracy,
         wrongQuestionCount: wrongQuestions.length,

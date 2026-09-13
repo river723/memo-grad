@@ -25,6 +25,10 @@ export interface Word extends SyncMeta {
   memory_tip?: string; // 记忆口诀/技巧
   difficulty: number; // 1-5
   frequency: number; // 考研频次
+  /** 间隔重复复习阶段：0=新词（从未过关），1..6=艾宾浩斯阶梯档位，随云同步。 */
+  review_stage?: number | null;
+  /** 下次到期复习日 'yyyy-MM-dd'（本地日期）；null=未排期（新词）。随云同步。 */
+  next_due_date?: string | null;
   created_at?: string;
 }
 

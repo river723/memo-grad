@@ -2,6 +2,7 @@ import { Word, StudyRecord, StudyPlan, Article, ExamSession, ExamDraft, WrongQue
 import { AI_PROVIDERS, WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 import { generateId, nowIso, excludeDeleted } from '../utils/idUtils';
 import { migrateToUuidSchema, MigrationResult, CURRENT_SCHEMA_VERSION } from './migrations';
+import { localToday } from './scheduler';
 
 // 跨平台存储接口
 interface StorageInterface {
@@ -208,6 +209,8 @@ class StorageService {
       ...word,
       id: newId,
       similar_words: Array.isArray(word.similar_words) ? word.similar_words : [],
+      // 新词默认在复习阶梯第 0 档（从未过关），未排期
+      review_stage: typeof word.review_stage === 'number' ? word.review_stage : 0,
       created_at: now,
       updated_at: now,
       deleted_at: null,
@@ -396,11 +399,52 @@ class StorageService {
   }
 
   async getTodayStudyPlan(): Promise<StudyPlan[]> {
-    const today = new Date().toISOString().split('T')[0];
+    // 本地日期：与计划创建/完成侧（date-fns 本地）保持一致，
+    // 旧实现用 toISOString()（UTC）在东八区凌晨会错取到前一天。
+    const today = localToday();
     const plans = await this.getStudyPlans();
     return plans.filter(plan =>
       plan.plan_date === today && !plan.completed
     );
+  }
+
+  /**
+   * 幂等物化「当天」学习计划：按 (word_id, plan_date=today, plan_type) 去重，
+   * 只补不存在的未软删计划，一次性回写。学习页用它把派生出的今日队列投影成计划，
+   * 供首页 KPI / 周趋势 / 当天完成进度使用。**不生成任何未来复习计划**。
+   */
+  async ensureDailyPlans(
+    items: Array<{ word_id: string; plan_type: 'new' | 'review' }>,
+    today: string = localToday()
+  ): Promise<void> {
+    await this.ensureMigrated();
+    const plans = await this.getAllStudyPlansRaw();
+    const existing = new Set(
+      plans
+        .filter(p => !p.deleted_at)
+        .map(p => `${p.word_id}::${p.plan_date}::${p.plan_type}`)
+    );
+    const now = nowIso();
+    let changed = false;
+    for (const item of items) {
+      const key = `${item.word_id}::${today}::${item.plan_type}`;
+      if (existing.has(key)) continue;
+      existing.add(key);
+      plans.push({
+        id: generateId(),
+        word_id: item.word_id,
+        plan_date: today,
+        plan_type: item.plan_type,
+        completed: false,
+        updated_at: now,
+        deleted_at: null,
+        dirty: true,
+      });
+      changed = true;
+    }
+    if (changed) {
+      await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
+    }
   }
 
   async completeStudyPlan(planId: string): Promise<void> {

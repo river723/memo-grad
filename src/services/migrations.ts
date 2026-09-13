@@ -1,27 +1,33 @@
 /**
- * 一次性数据迁移：数字自增 ID → 字符串 UUID。
+ * 一次性数据迁移（按版本分步执行）。
  *
- * 背景见 [idUtils.ts]。这个迁移是**不可逆**的，因此：
- * - 迁移前把原始数据整体快照到 `kaoyan_migration_backup_v1`，出问题可人工回滚。
- * - 用 `kaoyan_schema_version` 作幂等哨兵，重复调用直接返回。
- * - 外键必须与主键在同一次遍历里用同一张映射表改写，否则 StudyRecord.word_id
- *   会指向一个已经不存在的数字 ID，学习历史和统计会静默丢失。
+ * 历史：
+ * - v1 → v2：数字自增 ID → 字符串 UUID（见 [runUuidV1ToV2]）。不可逆，迁移前整体快照备份。
+ * - v2 → v3：间隔重复调度上线。在 Word 上回填 review_stage / next_due_date，并把旧版
+ *   "每次学完整套重铺 6 天复习计划" 造成的膨胀/重复未完成计划全部软删（见 [runScheduleV2ToV3]）。
  *
- * 需要改写的外键关系：
- *   Word.id            → StudyRecord.word_id
- *                      → StudyPlan.word_id
- *                      → Article.word_ids[]
- *                      → DefinitionQuestion.word_id / ClozeQuestion.word_id
- *                        （嵌在 ExamSession.questions[]、ExamSession.answers[].question、
- *                         WrongQuestion.question 里，是最容易漏的一处）
+ * 外键关系（v1→v2 时需随主键一起改写，否则学习历史会静默丢失）：
+ *   Word.id → StudyRecord.word_id / StudyPlan.word_id / Article.word_ids[]
+ *           → DefinitionQuestion.word_id / ClozeQuestion.word_id
+ *             （嵌在 ExamSession.questions[]、ExamSession.answers[].question、WrongQuestion.question 里）
  */
 
 import { generateId, nowIso } from '../utils/idUtils';
+import { deriveStageFromRecords } from './scheduler';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
-/** 数据迁移专用的 key 前缀（无用户前缀，供首次安装/离线场景使用）。 */
-const NO_PREFIX = '';
+/** 各实体的原始存储 key（迁移用无前缀名，经 prefixFn 拼上用户前缀）。 */
+const RAW_KEYS = {
+  words: 'kaoyan_words',
+  records: 'kaoyan_study_records',
+  plans: 'kaoyan_study_plans',
+  articles: 'kaoyan_articles',
+  examSessions: 'kaoyan_exam_sessions',
+  wrongQuestions: 'kaoyan_wrong_questions',
+  realExamSessions: 'kaoyan_real_exam_sessions',
+  realExamWrongs: 'kaoyan_real_exam_wrong_questions',
+} as const;
 
 interface MinimalStorage {
   getItem(key: string): Promise<string | null>;
@@ -35,34 +41,157 @@ export interface MigrationResult {
 }
 
 /**
- * 执行迁移。幂等：已是最新 schema 版本时直接返回 `migrated: false`。
+ * 迁移入口（幂等）。按哨兵版本号依次执行缺失的步骤；已是最新则直接返回。
  *
  * @param storage  底层存储（AsyncStorage 实例）
- * @param prefixFn 将原始 key 名称转成实际存储 key 的函数（可带用户 ID 前缀）
+ * @param prefixFn 将原始 key 名转成实际存储 key 的函数（可带用户 ID 前缀）
  */
 export async function migrateToUuidSchema(
   storage: MinimalStorage,
-  prefixFn: (rawKey: string) => string
+  prefixFn: (rawKey: string) => string = (rawKey) => rawKey
 ): Promise<MigrationResult> {
   const k = (rawKey: string) => prefixFn(rawKey);
+  const versionKey = k('kaoyan_schema_version');
 
-  // ---- 幂等哨兵 ----
-  const versionRaw = await storage.getItem(k('kaoyan_schema_version'));
+  const versionRaw = await storage.getItem(versionKey);
   const version = versionRaw ? Number(versionRaw) : 1;
   if (version >= CURRENT_SCHEMA_VERSION) {
     return { migrated: false, reason: 'already-current' };
   }
 
+  const counts: Record<string, number> = {};
+  let migrated = false;
+
+  // ---- v1 → v2：数字 ID → UUID ----
+  if (version < 2) {
+    const r = await runUuidV1ToV2(storage, prefixFn);
+    if (r.migrated) {
+      migrated = true;
+      Object.assign(counts, r.counts ?? {});
+    }
+  }
+
+  // ---- v2 → v3：阶段化复习调度回填 + 清理膨胀计划 ----
+  const v2Raw = await storage.getItem(versionKey);
+  const v2 = v2Raw ? Number(v2Raw) : 2;
+  if (v2 < 3) {
+    const r3 = await runScheduleV2ToV3(storage, k);
+    if (r3.migrated) {
+      migrated = true;
+      counts.wordsBackfilled = r3.wordsBackfilled;
+      counts.plansSoftDeleted = r3.plansSoftDeleted;
+    }
+  }
+
+  return migrated
+    ? { migrated: true, counts }
+    : { migrated: false, reason: 'up-to-date' };
+}
+
+/**
+ * v2 → v3：复习调度状态回填 + 膨胀计划清理。
+ * - words：按历史答对记录推断 review_stage / next_due_date（见 scheduler.deriveStageFromRecords），
+ *   统一写齐并置 dirty 上云；无通过记录 → stage 0 / 未排期。
+ * - plans：所有未完成计划（含每天膨胀的 review、空 word_id 占位）软删（deleted_at+dirty，随同步收敛）；
+ *   completed 历史全部保留（周趋势依赖）。当天队列由学习页 ensureDailyPlans 据 stage/due 重建。
+ * 幂等：动手前快照到 kaoyan_migration_backup_v2，逐键回写后最后才把版本号写 3。
+ */
+async function runScheduleV2ToV3(
+  storage: MinimalStorage,
+  k: (rawKey: string) => string
+): Promise<{ migrated: boolean; wordsBackfilled: number; plansSoftDeleted: number }> {
+  const [words, records, plans] = await Promise.all([
+    readArray(storage, k(RAW_KEYS.words)),
+    readArray(storage, k(RAW_KEYS.records)),
+    readArray(storage, k(RAW_KEYS.plans)),
+  ]);
+
+  const isEmpty = words.length === 0 && records.length === 0 && plans.length === 0;
+  if (isEmpty) {
+    await storage.setItem(k('kaoyan_schema_version'), '3');
+    return { migrated: false, wordsBackfilled: 0, plansSoftDeleted: 0 };
+  }
+
+  await storage.setItem(
+    k('kaoyan_migration_backup_v2'),
+    JSON.stringify({ backedUpAt: nowIso(), fromVersion: 2, words, records, plans })
+  );
+
+  const now = nowIso();
+
+  // 按 word 聚合学习记录，回填调度状态
+  const recordsByWord = new Map<string, any[]>();
+  for (const r of records) {
+    if (!r || typeof r.word_id !== 'string' || r.word_id.length === 0) continue;
+    const list = recordsByWord.get(r.word_id);
+    if (list) list.push(r);
+    else recordsByWord.set(r.word_id, [r]);
+  }
+
+  let wordsBackfilled = 0;
+  const nextWords = words.map((w: any) => {
+    const { stage, nextDue } = deriveStageFromRecords(recordsByWord.get(w?.id) ?? []);
+    const hasStage = typeof w?.review_stage === 'number';
+    if (!hasStage || w.review_stage !== stage || w.next_due_date !== nextDue) {
+      wordsBackfilled += 1;
+    }
+    return {
+      ...w,
+      review_stage: stage,
+      next_due_date: nextDue,
+      updated_at: now,
+      dirty: true,
+    };
+  });
+
+  // 软删所有未完成计划；completed / 已软删的原样保留
+  let plansSoftDeleted = 0;
+  const nextPlans = plans.map((p: any) => {
+    if (!p || p.completed || p.deleted_at) return p;
+    plansSoftDeleted += 1;
+    return { ...p, deleted_at: now, updated_at: now, dirty: true };
+  });
+
+  await Promise.all([
+    storage.setItem(k(RAW_KEYS.words), JSON.stringify(nextWords)),
+    storage.setItem(k(RAW_KEYS.plans), JSON.stringify(nextPlans)),
+  ]);
+
+  // 版本号最后写：任一步抛异常都不会留下"已迁移"的假象
+  await storage.setItem(k('kaoyan_schema_version'), '3');
+
+  const result = { wordsBackfilled, plansSoftDeleted };
+  console.log('[migration] v3 复习调度回填完成', result);
+  return { migrated: true, ...result };
+}
+
+// ---------------------------------------------------------------------------
+// v1 → v2：数字自增 ID → 字符串 UUID
+// ---------------------------------------------------------------------------
+
+/**
+ * 执行 v1→v2 迁移。仅在哨兵版本 < 2 时由入口调用。成功后把版本号写 2（交给入口继续 v3）。
+ */
+async function runUuidV1ToV2(
+  storage: MinimalStorage,
+  prefixFn: (rawKey: string) => string = (rawKey) => rawKey
+): Promise<MigrationResult> {
+  const k = (rawKey: string) => prefixFn(rawKey);
+
+  // ---- 幂等哨兵（缺省视为 v1）----
+  const versionRaw = await storage.getItem(k('kaoyan_schema_version'));
+  const version = versionRaw ? Number(versionRaw) : 1;
+
   const [words, records, plans, articles, examSessions, wrongQuestions, realExamSessions, realExamWrongs] =
     await Promise.all([
-      readArray(storage, k('kaoyan_words')),
-      readArray(storage, k('kaoyan_study_records')),
-      readArray(storage, k('kaoyan_study_plans')),
-      readArray(storage, k('kaoyan_articles')),
-      readArray(storage, k('kaoyan_exam_sessions')),
-      readArray(storage, k('kaoyan_wrong_questions')),
-      readArray(storage, k('kaoyan_real_exam_sessions')),
-      readArray(storage, k('kaoyan_real_exam_wrong_questions')),
+      readArray(storage, k(RAW_KEYS.words)),
+      readArray(storage, k(RAW_KEYS.records)),
+      readArray(storage, k(RAW_KEYS.plans)),
+      readArray(storage, k(RAW_KEYS.articles)),
+      readArray(storage, k(RAW_KEYS.examSessions)),
+      readArray(storage, k(RAW_KEYS.wrongQuestions)),
+      readArray(storage, k(RAW_KEYS.realExamSessions)),
+      readArray(storage, k(RAW_KEYS.realExamWrongs)),
     ]);
 
   // 全新安装：无任何数据，只需打版本号，不做备份（备份空数据没意义）
@@ -71,13 +200,13 @@ export async function migrateToUuidSchema(
     examSessions.length === 0 && wrongQuestions.length === 0 && realExamSessions.length === 0 &&
     realExamWrongs.length === 0;
   if (isEmpty) {
-    await storage.setItem(k('kaoyan_schema_version'), String(CURRENT_SCHEMA_VERSION));
+    await storage.setItem(k('kaoyan_schema_version'), '2');
     return { migrated: false, reason: 'empty-install' };
   }
 
   // 已是 UUID 形态但版本号没打上（比如中途崩溃后重进）：补版本号即可
   if (looksMigrated(words) && looksMigrated(records)) {
-    await storage.setItem(k('kaoyan_schema_version'), String(CURRENT_SCHEMA_VERSION));
+    await storage.setItem(k('kaoyan_schema_version'), '2');
     return { migrated: false, reason: 'already-uuid-shaped' };
   }
 
@@ -222,18 +351,18 @@ export async function migrateToUuidSchema(
   // ---- 第三步：整体回写 ----
   // 逐键 setItem 没有事务保证；万一中途失败，备份键 + 版本号未推进能保证下次重跑。
   await Promise.all([
-    storage.setItem(k('kaoyan_words'), JSON.stringify(migratedWords)),
-    storage.setItem(k('kaoyan_study_records'), JSON.stringify(migratedRecords)),
-    storage.setItem(k('kaoyan_study_plans'), JSON.stringify(migratedPlans)),
-    storage.setItem(k('kaoyan_articles'), JSON.stringify(migratedArticles)),
-    storage.setItem(k('kaoyan_exam_sessions'), JSON.stringify(migratedExamSessions)),
-    storage.setItem(k('kaoyan_wrong_questions'), JSON.stringify(migratedWrongQuestions)),
-    storage.setItem(k('kaoyan_real_exam_sessions'), JSON.stringify(migratedRealExamSessions)),
-    storage.setItem(k('kaoyan_real_exam_wrong_questions'), JSON.stringify(migratedRealExamWrongs)),
+    storage.setItem(k(RAW_KEYS.words), JSON.stringify(migratedWords)),
+    storage.setItem(k(RAW_KEYS.records), JSON.stringify(migratedRecords)),
+    storage.setItem(k(RAW_KEYS.plans), JSON.stringify(migratedPlans)),
+    storage.setItem(k(RAW_KEYS.articles), JSON.stringify(migratedArticles)),
+    storage.setItem(k(RAW_KEYS.examSessions), JSON.stringify(migratedExamSessions)),
+    storage.setItem(k(RAW_KEYS.wrongQuestions), JSON.stringify(migratedWrongQuestions)),
+    storage.setItem(k(RAW_KEYS.realExamSessions), JSON.stringify(migratedRealExamSessions)),
+    storage.setItem(k(RAW_KEYS.realExamWrongs), JSON.stringify(migratedRealExamWrongs)),
   ]);
 
   // 版本号最后写：前面任何一步抛异常都不会留下"已迁移"的假象
-  await storage.setItem(k('kaoyan_schema_version'), String(CURRENT_SCHEMA_VERSION));
+  await storage.setItem(k('kaoyan_schema_version'), '2');
 
   const counts = {
     word: migratedWords.length,

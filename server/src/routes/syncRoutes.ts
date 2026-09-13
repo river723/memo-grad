@@ -57,6 +57,36 @@ function isEmptyVal(v: unknown): boolean {
   return false;
 }
 
+/**
+ * 复习进度（review_stage / next_due_date）的单调收敛。
+ * 复习阶段是"只应前进"的学习进度：离线设备可能带着旧的低阶段后推送，
+ * 直接整行覆盖会把高进度打回去。规则：
+ *   - 取更高的阶段，到期日跟随更高阶段一方；
+ *   - 阶段相同则到期日取更早者（更保守，宁可多重温一次）；
+ *   - 一方缺进度则保留另一方；都缺则不更新这两列。
+ */
+function convergeWordProgress(
+  incomingStageRaw: unknown,
+  incomingDueRaw: unknown,
+  existing: { reviewStage?: unknown; nextDueDate?: unknown }
+): { reviewStage?: number | null; nextDueDate?: string | null } {
+  const incStage = typeof incomingStageRaw === 'number' ? incomingStageRaw : null;
+  const incDue = typeof incomingDueRaw === 'string' ? incomingDueRaw : null;
+  const exStage = typeof existing.reviewStage === 'number' ? existing.reviewStage : null;
+  const exDue = typeof existing.nextDueDate === 'string' ? existing.nextDueDate : null;
+
+  if (incStage === null) {
+    return exStage === null ? {} : { reviewStage: exStage, nextDueDate: exDue };
+  }
+  if (exStage === null) {
+    return { reviewStage: incStage, nextDueDate: incDue };
+  }
+  if (incStage > exStage) return { reviewStage: incStage, nextDueDate: incDue };
+  if (incStage < exStage) return { reviewStage: exStage, nextDueDate: exDue ?? incDue };
+  const due = incDue === null ? exDue : exDue === null ? incDue : (incDue <= exDue ? incDue : exDue);
+  return { reviewStage: exStage, nextDueDate: due };
+}
+
 /** 把 Prisma 模型的 camelCase 转回客户端的 snake_case */
 function toSnakeCase(record: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
@@ -93,11 +123,19 @@ async function dedupWordOnPush(
       },
     });
 
-  /** 仅把"现有行缺失而客户端有值"的内容字段补进去；word/difficulty/frequency/deletedAt 保留现有值。 */
+  /** 把客户端内容字段补进缺失位，并对复习进度做单调收敛；word/difficulty/frequency/deletedAt 保留现有值。 */
   const mergePatch = (dup: Record<string, unknown>): Record<string, unknown> => {
     const patch: Record<string, unknown> = {};
     for (const field of ['definitions', 'pronunciationUk', 'pronunciationUs', 'etymology', 'memoryTip', 'similarWords']) {
       if (isEmptyVal(dup[field]) && !isEmptyVal(data[field])) patch[field] = data[field];
+    }
+    // 进度字段不是"缺失补值"，而是取更先进的阶段（注意 0 也是合法阶段，不能走 isEmptyVal）
+    const progress = convergeWordProgress(data.reviewStage, data.nextDueDate, dup);
+    if (Object.prototype.hasOwnProperty.call(progress, 'reviewStage')) {
+      patch.reviewStage = progress.reviewStage;
+    }
+    if (Object.prototype.hasOwnProperty.call(progress, 'nextDueDate')) {
+      patch.nextDueDate = progress.nextDueDate;
     }
     return patch;
   };
@@ -175,7 +213,17 @@ async function syncEntity(
     delete (data as Record<string, unknown>).updatedAt;
 
     if (serverEnt) {
-      // 服务端有记录：客户端推即覆盖（@updatedAt 自动 bump updatedAt）
+      // 服务端有记录：客户端推即覆盖（@updatedAt 自动 bump updatedAt）。
+      // 但复习进度单调收敛：离线旧设备回推低阶段不得把服务端高进度覆盖回去。
+      if (tableName === 'word') {
+        const progress = convergeWordProgress(data.reviewStage, data.nextDueDate, serverEnt);
+        if (Object.prototype.hasOwnProperty.call(progress, 'reviewStage')) {
+          data.reviewStage = progress.reviewStage;
+        }
+        if (Object.prototype.hasOwnProperty.call(progress, 'nextDueDate')) {
+          data.nextDueDate = progress.nextDueDate;
+        }
+      }
       await model.update({ where: { id: ent.id }, data });
     } else if (
       tableName === 'word' &&
