@@ -16,8 +16,8 @@ import { useAppNavigation, useAppRoute } from '../navigation/types';
 import StorageService from '../services/StorageService';
 import AutoWordService from '../services/AutoWordService';
 import { Word, StudyRecord, AppSettings, Article } from '../types';
-import { REVIEW_INTERVALS } from '../constants';
-import { format, addDays } from 'date-fns';
+import { localToday, buildDailyQueue, advanceOnPass } from '../services/scheduler';
+import { format } from 'date-fns';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { canWordBeEnhanced, mergeAIResultIntoWord } from '../utils/wordUtils';
@@ -139,13 +139,26 @@ export default function StudyScreen() {
   // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
   const retryMapRef = useRef<Map<string, number>>(new Map());
   const pendingIndexRef = useRef<number>(0);
-  // 本轮新词 id 集合，用于在 finishWord 时按新词/复习词分别累计真实完成数
+  // 本轮新词 id 集合，用于过关时按新词/复习词分别累计真实完成数
   const newWordIdSetRef = useRef<Set<string>>(new Set());
   // 「太简单」移出生词本的词数：全靠它清空队列且未学一词时也能触发完成卡
   const removedCountRef = useRef(0);
   // 选择题选项生成的序号：异步拉全词库作干扰项时，丢弃过期请求防止写回上一个词的选项
   const quizSeqRef = useRef(0);
   const [completedByType, setCompletedByType] = useState({ newDone: 0, reviewDone: 0 });
+  // 作答提交锁：乐观推进期间阻止连点 / 重入。ref 做同步守卫（避免闭包旧值），state 驱动按钮禁用。
+  const [answerBusy, setAnswerBusy] = useState(false);
+  const answerBusyRef = useRef(false);
+  // 每次乐观推进后递增；即使答错回队尾导致 currentWord.id 不变，也能让 FlashcardStudy 解锁翻回正面。
+  const [turn, setTurn] = useState(0);
+  // 后台落库串行链：作答已乐观前进、不等待存储，但 addStudyRecord/updateWord/deleteWord 都是
+  // 「读整表→改→写整表」，并发交错会用旧快照互相覆盖丢更新。统一排队执行，UI 不 await 它。
+  const persistChainRef = useRef<Promise<void>>(Promise.resolve());
+  const enqueuePersist = (task: () => Promise<void>) => {
+    persistChainRef.current = persistChainRef.current.then(task).catch((error) => {
+      console.error('Persist task error:', error);
+    });
+  };
 
   useEffect(() => {
     loadStudyWords();
@@ -195,18 +208,7 @@ export default function StudyScreen() {
       }
 
       const allWords = await StorageService.getWords();
-      const todayPlansRaw = await StorageService.getTodayStudyPlan();
-      // 自愈：清理指向已删除词的未完成计划（旧版「太简单」遗留的幽灵待学——
-      // 首页显示有待学、学习页却捞不到词）。收尾后首页计数即恢复。
-      const validWordIds = new Set(allWords.map(w => w.id));
-      for (const plan of todayPlansRaw) {
-        if (!validWordIds.has(plan.word_id)) {
-          await StorageService.completeStudyPlan(plan.id);
-        }
-      }
-      const todayPlans = todayPlansRaw.filter(p => validWordIds.has(p.word_id));
-      const allRecords = await StorageService.getStudyRecords();
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today = localToday();
 
       const settings = await StorageService.getSettings();
       setAppSettings(settings);
@@ -252,96 +254,28 @@ export default function StudyScreen() {
 
       setIsCustomReview(false);
 
-      if (todayPlans.length > 0) {
-        // 空 word_id 是"新词占位"计划，不对应具体单词，需排除
-        const wordIds = todayPlans.map(p => p.word_id).filter(id => id !== '');
-        const plannedIdSet = new Set(wordIds);
-        studyWords = allWords.filter(w => wordIds.includes(w.id));
-        newWordList = studyWords.filter(w =>
-          todayPlans.some(p => p.word_id === w.id && p.plan_type === 'new')
-        );
-        reviewWordList = studyWords.filter(w =>
-          todayPlans.some(p => p.word_id === w.id && p.plan_type === 'review')
-        );
+      // 单一派生源（复习调度的唯一真相是 word.review_stage / next_due_date）：
+      // 到期复习 = stage>=1 且 next_due<=今天（不封顶，漏学自动补）；
+      // 新词 = stage 0，按「每日新词数」限量。不再读预铺的复习计划。
+      const queue = buildDailyQueue(allWords, today, dailyLimit);
+      newWordList = queue.newWords;
+      reviewWordList = queue.dueReviews;
+      studyWords = [...newWordList, ...reviewWordList];
 
-        // 合并计划外的生词本未学新词（手工添加 / 自动配词补充的词），
-        // 否则只要存在未完成计划，当日新加的词就永远进不了学习队列。
-        // 新词总量仍以「每日新词数」封顶。
-        const studiedIdSet = new Set(allRecords.map(r => r.word_id));
-        const extraNew = allWords.filter(w =>
-          !plannedIdSet.has(w.id) && !studiedIdSet.has(w.id)
-        );
-        newWordList = [...newWordList, ...extraNew].slice(0, dailyLimit);
-        const mergedNewIds = new Set(newWordList.map(w => w.id));
-        studyWords = [...newWordList, ...reviewWordList];
-
-        // 计划里的词可能已全部被移除（如「太简单」）——队列空时按"今日已完成"处理，
-        // 给出「继续学习」出口；否则会落到没有按钮的「暂无单词」死胡同。
-        if (studyWords.length === 0) {
-          setAllStudiedToday(true);
-          setWords([]);
-          return;
-        }
-
-        // 为计划外新词补建当日计划，保持仪表盘"今日计划"计数一致
-        for (const word of studyWords) {
-          if (mergedNewIds.has(word.id) && !plannedIdSet.has(word.id)) {
-            await StorageService.addStudyPlan({
-              word_id: word.id,
-              plan_date: today,
-              plan_type: 'new',
-              completed: false
-            });
-          }
-        }
-      } else {
-        const allNewWords: Word[] = [];
-        const allReviewWords: Word[] = [];
-
-        for (const word of allWords) {
-          const wordRecords = allRecords.filter(r => r.word_id === word.id);
-
-          if (wordRecords.length === 0) {
-            allNewWords.push(word);
-          } else {
-            const lastStudy = wordRecords.reduce((latest, r) =>
-              r.study_date > latest ? r.study_date : latest, ''
-            );
-            const diffDays = Math.floor(
-              (new Date(today).getTime() - new Date(lastStudy).getTime())
-              / (1000 * 60 * 60 * 24)
-            );
-
-            if (REVIEW_INTERVALS.includes(diffDays)) {
-              allReviewWords.push(word);
-            }
-          }
-        }
-
-        // 新词限量，复习词全取
-        newWordList = allNewWords.slice(0, dailyLimit);
-        reviewWordList = allReviewWords;
-        studyWords = [...newWordList, ...reviewWordList];
-
-        if (studyWords.length === 0) {
-          setAllStudiedToday(true);
-          setWords([]);
-          return;
-        }
-
-        setAllStudiedToday(false);
-
-        // 创建今日学习计划
-        for (const word of studyWords) {
-          const isNew = !allRecords.some(r => r.word_id === word.id);
-          await StorageService.addStudyPlan({
-            word_id: word.id,
-            plan_date: today,
-            plan_type: isNew ? 'new' : 'review',
-            completed: false
-          });
-        }
+      if (studyWords.length === 0) {
+        setAllStudiedToday(true);
+        setWords([]);
+        return;
       }
+
+      setAllStudiedToday(false);
+
+      // 幂等物化「当天」计划，供首页 KPI / 周趋势 / 当天完成进度；
+      // 只建今天、不预铺未来复习（未来由 stage/due 在到期当天才投影出来）。
+      await StorageService.ensureDailyPlans([
+        ...newWordList.map(w => ({ word_id: w.id, plan_type: 'new' as const })),
+        ...reviewWordList.map(w => ({ word_id: w.id, plan_type: 'review' as const })),
+      ], today);
 
       setWords(studyWords);
       setWordTypeCounts({
@@ -397,137 +331,152 @@ export default function StudyScreen() {
     }
   };
 
-  // 处理单词正式完成后的收尾工作（创建复习计划、标记计划完成）
-  const finishWord = async (word: Word) => {
-    try {
-      // 按新词/复习词累计真实完成数（每个词过关时只调用一次）
-      const isNewWord = Boolean(word.id) && newWordIdSetRef.current.has(word.id);
+  // 处理单词正式完成后的收尾工作（推进复习阶段、标记当天计划完成）
+  /**
+   * 过关后的持久化收尾（后台执行，不阻塞 UI 前进）：完成当天计划 + 推进复习阶段。
+   * 新词/复习计数已在 handleResult 里乐观更新，队列也已同步出队，这里只负责落库；
+   * 失败由调用方 toast 提示，不回滚已推进的界面。
+   */
+  const persistFinishWord = async (word: Word, firstTry: boolean, today: string) => {
+    const allPlans = await StorageService.getStudyPlans();
+    const matchingPlan = allPlans.find(
+      p => p.word_id === word.id && p.plan_date === today && !p.completed
+    );
+    if (matchingPlan?.id) {
+      await StorageService.completeStudyPlan(matchingPlan.id);
+    }
+
+    // 阶段化间隔重复：首次就答对推进一档；答错过靠重试救回则回退一档。
+    // 调度状态只存在 word.review_stage / next_due_date（随同步），不再预铺 6 条未来计划——
+    // 该词到 next_due 当天才会被 buildDailyQueue 选进复习队列。
+    const { stage, nextDue } = advanceOnPass(word.review_stage, today, firstTry);
+    await StorageService.updateWord(word.id, {
+      review_stage: stage,
+      next_due_date: nextDue,
+    });
+  };
+
+  const handleResult = (isCorrect: boolean) => {
+    const currentWord = getCurrentWord();
+    if (!currentWord || currentMode === 'article') return;
+    // 提交锁：挡住反馈窗口 / 320ms 动画内的重入与连点
+    if (answerBusyRef.current) return;
+    answerBusyRef.current = true;
+    setAnswerBusy(true);
+
+    const today = localToday();
+    const studyMode = currentMode;
+    const isNewWord = Boolean(currentWord.id) && newWordIdSetRef.current.has(currentWord.id);
+
+    // —— 1) 同步：更新统计、决定过关/重试、推进队列。全部不依赖存储写入，立即响应。——
+    setStudyStats(prev => {
+      const newCompleted = prev.completed + 1;
+      const newCorrect = prev.correct + (isCorrect ? 1 : 0);
+      return {
+        ...prev,
+        completed: newCompleted,
+        correct: newCorrect,
+        accuracy: (newCorrect / newCompleted) * 100
+      };
+    });
+
+    const retryMap = retryMapRef.current;
+    const inRetry = retryMap.has(currentWord.id);
+    let wordFinished = false;
+    let firstTry = true;
+
+    if (isCorrect && !inRetry) {
+      // ★ 首次就答对 → 直接完成（顺利推进复习阶段）
+      wordFinished = true;
+      firstTry = true;
+    } else if (isCorrect && inRetry) {
+      // ★ 重试中答对 → 计数器 +1
+      const count = retryMap.get(currentWord.id)! + 1;
+      if (count >= 2) {
+        // 答错过、靠连续 2 次答对救回 → 保守回退一档
+        wordFinished = true;
+        firstTry = false;
+        retryMap.delete(currentWord.id);
+      } else {
+        retryMap.set(currentWord.id, count);
+      }
+    } else {
+      // ★ 答错 → 进入重试模式（或计数器归零）
+      retryMap.set(currentWord.id, 0);
+    }
+
+    if (wordFinished) {
+      // 按新词/复习词累计真实完成数（每个词过关时只计一次）
       setCompletedByType(prev => ({
         newDone: prev.newDone + (isNewWord ? 1 : 0),
         reviewDone: prev.reviewDone + (isNewWord ? 0 : 1),
       }));
-
-      const allPlans = await StorageService.getStudyPlans();
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const matchingPlan = allPlans.find(
-        p => p.word_id === word.id && p.plan_date === today && !p.completed
-      );
-      if (matchingPlan?.id) {
-        await StorageService.completeStudyPlan(matchingPlan.id);
-      }
-
-      for (const interval of REVIEW_INTERVALS) {
-        const reviewDate = format(addDays(new Date(), interval), 'yyyy-MM-dd');
-        const alreadyPlanned = allPlans.some(
-          p => p.word_id === word.id && p.plan_date === reviewDate
-        );
-        if (!alreadyPlanned) {
-          await StorageService.addStudyPlan({
-            word_id: word.id,
-            plan_date: reviewDate,
-            plan_type: 'review',
-            completed: false
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Failed to finish word:', error);
     }
-  };
 
-  const handleResult = async (isCorrect: boolean) => {
-    const currentWord = getCurrentWord();
-    if (!currentWord || currentMode === 'article') return;
+    // 更新队列 + 计算 nextIndex。先回到卡片正面，避免队列更新后短暂显示下一词的释义面。
+    setIsFlipped(false);
+    const wasLast = currentIndex >= words.length - 1;
+    const nextIndex = wasLast ? 0 : currentIndex;
 
-    try {
-      // 1. 记录学习记录
-      const record: Omit<StudyRecord, 'id'> = {
-        word_id: currentWord.id,
-        study_date: format(new Date(), 'yyyy-MM-dd'),
-        result: isCorrect ? 1 : 0,
-        study_mode: currentMode
-      };
-      await StorageService.addStudyRecord(record);
-
-      // 2. 更新统计
-      setStudyStats(prev => {
-        const newCompleted = prev.completed + 1;
-        const newCorrect = prev.correct + (isCorrect ? 1 : 0);
-        return {
-          ...prev,
-          completed: newCompleted,
-          correct: newCorrect,
-          accuracy: (newCorrect / newCompleted) * 100
-        };
+    if (wordFinished) {
+      setWords(prev => prev.filter((_, i) => i !== currentIndex));
+      setTrulyCompleted(prev => prev + 1);
+    } else {
+      setWords(prev => {
+        const newWords = [...prev];
+        const [moved] = newWords.splice(currentIndex, 1);
+        newWords.push(moved);
+        return newWords;
       });
-
-      const retryMap = retryMapRef.current;
-      const inRetry = retryMap.has(currentWord.id);
-      let wordFinished = false;
-
-      if (isCorrect && !inRetry) {
-        // ★ 首次就答对 → 直接完成
-        await finishWord(currentWord);
-        wordFinished = true;
-      } else if (isCorrect && inRetry) {
-        // ★ 重试中答对 → 计数器 +1
-        const count = retryMap.get(currentWord.id)! + 1;
-        if (count >= 2) {
-          await finishWord(currentWord);
-          retryMap.delete(currentWord.id);
-          wordFinished = true;
-        } else {
-          retryMap.set(currentWord.id, count);
-        }
-      } else {
-        // ★ 答错 → 进入重试模式（或计数器归零）
-        retryMap.set(currentWord.id, 0);
-      }
-
-      // 3. 更新队列 + 计算 nextIndex
-      // 先恢复到卡片正面，避免队列更新后短暂显示下一个单词的释义面
-      setIsFlipped(false);
-      const wasLast = currentIndex >= words.length - 1;
-      const nextIndex = wasLast ? 0 : currentIndex;
-
-      if (wordFinished) {
-        setWords(prev => prev.filter((_, i) => i !== currentIndex));
-        setTrulyCompleted(prev => prev + 1);
-      } else {
-        setWords(prev => {
-          const newWords = [...prev];
-          const [moved] = newWords.splice(currentIndex, 1);
-          newWords.push(moved);
-          return newWords;
-        });
-      }
-
-      pendingIndexRef.current = nextIndex;
-
-      // 4. 反馈 + 推进
-      if (currentMode === 'flashcard') {
-        // 单词卡是自评：翻面后已看到释义，卡片自身也有飘字/抖动反馈（FlashcardStudy 内 320ms），
-        // 无需再弹全屏对错浮层、不停留，直接切下一张。
-        setCurrentIndex(nextIndex);
-        setIsFlipped(false);
-      } else {
-        // 选择/听写：需要停留看清正确答案，保留全屏对错浮层 1.2~1.5s 再推进
-        setCurrentResult(isCorrect ? 'correct' : 'incorrect');
-        setShowResult(true);
-
-        setTimeout(() => {
-          setShowResult(false);
-          setCurrentIndex(pendingIndexRef.current);
-          setIsFlipped(false);
-          setSelectedAnswer('');
-          setShowQuizResult(false);
-          setListenAnswer('');
-        }, wordFinished ? 1500 : 1200);
-      }
-
-    } catch (error) {
-      console.error('Failed to save study record:', error);
     }
+
+    pendingIndexRef.current = nextIndex;
+
+    // 反馈 + 推进
+    if (currentMode === 'flashcard') {
+      // 单词卡是自评：翻面后已看到释义，卡片自身也有飘字/抖动反馈（FlashcardStudy 内 320ms），
+      // 无需再弹全屏对错浮层、不停留，直接切下一张。
+      setCurrentIndex(nextIndex);
+      setIsFlipped(false);
+      setTurn(t => t + 1);
+      // 乐观前进完成即放锁：新卡正面 flipped=false，按钮天然禁用，不会误触。
+      answerBusyRef.current = false;
+      setAnswerBusy(false);
+    } else {
+      // 选择/听写：需要停留看清正确答案，保留全屏对错浮层 1.2~1.5s 再推进
+      setCurrentResult(isCorrect ? 'correct' : 'incorrect');
+      setShowResult(true);
+
+      setTimeout(() => {
+        setShowResult(false);
+        setCurrentIndex(pendingIndexRef.current);
+        setIsFlipped(false);
+        setSelectedAnswer('');
+        setShowQuizResult(false);
+        setListenAnswer('');
+        answerBusyRef.current = false;
+        setAnswerBusy(false);
+      }, wordFinished ? 1500 : 1200);
+    }
+
+    // —— 2) 后台落库（串行，不阻塞前进）：失败仅提示，不回滚已推进的 UI（该词下次还会再出现）。——
+    enqueuePersist(async () => {
+      try {
+        const record: Omit<StudyRecord, 'id'> = {
+          word_id: currentWord.id,
+          study_date: format(new Date(), 'yyyy-MM-dd'),
+          result: isCorrect ? 1 : 0,
+          study_mode: studyMode
+        };
+        await StorageService.addStudyRecord(record);
+        if (wordFinished) {
+          await persistFinishWord(currentWord, firstTry, today);
+        }
+      } catch (error) {
+        console.error('Failed to persist study result:', error);
+        toast.error('本次作答保存失败，已继续学习');
+      }
+    });
   };
 
   /**
@@ -535,36 +484,48 @@ export default function StudyScreen() {
    * 与 handleResult 的差异：不写 StudyRecord、不进错题重试、不排复习计划，
    * 只软删除（dirty 标记随同步走）+ 收尾当日未完成计划 + 队列出队 + 进度分母减一。
    */
-  const handleTooEasy = async () => {
+  const handleTooEasy = () => {
     const currentWord = getCurrentWord();
     if (!currentWord || currentMode === 'article') return;
+    if (answerBusyRef.current) return;
+    answerBusyRef.current = true;
+    setAnswerBusy(true);
 
-    try {
-      await StorageService.deleteWord(currentWord.id);
-      // 计划在载入时就已创建；词被移除后必须同步标记完成，
-      // 否则首页一直显示"今日还有 N 个生词"、点进去却找不到词（幽灵待学）。
-      await StorageService.completeTodayPlansForWord(currentWord.id);
-      removedCountRef.current += 1;
+    const removedWord = currentWord;
+    const isNewWord = newWordIdSetRef.current.has(removedWord.id);
 
-      // 新词/复习词各自计数减一，保持头部统计一致
-      const isNewWord = newWordIdSetRef.current.has(currentWord.id);
-      setWordTypeCounts(prev => ({
-        newCount: Math.max(0, prev.newCount - (isNewWord ? 1 : 0)),
-        reviewCount: Math.max(0, prev.reviewCount - (isNewWord ? 0 : 1)),
-      }));
+    // —— 乐观：立即出队、推进，不等软删落库 ——
+    removedCountRef.current += 1;
+    // 新词/复习词各自计数减一，保持头部统计一致
+    setWordTypeCounts(prev => ({
+      newCount: Math.max(0, prev.newCount - (isNewWord ? 1 : 0)),
+      reviewCount: Math.max(0, prev.reviewCount - (isNewWord ? 0 : 1)),
+    }));
 
-      setIsFlipped(false);
-      const wasLast = currentIndex >= words.length - 1;
-      pendingIndexRef.current = wasLast ? 0 : currentIndex;
+    setIsFlipped(false);
+    const wasLast = currentIndex >= words.length - 1;
+    const nextIndex = wasLast ? 0 : currentIndex;
+    pendingIndexRef.current = nextIndex;
 
-      setWords(prev => prev.filter((_, i) => i !== currentIndex));
-      setStudyStats(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
-      setCurrentIndex(pendingIndexRef.current);
+    setWords(prev => prev.filter((_, i) => i !== currentIndex));
+    setStudyStats(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+    setCurrentIndex(nextIndex);
+    setTurn(t => t + 1);
+    answerBusyRef.current = false;
+    setAnswerBusy(false);
 
-      toast.info(`已将 "${currentWord.word}" 移出生词本`);
-    } catch (error) {
-      console.error('Failed to remove word:', error);
-    }
+    // —— 后台软删 + 收尾计划（串行，不阻塞前进）：计划在载入时已创建，词移除后必须标记完成，
+    //    否则首页一直显示"今日还有 N 个生词"、点进去却找不到词（幽灵待学）。——
+    enqueuePersist(async () => {
+      try {
+        await StorageService.deleteWord(removedWord.id);
+        await StorageService.completeTodayPlansForWord(removedWord.id);
+        toast.info(`已将 "${removedWord.word}" 移出生词本`);
+      } catch (error) {
+        console.error('Failed to remove word:', error);
+        toast.error(`"${removedWord.word}" 移出失败，请重试`);
+      }
+    });
   };
 
   const speakWord = (word: string) => {
@@ -924,6 +885,8 @@ export default function StudyScreen() {
         onEnhance={enhanceCurrentWord}
         enhancing={enhancingWordId === currentWord.id}
         appSettings={appSettings}
+        busy={answerBusy}
+        resetKey={turn}
       />
     );
   };

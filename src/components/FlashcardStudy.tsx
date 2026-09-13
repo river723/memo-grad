@@ -35,6 +35,10 @@ interface FlashcardStudyProps {
   onEnhance?: () => void;
   enhancing?: boolean;
   appSettings: AppSettings | null;
+  /** 父组件作答提交在途（反馈浮层/推进中），为 true 时三按钮禁用。 */
+  busy?: boolean;
+  /** 每次父组件乐观推进后递增；即使答错回队尾导致 currentWord.id 不变，也强制解锁并翻回正面。 */
+  resetKey?: number;
 }
 
 export default function FlashcardStudy({
@@ -46,6 +50,8 @@ export default function FlashcardStudy({
   onEnhance,
   enhancing,
   appSettings,
+  busy = false,
+  resetKey,
 }: FlashcardStudyProps) {
   const { colors } = useAppTheme();
   const typography = colors.typography;
@@ -59,6 +65,9 @@ export default function FlashcardStudy({
   const frontWordSize = wordLen <= 6 ? 56 : wordLen <= 8 ? 46 : wordLen <= 11 ? 38 : 30;
   const frontWordSpacing = frontWordSize >= 46 ? -1.2 : -0.6;
   const [showResult, setShowResult] = useState<'correct' | 'incorrect' | null>(null);
+  // 一次作答提交后立即锁定三按钮，直到切到下一张（resetKey / currentWord.id 变化）才解锁。
+  // 挡住 320ms 推进动画窗口内的连点，避免重复计分 / 重复落库。
+  const [locked, setLocked] = useState(false);
   const [backOverflow, setBackOverflow] = useState(false);
   const [backMaxHeight, setBackMaxHeight] = useState(0);
 
@@ -83,10 +92,14 @@ export default function FlashcardStudy({
     setFlipped(false);
     setShowResult(null);
     setBackOverflow(false);
+    setLocked(false);
     rotate.setValue(0);
-  }, [currentWord.id, rotate]);
+    // resetKey：父组件每次乐观推进后递增；答错回队尾 currentWord.id 可能不变，靠它解锁翻回正面
+  }, [currentWord.id, resetKey, rotate]);
 
   const handleAnswer = (correct: boolean) => {
+    if (!flipped || locked || busy) return;
+    setLocked(true);
     setShowResult(correct ? 'correct' : 'incorrect');
     if (correct) {
       floatOpacity.setValue(1);
@@ -111,6 +124,9 @@ export default function FlashcardStudy({
   const frontOpacity = rotate.interpolate({ inputRange: [0, 0.49, 0.5, 1], outputRange: [1, 1, 0, 0] });
   const backOpacity = rotate.interpolate({ inputRange: [0, 0.5, 0.51, 1], outputRange: [0, 0, 1, 1] });
   const shakeX = shake.interpolate({ inputRange: [-1, 0, 1], outputRange: [-4, 0, 4] });
+
+  // 底部三按钮统一可用态：未翻面 / 父级提交在途 / 本张已锁定作答
+  const controlsDisabled = !flipped || busy || locked;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -499,21 +515,22 @@ export default function FlashcardStudy({
       >
         <Pressable
           onPress={() => {
-            if (!flipped) return;
+            if (controlsDisabled) return;
             if (onRemove) {
+              setLocked(true);
               onRemove();
             } else {
               handleAnswer(false);
             }
           }}
-          disabled={!flipped}
+          disabled={controlsDisabled}
           style={({ pressed }) => [
             styles.bottomBtn,
             {
               backgroundColor: colors.surface,
               borderColor: colors.outline,
               borderRadius: radius.md,
-              opacity: !flipped ? 0.4 : pressed ? 0.7 : 1,
+              opacity: controlsDisabled ? 0.4 : pressed ? 0.7 : 1,
             },
           ]}
         >
@@ -527,14 +544,14 @@ export default function FlashcardStudy({
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => flipped && handleAnswer(false)}
-          disabled={!flipped}
+          onPress={() => handleAnswer(false)}
+          disabled={controlsDisabled}
           style={({ pressed }) => [
             styles.bottomBtn,
             {
               backgroundColor: colors.warning,
               borderRadius: radius.md,
-              opacity: !flipped ? 0.4 : pressed ? 0.85 : 1,
+              opacity: controlsDisabled ? 0.4 : pressed ? 0.85 : 1,
               flex: 1.2,
             },
           ]}
@@ -543,14 +560,14 @@ export default function FlashcardStudy({
           <Text style={{ color: colors.onWarning, fontSize: 15, fontWeight: '600' }}>不认识</Text>
         </Pressable>
         <Pressable
-          onPress={() => flipped && handleAnswer(true)}
-          disabled={!flipped}
+          onPress={() => handleAnswer(true)}
+          disabled={controlsDisabled}
           style={({ pressed }) => [
             styles.bottomBtn,
             {
               backgroundColor: colors.primary,
               borderRadius: radius.md,
-              opacity: !flipped ? 0.4 : pressed ? 0.85 : 1,
+              opacity: controlsDisabled ? 0.4 : pressed ? 0.85 : 1,
               flex: 1.2,
             },
           ]}
