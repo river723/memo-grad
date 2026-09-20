@@ -5,6 +5,8 @@
  * - v1 → v2：数字自增 ID → 字符串 UUID（见 [runUuidV1ToV2]）。不可逆，迁移前整体快照备份。
  * - v2 → v3：间隔重复调度上线。在 Word 上回填 review_stage / next_due_date，并把旧版
  *   "每次学完整套重铺 6 天复习计划" 造成的膨胀/重复未完成计划全部软删（见 [runScheduleV2ToV3]）。
+ * - v3 → v4：真题错题本地收敛。按 questionId 去重并把服务端拉回来的 snake_case 行
+ *   规整回本地 camelCase 形状（见 [runDedupRealExamWrongsV3ToV4]）。
  *
  * 外键关系（v1→v2 时需随主键一起改写，否则学习历史会静默丢失）：
  *   Word.id → StudyRecord.word_id / StudyPlan.word_id / Article.word_ids[]
@@ -14,8 +16,9 @@
 
 import { generateId, nowIso } from '../utils/idUtils';
 import { deriveStageFromRecords } from './scheduler';
+import { normalizeRealExamWrongPull } from './realExamWrongShape';
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 /** 各实体的原始存储 key（迁移用无前缀名，经 prefixFn 拼上用户前缀）。 */
 const RAW_KEYS = {
@@ -80,6 +83,19 @@ export async function migrateToUuidSchema(
       migrated = true;
       counts.wordsBackfilled = r3.wordsBackfilled;
       counts.plansSoftDeleted = r3.plansSoftDeleted;
+    }
+  }
+
+  // ---- v3 → v4：真题错题按 questionId 收敛 + 拉取行形状规整 ----
+  const v3Raw = await storage.getItem(versionKey);
+  const v3 = v3Raw ? Number(v3Raw) : 3;
+  if (v3 < 4) {
+    const r4 = await runDedupRealExamWrongsV3ToV4(storage, k);
+    if (r4.migrated) {
+      migrated = true;
+      counts.realExamWrongsRows = r4.counts.rows;
+      counts.realExamWrongsDeduped = r4.counts.deduped;
+      counts.realExamWrongsNormalized = r4.counts.normalized;
     }
   }
 
@@ -378,6 +394,67 @@ async function runUuidV1ToV2(
   };
   console.log('[migration] UUID 迁移完成', counts);
 
+  return { migrated: true, counts };
+}
+
+/**
+ * v3 → v4：真题错题本地收敛。
+ *
+ * 背景：服务端 RealExamWrongQuestion 是 @@id([userId, questionId]) 复合主键、无 id 列，
+ * 早期同步拉取按 id 匹配会失败，每条远端行都被当成新行 push 进来；同时服务端返回
+ * snake_case、本地内容是 camelCase，拉回来的行键名对不上界面。两步一起做：
+ *   - 按 questionId 收敛重复行：保留 updated_at 最新的一条（它承载最近一次用户动作，
+ *     无论是删除还是重新做对，软删事实随该行一并保留），其余物理移除
+ *   - 把 snake_case 内容身份字段规整回本地 camelCase 形状
+ *
+ * 物理移除是安全的：被移除行的逻辑记录已由保留行承载，且这些行 dirty=false，
+ * 不会因软删回推而在服务端制造幻影删除。
+ *
+ * 幂等：questionId 收敛后重跑无变化；动手前快照到 kaoyan_migration_backup_v3，
+ * 版本号最后写，任一步抛错都不会留下"已迁移"的假象。
+ */
+async function runDedupRealExamWrongsV3ToV4(
+  storage: MinimalStorage,
+  k: (rawKey: string) => string
+): Promise<{ migrated: boolean; counts: { rows: number; deduped: number; normalized: number } }> {
+  const raw = await readArray(storage, k(RAW_KEYS.realExamWrongs));
+  // 只认带业务键的行：既可能是本地 camelCase，也可能是拉回来的 snake_case
+  const rows = raw.filter(
+    (e) => e && (typeof e.questionId === 'string' || typeof e.question_id === 'string')
+  );
+
+  if (rows.length === 0) {
+    await storage.setItem(k('kaoyan_schema_version'), '4');
+    return { migrated: false, counts: { rows: 0, deduped: 0, normalized: 0 } };
+  }
+
+  await storage.setItem(
+    k('kaoyan_migration_backup_v3'),
+    JSON.stringify({ backedUpAt: nowIso(), fromVersion: 3, realExamWrongs: raw })
+  );
+
+  // 形状归一化：question_id → questionId 等，让后续分组能对上键
+  let normalized = 0;
+  const shaped = rows.map((e) => {
+    const n = normalizeRealExamWrongPull(e);
+    if (n !== e) normalized += 1;
+    return n;
+  });
+
+  // 按 questionId 保留 updated_at 最新的一条（ISO 串可直接字典序比较）
+  const byId = new Map<string, any>();
+  for (const e of shaped) {
+    const id = e.questionId;
+    const prev = byId.get(id);
+    if (!prev || (e.updated_at || '') > (prev.updated_at || '')) byId.set(id, e);
+  }
+
+  const deduped = shaped.length - byId.size;
+  await storage.setItem(k(RAW_KEYS.realExamWrongs), JSON.stringify([...byId.values()]));
+  await storage.setItem(k('kaoyan_schema_version'), '4');
+
+  const counts = { rows: shaped.length, deduped, normalized };
+  console.log('[migration] 真题错题收敛完成', counts);
   return { migrated: true, counts };
 }
 

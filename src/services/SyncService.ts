@@ -16,6 +16,7 @@
 
 import StorageService from './StorageService';
 import { api } from './ApiClient';
+import { realExamWrongMergeKey, normalizeRealExamWrongPull } from './realExamWrongShape';
 
 interface WordRedirect {
   from: string;
@@ -55,6 +56,28 @@ function getSyncEntityKeys(): Record<string, string> {
 /** 获取 lastSyncAt 的存储 key（带用户前缀） */
 function getLastSyncKey(): string {
   return (StorageService as any).lastSyncKey();
+}
+
+/**
+ * 实体的本地/远端匹配键。默认用 id；realExamWrongQuestion 的主键是业务键
+ * questionId（服务端 @@id([userId, questionId])，模型里无 id 列）。
+ *
+ * 仍按 id 匹配会让索引恒空、每条远端记录都被当成新行 push 进去——
+ * 每次同步追加一份重复错题。
+ */
+function entityMergeKey(entityName: string, e: any): string | undefined {
+  if (entityName === 'realExamWrongQuestion') return realExamWrongMergeKey(e);
+  return e?.id;
+}
+
+/**
+ * 归一化服务端返回的记录到本地存储形状。
+ * 服务端 toSnakeCase 全量转 snake_case，但真题错题本地是 camelCase 内容字段
+ * + snake_case 元数据的混合形状，不转换会让界面读不到字段。其他实体两端命名
+ * 本就一致（前端 storage 用 snake_case 字段名），无需处理。
+ */
+function normalizePulledEntity(entityName: string, e: any): any {
+  return entityName === 'realExamWrongQuestion' ? normalizeRealExamWrongPull(e) : e;
 }
 
 /**
@@ -121,10 +144,14 @@ export async function syncAll(): Promise<SyncResult | null> {
 
       const locals = await getRawEntities(storageKey);
       const localById = new Map<string, number>();
-      locals.forEach((e: any, i: number) => { if (e.id) localById.set(e.id, i); });
+      locals.forEach((e: any, i: number) => {
+        const key = entityMergeKey(entityName, e);
+        if (key) localById.set(key, i);
+      });
 
-      for (const remote of remoteList) {
-        const existingIdx = localById.get(remote.id);
+      for (const remoteRaw of remoteList) {
+        const remote = normalizePulledEntity(entityName, remoteRaw);
+        const existingIdx = localById.get(entityMergeKey(entityName, remote));
         if (existingIdx !== undefined) {
           // LWW：远端更新覆盖本地（服务器已处理冲突）
           if (!locals[existingIdx].updated_at || new Date(remote.updated_at) >= new Date(locals[existingIdx].updated_at)) {

@@ -32,6 +32,19 @@ const ENTITIES = [
 
 type EntityName = typeof ENTITIES[number];
 
+/**
+ * 复合主键的同步实体：Prisma delegate 的 model.fields 只暴露 name/typeName/isList/isEnum，
+ * 拿不到 isId，无法反射出主键列，只能显式登记。
+ *
+ * 登记的值用**客户端 wire 字段名**（camelCase；snake 变体由 pickForPrisma 处理，
+ * 不影响这里的行定位）。漏登一张复合主键表，会让整个 /api/sync 抛
+ * PrismaClientValidationError（Unknown argument 'id'），响应体连同拉取结果一起丢失，
+ * 所有设备从此互不可见。
+ */
+const COMPOSITE_KEY_FIELDS: Partial<Record<EntityName, string[]>> = {
+  realExamWrongQuestion: ['questionId'],
+};
+
 /** 跨设备同词合并时产生的 id 重定向：废弃 id → 保留（canonical）id。 */
 interface WordRedirect {
   from: string;
@@ -188,6 +201,35 @@ async function syncEntity(
     return out;
   };
 
+  // 主键列：单列主键表是 ['id']；复合主键表见 COMPOSITE_KEY_FIELDS。
+  // 原实现统一 findUnique({ where: { id } })，对没有 id 列的复合主键表会直接抛
+  // PrismaClientValidationError，整个 /api/sync 500，响应体连同拉取结果一起丢失。
+  // 统一改走 findFirst({ where: { userId, ...主键列 } })：id 本身是主键，多加
+  // userId 过滤不改变唯一性，语义与原 { id, userId } 完全等价。
+  //
+  // 注意用 isComposite 区分而非 keyFields.length：复合键的登记值只列非 userId 的列，
+  // ['questionId'] 长度同样是 1，按长度判断会把复合表误判成单列主键。
+  const isComposite = tableName in COMPOSITE_KEY_FIELDS;
+  const keyFields = COMPOSITE_KEY_FIELDS[tableName] ?? ['id'];
+  const keyWhere = (ent: SyncEntity): Record<string, unknown> => {
+    const w: Record<string, unknown> = {};
+    for (const f of keyFields) w[f] = (ent as Record<string, unknown>)[f];
+    return w;
+  };
+
+  /**
+   * update 的 where。单列主键的 { id } 已唯一；复合主键的 { questionId } 单独不唯一
+   * （必须配 userId），而动态拼 Prisma 的复合唯一输入名（userId_questionId）易碎，
+   * 故复合表走 updateMany——where 已含 userId + 主键列，恰好命中一行。
+   */
+  const updateExisting = async (ent: SyncEntity, data: Record<string, unknown>): Promise<void> => {
+    if (!isComposite) {
+      await model.update({ where: { id: ent.id }, data });
+    } else {
+      await model.updateMany({ where: { userId, ...keyWhere(ent) }, data });
+    }
+  };
+
   // 1. 处理客户端推送的每条实体
   // updatedAt 字段标了 @updatedAt，由 Prisma 用服务器时间自动维护（create 用 now()，
   // update 自动 bump）。客户端传入的 updated_at 删除不用，否则 create 会落客户端本地时间，
@@ -196,9 +238,7 @@ async function syncEntity(
   // 已造成漏数据；改由 @updatedAt 提供单调服务器时间基，冲突由拉取端 LWW 合并兜底。
   let saved = 0;
   for (const ent of clientEntities) {
-    const serverEnt = await model.findUnique({
-      where: { id: ent.id, userId },
-    });
+    const serverEnt = await model.findFirst({ where: { userId, ...keyWhere(ent) } });
 
     // 兜底 prisma 必填 Json 字段。前端 SyncEntity 不带这些字段
     // （definitions 是 AI 分析后才有，初次同步的新词条一定是空），不补全会 500。
@@ -224,7 +264,7 @@ async function syncEntity(
           data.nextDueDate = progress.nextDueDate;
         }
       }
-      await model.update({ where: { id: ent.id }, data });
+      await updateExisting(ent, data);
     } else if (
       tableName === 'word' &&
       typeof ent.word === 'string' &&
@@ -235,6 +275,10 @@ async function syncEntity(
       // 否则新建。软删词不走此分支（软删行不参与唯一约束，直接 create 传播删除事实）。
       await dedupWordOnPush(model, userId, ent, data, wordRedirects);
     } else {
+      // createdAt 兜底：RealExamSession / RealExamWrongQuestion 该列 NOT NULL 且无 DB
+      // 默认值（其余同步表都有 @default(now())），客户端漏传会让 create 直接 500。
+      // 只补 create——update 不补，否则每次同步都会把创建时间刷成当前时间。
+      if (data.createdAt == null) (data as Record<string, unknown>).createdAt = new Date();
       await model.create({ data });
     }
     saved++;
