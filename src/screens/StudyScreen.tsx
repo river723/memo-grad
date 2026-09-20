@@ -160,6 +160,16 @@ export default function StudyScreen() {
     });
   };
 
+  // 进入「开始学习」页时隐藏底部 TabBar，让单词卡占据全屏；离开时恢复。
+  // navigation 在 LearnStack 内，getParent() 返回 LearnStack 导航，再 getParent() 返回 Tab 导航。
+  useEffect(() => {
+    const tabNav = navigation.getParent?.()?.getParent?.();
+    tabNav?.setOptions({ tabBarVisible: false });
+    return () => {
+      tabNav?.setOptions({ tabBarVisible: true });
+    };
+  }, [navigation]);
+
   useEffect(() => {
     loadStudyWords();
   }, [customWordIdKey]);
