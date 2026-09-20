@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Platform, type ViewStyle } from 'react-native';
 import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppIcon, { type IconName } from '../components/ds/AppIcon';
-import { useAppTheme, lightNavTheme, darkNavTheme } from '../theme/theme';
+import { useAppTheme, lightNavTheme, darkNavTheme, type AppColors } from '../theme/theme';
 import { palette } from '../theme/tokens';
 import { useAuth } from '../providers/AuthProvider';
 import { OFFLINE_MODE } from '../config/appMode';
@@ -225,6 +225,21 @@ const TAB_ICONS: Record<string, IconName> = {
   Stats: 'account',
 };
 
+/**
+ * 底部 TabBar 的基础样式。提取为独立函数供 screenOptions 与
+ * StudyScreen 的 setOptions 复用——setOptions 整体替换 options，
+ * 必须把全部属性带上，否则退出学习页后 TabBar 高度/颜色会丢失。
+ */
+export function baseTabBarStyle(colors: AppColors): ViewStyle {
+  return {
+    height: 60,
+    paddingTop: 6,
+    paddingBottom: 8,
+    backgroundColor: colors.surface,
+    borderTopColor: colors.outline,
+  };
+}
+
 function MainTabs() {
   const { colors } = useAppTheme();
   const typography = colors.typography;
@@ -246,13 +261,7 @@ function MainTabs() {
           fontWeight: '500',
           paddingBottom: 4,
         },
-        tabBarStyle: {
-          height: 60,
-          paddingTop: 6,
-          paddingBottom: 8,
-          backgroundColor: colors.surface,
-          borderTopColor: colors.outline,
-        },
+        tabBarStyle: baseTabBarStyle(colors),
       })}
     >
       <Tab.Screen name="Home" component={LearnStack} options={{ tabBarLabel: '学习' }} />

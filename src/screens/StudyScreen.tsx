@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
+import { baseTabBarStyle } from '../navigation/AppNavigator';
 import StorageService from '../services/StorageService';
 import AutoWordService from '../services/AutoWordService';
 import { Word, StudyRecord, AppSettings, Article } from '../types';
@@ -162,13 +163,15 @@ export default function StudyScreen() {
 
   // 进入「开始学习」页时隐藏底部 TabBar，让单词卡占据全屏；离开时恢复。
   // navigation 在 LearnStack 内，getParent() 返回 LearnStack 导航，再 getParent() 返回 Tab 导航。
+  // 用 tabBarStyle: { display: 'none' } 隐藏——tabBarVisible 在 bottom-tabs@6.5 中不存在。
+  // setOptions 整体替换 options，必须带上完整 baseTabBarStyle，否则退出后样式丢失。
   useEffect(() => {
     const tabNav = navigation.getParent?.()?.getParent?.();
-    tabNav?.setOptions({ tabBarVisible: false });
+    tabNav?.setOptions({ tabBarStyle: { ...baseTabBarStyle(colors), display: 'none' } });
     return () => {
-      tabNav?.setOptions({ tabBarVisible: true });
+      tabNav?.setOptions({ tabBarStyle: baseTabBarStyle(colors) });
     };
-  }, [navigation]);
+  }, [navigation, colors]);
 
   useEffect(() => {
     loadStudyWords();
