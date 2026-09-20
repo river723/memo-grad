@@ -518,7 +518,7 @@ export default function FlashcardStudy({
         style={{
           flexDirection: 'row',
           paddingHorizontal: cardPad,
-          paddingTop: spacing.md,
+          paddingTop: spacing.lg,
           paddingBottom: spacing['2xl'],
           gap: spacing.sm,
         }}
