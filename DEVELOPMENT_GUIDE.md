@@ -525,7 +525,7 @@ cd server && ./deploy-nas.sh
 
 ## 📱 微信小程序版（独立 repo）
 
-小程序版是**独立全栈**，不在本仓库内。技术栈：原生小程序（WXML/WXSS/JS）+ 微信云开发（云函数 / 云数据库 / 云存储），**只做在线版**，后端与数据库不复用本仓库 `server/`（Fastify + Prisma + NAS Postgres）。独立仓库 `memo-grad-miniprogram`（待建）。
+小程序版是**独立全栈**，不在本仓库内。技术栈：原生小程序（WXML/WXSS/JS）+ 微信云开发（云函数 / 云数据库 / 云存储），**只做在线版**，后端与数据库不复用本仓库 `server/`（Fastify + Prisma + NAS Postgres）。独立仓库 [memo-grad-miniprogram](../memo-grad-miniprogram)。
 
 ### 与本仓库的关系
 
@@ -556,6 +556,12 @@ cd server && ./deploy-nas.sh
 - 发布：微信开发者工具上传 → 后台提审（与 git 分支解耦）
 - CI：GitHub Actions + `miniprogram-ci` 自动上传体验版（仅需 Node，不受本机缺 JDK/SDK 限制）
 - 云开发红利：后端调用走云函数 SDK 不经 `wx.request`，本仓库后端域名 `dict.river723.work:5888` 无需在小程序后台报备白名单
+
+### 小程序仓库当前状态（截至 0.1.0）
+
+已实现：学习流（自动配词 / 卡片背诵 / 艾宾浩斯复习 / AI 解析）、词库查询、AI 出题、错题本、真题套卷、故事阅读、统计、设置、云同步；云函数 `words` / `worddict` / `ai` / `content`；数据导入脚本 `scripts/import-worddict.mjs`、`scripts/upload-content.mjs`；CI（`miniprogram-ci` 自动上传体验版）。
+
+待办：微信支付/订阅（云函数 `payment`）、多设备完整增量同步（当前全量拉取 + 脏队列上推）、更多故事章节、深色模式、体验版提审。
 
 ## 🎨 UI设计规范
 

@@ -16,6 +16,7 @@ import {
   Easing,
   StyleSheet,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme/theme';
@@ -56,13 +57,19 @@ export default function FlashcardStudy({
   const { colors } = useAppTheme();
   const typography = colors.typography;
   const [flipped, setFlipped] = useState(false);
-  // 实测卡片区高度，给卡片显式 height：避免 minHeight 硬下限把卡片顶溢出
-  // （向上撞进度条、向下压三按钮）。首帧为 0 → 回退 flex:1，onLayout 回填后切显式高度。
+  // 手机版：卡片按实际可用宽度取边距，避免外层 container 的 padding 把卡片挤窄
+  const { width: windowWidth } = useWindowDimensions();
+  const [cardAreaWidth, setCardAreaWidth] = useState(0);
+  // 边距随屏幕稍缩，但不小于 8，保证卡片不贴死屏幕边
+  const cardPad = Math.max(8, Math.round(windowWidth * 0.02));
+  // 首帧 cardAreaWidth 为 0，用典型手机宽度兜底，等 onLayout 回填后再切真实值
+  const effectiveAreaWidth = cardAreaWidth > 0 ? cardAreaWidth : Math.min(windowWidth, 414);
   const [areaH, setAreaH] = useState(0);
 
-  // 正面单词字号按长度自适应，避免长单词在窄屏换行
+  // 正面单词字号按卡片可用宽度自适应，避免长词在窄屏换行
   const wordLen = currentWord.word?.length || 0;
-  const frontWordSize = wordLen <= 6 ? 56 : wordLen <= 8 ? 46 : wordLen <= 11 ? 38 : 30;
+  const baseSize = Math.min(64, Math.max(30, Math.round(effectiveAreaWidth / 5.5)));
+  const frontWordSize = wordLen <= 6 ? baseSize : wordLen <= 8 ? baseSize - 10 : wordLen <= 11 ? baseSize - 18 : baseSize - 26;
   const frontWordSpacing = frontWordSize >= 46 ? -1.2 : -0.6;
   const [showResult, setShowResult] = useState<'correct' | 'incorrect' | null>(null);
   // 一次作答提交后立即锁定三按钮，直到切到下一张（resetKey / currentWord.id 变化）才解锁。
@@ -132,10 +139,11 @@ export default function FlashcardStudy({
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* 卡片区（剧场式） */}
       <View
-        style={{ flex: 1, padding: spacing.lg, justifyContent: 'center', overflow: 'hidden' }}
+        style={{ flex: 1, padding: cardPad, justifyContent: 'center', overflow: 'hidden' }}
         onLayout={(e) => {
-          const h = e.nativeEvent.layout.height;
-          if (h > 0 && h !== areaH) setAreaH(h);
+          const { height, width } = e.nativeEvent.layout;
+          if (height > 0 && height !== areaH) setAreaH(height);
+          if (width > 0 && width !== cardAreaWidth) setCardAreaWidth(width);
         }}
       >
         <Animated.View
@@ -145,7 +153,9 @@ export default function FlashcardStudy({
               backgroundColor: colors.surface,
               borderColor: colors.outline,
               borderRadius: radius.lg,
-              height: areaH > 0 ? Math.max(0, areaH - 2 * spacing.lg) : undefined,
+              alignSelf: 'center',
+              width: cardAreaWidth > 0 ? cardAreaWidth - 2 * cardPad : undefined,
+              height: areaH > 0 ? Math.max(0, areaH - 2 * cardPad) : undefined,
               transform: [{ translateX: shakeX }, { perspective: 1000 }, { rotateY: frontRotate }],
               opacity: frontOpacity,
             },
@@ -285,10 +295,10 @@ export default function FlashcardStudy({
               borderColor: colors.outline,
               borderRadius: radius.lg,
               position: 'absolute',
-              top: spacing.lg,
-              left: spacing.lg,
-              right: spacing.lg,
-              bottom: spacing.lg,
+              top: cardPad,
+              left: cardPad,
+              width: cardAreaWidth > 0 ? cardAreaWidth - 2 * cardPad : undefined,
+              height: areaH > 0 ? Math.max(0, areaH - 2 * cardPad) : undefined,
               transform: [{ perspective: 1000 }, { rotateY: backRotate }],
               opacity: backOpacity,
             },
@@ -305,7 +315,7 @@ export default function FlashcardStudy({
           >
             <ScrollView
               style={{ flex: 1 }}
-              contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}
+              contentContainerStyle={{ padding: cardPad, paddingBottom: spacing['3xl'] }}
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
               onContentSizeChange={(_w, h) => {
@@ -507,7 +517,7 @@ export default function FlashcardStudy({
       <View
         style={{
           flexDirection: 'row',
-          paddingHorizontal: spacing.lg,
+          paddingHorizontal: cardPad,
           paddingTop: spacing.md,
           paddingBottom: spacing['2xl'],
           gap: spacing.sm,
