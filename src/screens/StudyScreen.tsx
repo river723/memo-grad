@@ -116,7 +116,6 @@ export default function StudyScreen() {
   const [allStudiedToday, setAllStudiedToday] = useState(false);
   const [isCustomReview, setIsCustomReview] = useState(false);
   const [isContinueSession, setIsContinueSession] = useState(false);
-  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showCompletion, setShowCompletion] = useState(false);
   const [trulyCompleted, setTrulyCompleted] = useState(0);
   const [speechSettings, setSpeechSettings] = useState({
@@ -1105,21 +1104,9 @@ export default function StudyScreen() {
           <Text style={styles.progressText}>
             {trulyCompleted} / {studyStats.total}
           </Text>
-          <View style={styles.progressRight}>
-            <Text style={styles.accuracyText}>
-              准确率: {studyStats.accuracy.toFixed(1)}%
-            </Text>
-            <Button
-              mode="text"
-              onPress={() => setShowExitConfirm(true)}
-              icon="close"
-              textColor="#999"
-              compact
-              style={styles.exitBtn}
-            >
-              退出
-            </Button>
-          </View>
+          <Text style={styles.accuracyText}>
+            准确率: {studyStats.accuracy.toFixed(1)}%
+          </Text>
         </View>
         <ProgressBar
           progress={trulyCompleted / Math.max(studyStats.total, 1)}
@@ -1249,76 +1236,6 @@ export default function StudyScreen() {
         </View>
       )}
 
-      {/* Exit confirmation Modal */}
-      <Modal
-        visible={showExitConfirm}
-        onDismiss={() => setShowExitConfirm(false)}
-        contentContainerStyle={styles.exitModalContent}
-      >
-        <View style={styles.exitModalIconWrap}>
-          <View style={styles.exitModalIconBubble}>
-            <Text style={styles.exitModalIconGlyph}>↩</Text>
-          </View>
-        </View>
-
-        <Text style={styles.exitModalTitle}>退出学习？</Text>
-
-        <View style={styles.exitModalStatsCard}>
-          <View style={styles.exitModalStatRow}>
-            <Text style={styles.exitModalStatLabel}>已学单词</Text>
-            <Text style={styles.exitModalStatValue}>
-              <Text style={styles.exitModalStatValueNum}>
-                {studyStats.completed}
-              </Text>
-              <Text style={styles.exitModalStatValueSep}> / </Text>
-              <Text style={styles.exitModalStatValueTotal}>
-                {studyStats.total}
-              </Text>
-            </Text>
-          </View>
-          <View style={styles.exitModalStatDivider} />
-          <View style={styles.exitModalStatRow}>
-            <Text style={styles.exitModalStatLabel}>准确率</Text>
-            <Text style={styles.exitModalStatValue}>
-              <Text style={styles.exitModalStatValueNum}>
-                {studyStats.accuracy.toFixed(1)}
-              </Text>
-              <Text style={styles.exitModalStatValuePct}> %</Text>
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.exitModalHint}>
-          剩余单词将保留在学习计划中{'\n'}下次可继续学习
-        </Text>
-
-        <View style={styles.exitModalActions}>
-          <Button
-            mode="text"
-            onPress={() => setShowExitConfirm(false)}
-            style={styles.exitModalCancelBtn}
-            labelStyle={styles.exitModalCancelLabel}
-          >
-            继续学习
-          </Button>
-          <Button
-            mode="contained"
-            onPress={() => {
-              setShowExitConfirm(false);
-              navigation.goBack();
-            }}
-            style={styles.exitModalConfirmBtn}
-            contentStyle={styles.exitModalConfirmContent}
-            labelStyle={styles.exitModalConfirmLabel}
-            buttonColor={palette.danger}
-            textColor={palette.onPrimary}
-            icon="exit-to-app"
-          >
-            确认退出
-          </Button>
-        </View>
-      </Modal>
-
       {/* 单词释义弹窗 */}
       <WordDictModal
         visible={showArticleWordModal}
@@ -1339,18 +1256,18 @@ const useStyles = makeStyles(colors => ({
     marginBottom: 16,
   },
   progressCard: {
-    marginBottom: 16,
+    marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.outline,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     backgroundColor: colors.surface,
-    padding: spacing.md,
+    padding: spacing.sm,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   progressRight: {
     flexDirection: 'row',
@@ -1361,17 +1278,17 @@ const useStyles = makeStyles(colors => ({
     marginLeft: 4,
   },
   progressText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: colors.primary,
   },
   accuracyText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.onSurfaceVariant,
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
+    height: 4,
+    borderRadius: 2,
   },
   content: {
     flex: 1,
