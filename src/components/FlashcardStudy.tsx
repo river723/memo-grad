@@ -519,7 +519,7 @@ export default function FlashcardStudy({
           flexDirection: 'row',
           paddingHorizontal: cardPad,
           paddingTop: spacing.lg,
-          paddingBottom: spacing.lg,
+          paddingBottom: spacing.sm,
           gap: spacing.sm,
         }}
       >
