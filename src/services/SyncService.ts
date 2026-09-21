@@ -23,9 +23,15 @@ interface WordRedirect {
   to: string;
 }
 
+/** 服务端按条跳过的推送行（缺字段 / 类型不符 / 主键重复等，无法落库）。 */
+interface SkippedRow {
+  key: string;
+  reason: string;
+}
+
 interface SyncResult {
   serverTime: string;
-  results: Record<string, { saved: number; pulled: number }>;
+  results: Record<string, { saved: number; pulled: number; skipped?: SkippedRow[] }>;
   entities: Record<string, any[]>;
   /** 跨设备同词合并产生的 id 重定向（废弃 id → canonical id），需在本地收敛。 */
   wordRedirects?: WordRedirect[];
@@ -166,16 +172,28 @@ export async function syncAll(): Promise<SyncResult | null> {
       await (StorageService as any)._rawSetItem(storageKey, JSON.stringify(locals));
     }
 
-    // 5. 清除本地 dirty 标记（推过的记录已 clean）
+    // 5. 清除本地 dirty 标记（推过的记录已 clean）。
+    //    服务端按条跳过的坏行**不清除**：留着脏标记，数据修好后能重试。
+    //    若这里一并清掉，那行就永久留在本地再也不会推送——静默丢数据。
+    const skippedKeys: Record<string, Set<string>> = {};
+    for (const [entityName, r] of Object.entries(result.results || {})) {
+      if (Array.isArray(r?.skipped) && r.skipped.length) {
+        skippedKeys[entityName] = new Set(r.skipped.map((s) => s.key));
+        console.warn(
+          `[Sync] ${entityName} 有 ${r.skipped.length} 条未同步：`,
+          r.skipped.map((s) => `${s.key}(${s.reason})`).slice(0, 5)
+        );
+      }
+    }
     for (const [entityName, storageKey] of Object.entries(entityKeys)) {
+      const skip = skippedKeys[entityName];
       const all = await getRawEntities(storageKey);
       let changed = false;
       const cleaned = all.map((e: any) => {
-        if (e.dirty) {
-          changed = true;
-          return { ...e, dirty: false };
-        }
-        return e;
+        if (!e.dirty) return e;
+        if (skip && skip.has(entityMergeKey(entityName, e) ?? '')) return e;
+        changed = true;
+        return { ...e, dirty: false };
       });
       if (changed) {
         await (StorageService as any)._rawSetItem(storageKey, JSON.stringify(cleaned));

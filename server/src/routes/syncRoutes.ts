@@ -51,6 +51,24 @@ interface WordRedirect {
   to: string;
 }
 
+/**
+ * 单条推送被服务端跳过的记录。
+ *
+ * 背景：备份导入 / 旧版本客户端会留下形状残缺的本地行（缺 study_mode、accuracy、
+ * last_attempt_at 等 NOT NULL 列，或 Int 列是字符串）。这些行过不了 Prisma 校验，
+ * 若直接抛出让整次 /api/sync 500，则**响应体连同所有实体的拉取结果一起丢失**：
+ * 客户端永远拿不到"已推成功"的确认 → dirty 标记永不清除 → 同一批脏数据下次再推，
+ * 形成永久 500 死循环（还连带把学习记录堆爆本地配额）。
+ *
+ * 改法：坏行按条跳过并记进 skipped 回传，其余行与拉取照常完成——先把用户解套，
+ * 残留的坏行客户端能看到、能处理，而不是整条同步链路被一行卡死。
+ */
+interface SkippedRow {
+  /** 该行在客户端的匹配键（主键列的值），供客户端定位并跳过清除 dirty */
+  key: string;
+  reason: string;
+}
+
 /** 客户端推送实体时需要的字段 */
 interface SyncEntity {
   id: string;
@@ -176,15 +194,24 @@ async function dedupWordOnPush(
   }
 }
 
+/** 把 Prisma 错误翻译成给客户端看的简短原因；未知错误兜底为原 message。 */
+function prismaErrorReason(err: any): string {
+  if (err?.code === 'P2002') return '与服务端已有记录主键重复，已跳过';
+  if (err?.code === 'P2003') return '关联的单词不存在，已跳过';
+  if (err?.name === 'PrismaClientValidationError') return '字段缺失或类型不符，已跳过';
+  return err?.message || '未知错误，已跳过';
+}
+
 /** 对特定实体表执行 upsert 和拉取 */
 async function syncEntity(
   userId: string,
   tableName: EntityName,
   clientEntities: SyncEntity[],
   lastSyncAt: Date | null
-): Promise<{ saved: number; pulled: number; entities: Record<string, any>[]; wordRedirects: WordRedirect[] }> {
+): Promise<{ saved: number; pulled: number; entities: Record<string, any>[]; wordRedirects: WordRedirect[]; skipped: SkippedRow[] }> {
   const model = (prisma as any)[tableName];
   const wordRedirects: WordRedirect[] = [];
+  const skipped: SkippedRow[] = [];
 
   // 前端 SyncEntity 用 snake_case wire format（与 AsyncStorage 字面量对齐），
   // prisma client 用 camelCase 字段名。直接 `...ent` 会让 prisma 在严格模式下
@@ -230,14 +257,8 @@ async function syncEntity(
     }
   };
 
-  // 1. 处理客户端推送的每条实体
-  // updatedAt 字段标了 @updatedAt，由 Prisma 用服务器时间自动维护（create 用 now()，
-  // update 自动 bump）。客户端传入的 updated_at 删除不用，否则 create 会落客户端本地时间，
-  // 与 lastSyncAt 游标（也来自服务器时间）不同基，导致增量拉取漏数据。
-  // push 不再做 LWW 比较：原 LWW 比较客户端本地时间，时钟不可靠（离线备份带旧时间戳），
-  // 已造成漏数据；改由 @updatedAt 提供单调服务器时间基，冲突由拉取端 LWW 合并兜底。
-  let saved = 0;
-  for (const ent of clientEntities) {
+  /** 落一条推送。任何 Prisma 失败都向上抛，由调用方按条捕获并跳过。 */
+  const applyOneRow = async (ent: SyncEntity): Promise<void> => {
     const serverEnt = await model.findFirst({ where: { userId, ...keyWhere(ent) } });
 
     // 兜底 prisma 必填 Json 字段。前端 SyncEntity 不带这些字段
@@ -276,12 +297,36 @@ async function syncEntity(
       await dedupWordOnPush(model, userId, ent, data, wordRedirects);
     } else {
       // createdAt 兜底：RealExamSession / RealExamWrongQuestion 该列 NOT NULL 且无 DB
-      // 默认值（其余同步表都有 @default(now())），客户端漏传会让 create 直接 500。
-      // 只补 create——update 不补，否则每次同步都会把创建时间刷成当前时间。
-      if (data.createdAt == null) (data as Record<string, unknown>).createdAt = new Date();
+      // 默认值，客户端漏传会让 create 直接 500。只补 create——update 不补，否则每次
+      // 同步都会把创建时间刷成当前时间。
+      //
+      // 必须按字段存在性判断：StudyRecord / StudyPlan 根本没有 created_at 列，
+      // 无脑塞 createdAt 会让 Prisma 抛 Unknown argument，整次 /api/sync 500。
+      // 这是 c8fb06e 引入的回归——任何带 studyRecord/studyPlan 的同步全部挂掉。
+      if (prismaFieldNames.includes('createdAt') && data.createdAt == null) {
+        (data as Record<string, unknown>).createdAt = new Date();
+      }
       await model.create({ data });
     }
-    saved++;
+  };
+
+  // 1. 处理客户端推送的每条实体
+  // updatedAt 字段标了 @updatedAt，由 Prisma 用服务器时间自动维护（create 用 now()，
+  // update 自动 bump）。客户端传入的 updated_at 删除不用，否则 create 会落客户端本地时间，
+  // 与 lastSyncAt 游标（也来自服务器时间）不同基，导致增量拉取漏数据。
+  // push 不再做 LWW 比较：原 LWW 比较客户端本地时间，时钟不可靠（离线备份带旧时间戳），
+  // 已造成漏数据；改由 @updatedAt 提供单调服务器时间基，冲突由拉取端 LWW 合并兜底。
+  // 单条失败只跳过该行并记进 skipped，不中断整批——见 SkippedRow 的说明。
+  let saved = 0;
+  for (const ent of clientEntities) {
+    // 回传键：主键列的值拼接。客户端按它定位跳过的行，不清除其 dirty。
+    const rowKey = keyFields.map((f) => String((ent as Record<string, unknown>)[f])).join('/');
+    try {
+      await applyOneRow(ent);
+      saved++;
+    } catch (err: any) {
+      skipped.push({ key: rowKey, reason: prismaErrorReason(err) });
+    }
   }
 
   // 2. 拉取服务端更新的记录（含软删除的，让客户端知道要删掉）
@@ -301,6 +346,7 @@ async function syncEntity(
       dirty: false, // 刚从服务端拉取，本地无需再推
     })),
     wordRedirects,
+    skipped,
   };
 }
 
@@ -319,7 +365,7 @@ export default async function syncRoutes(app: FastifyInstance) {
     const clientEntities = body.entities || {};
     const lastSyncAt = body.lastSyncAt ? new Date(body.lastSyncAt) : null;
 
-    const results: Record<string, { saved: number; pulled: number; entities: any[]; wordRedirects: WordRedirect[] }> = {};
+    const results: Record<string, { saved: number; pulled: number; entities: any[]; wordRedirects: WordRedirect[]; skipped: SkippedRow[] }> = {};
     const wordRedirects: WordRedirect[] = [];
 
     for (const entityName of ENTITIES) {
@@ -327,7 +373,21 @@ export default async function syncRoutes(app: FastifyInstance) {
         ...e,
         userId,
       }));
-      const r = await syncEntity(userId, entityName, entities, lastSyncAt);
+      let r: (typeof results)[string];
+      try {
+        r = await syncEntity(userId, entityName, entities, lastSyncAt);
+      } catch (err: any) {
+        // 整个实体挂掉（通常是末尾 findMany 出错）也不连坐：给该实体空结果，
+        // 其余实体的推送与拉取照常返回，避免一次 /api/sync 全空。
+        app.log.error({ err, entity: entityName }, '/api/sync 单实体失败，已隔离');
+        r = {
+          saved: 0,
+          pulled: 0,
+          entities: [],
+          wordRedirects: [],
+          skipped: [{ key: entityName, reason: prismaErrorReason(err) }],
+        };
+      }
       results[entityName] = r;
       if (r.wordRedirects.length) wordRedirects.push(...r.wordRedirects);
     }
@@ -338,12 +398,18 @@ export default async function syncRoutes(app: FastifyInstance) {
     // 迁移结果经下次增量 pull 下发各端。articles/exam_sessions/wrong_questions 的
     // JSON 内嵌 id 不在此迁移，由客户端收到重定向后改写并标 dirty 回传对齐。
     if (wordRedirects.length) {
-      await prisma.$transaction(
-        wordRedirects.flatMap(({ from, to }) => [
-          prisma.studyRecord.updateMany({ where: { userId, wordId: from }, data: { wordId: to } }),
-          prisma.studyPlan.updateMany({ where: { userId, wordId: from }, data: { wordId: to } }),
-        ])
-      );
+      try {
+        await prisma.$transaction(
+          wordRedirects.flatMap(({ from, to }) => [
+            prisma.studyRecord.updateMany({ where: { userId, wordId: from }, data: { wordId: to } }),
+            prisma.studyPlan.updateMany({ where: { userId, wordId: from }, data: { wordId: to } }),
+          ])
+        );
+      } catch (err: any) {
+        // 迁移失败不致命：客户端收到重定向后本地已改写并会标 dirty 回传，
+        // 下次同步服务端重跑这段即幂等补齐；不能让这里 500 丢掉全部拉取结果。
+        app.log.error({ err }, '/api/sync word 外键迁移失败');
+      }
     }
 
     const serverTime = new Date().toISOString();
@@ -352,7 +418,7 @@ export default async function syncRoutes(app: FastifyInstance) {
       serverTime,
       wordRedirects,
       results: Object.fromEntries(
-        Object.entries(results).map(([key, val]) => [key, { saved: val.saved, pulled: val.pulled }])
+        Object.entries(results).map(([key, val]) => [key, { saved: val.saved, pulled: val.pulled, skipped: val.skipped }])
       ),
       entities: Object.fromEntries(
         Object.entries(results).map(([key, val]) => [key, val.entities])
