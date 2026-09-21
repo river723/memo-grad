@@ -29,7 +29,6 @@ type TodayStats = {
   todayCompleted: number;
   newPending: number;
   reviewPending: number;
-  todayStudyCount: number;
   accuracy: number;
   wrongQuestionCount: number;
   difficultWordIds: string[];
@@ -58,7 +57,6 @@ const DEFAULT_TODAY_STATS: TodayStats = {
   todayCompleted: 0,
   newPending: 0,
   reviewPending: 0,
-  todayStudyCount: 0,
   accuracy: 0,
   wrongQuestionCount: 0,
   difficultWordIds: [],
@@ -97,13 +95,6 @@ const getDifficultWordIds = (words: Word[], records: any[]): string[] => {
     .map((x) => x.wordId);
 };
 
-const needsDifficultWords = (stats: TodayStats): boolean => {
-  if (stats.totalWords === 0) return false;
-  if (stats.todayPending > 0) return false;
-  const lowAccuracy = stats.todayStudyCount >= 3 && stats.accuracy < 0.6;
-  return lowAccuracy || stats.wrongQuestionCount === 0;
-};
-
 const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
   if (stats.totalWords === 0) {
     return {
@@ -133,20 +124,6 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       route: { tab: 'Home', screen: 'Study' },
     };
   }
-  if (stats.todayStudyCount >= 3 && stats.accuracy < 0.6) {
-    const has = stats.difficultWordIds.length > 0;
-    return {
-      title: '今天正确率偏低',
-      description: `当前约 ${Math.round(stats.accuracy * 100)}%，建议先复习困难词。`,
-      actionLabel: has ? '强化复习' : '继续学习',
-      icon: has ? 'refresh' : 'book-open-page-variant',
-      route: {
-        tab: 'Home',
-        screen: 'Study',
-        params: has ? { wordIds: stats.difficultWordIds } : undefined,
-      },
-    };
-  }
   if (stats.wrongQuestionCount > 0) {
     return {
       title: `${stats.wrongQuestionCount} 道错题待复盘`,
@@ -154,15 +131,6 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       actionLabel: '复习错题',
       icon: 'alert-circle-outline',
       route: { tab: 'Practice', screen: 'WrongQuestionReview' },
-    };
-  }
-  if (stats.difficultWordCount > 0) {
-    return {
-      title: `${stats.difficultWordCount} 个困难词待强化`,
-      description: '这些词历史正确率偏低。',
-      actionLabel: '强化复习',
-      icon: 'refresh',
-      route: { tab: 'Home', screen: 'Study', params: { wordIds: stats.difficultWordIds } },
     };
   }
   if (stats.todayTotal > 0 && stats.todayPending === 0) {
@@ -236,18 +204,19 @@ export default function HomeScreen() {
         todayCompleted,
         newPending,
         reviewPending,
-        todayStudyCount: todayRecords.length,
         accuracy,
         wrongQuestionCount: wrongQuestions.length,
         difficultWordIds: [],
         difficultWordCount: 0,
         unstudiedNewWordCount,
       };
-      let nextStats = baseStats;
-      if (needsDifficultWords(baseStats)) {
-        const ids = getDifficultWordIds(allWords, allRecords);
-        nextStats = { ...baseStats, difficultWordIds: ids, difficultWordCount: ids.length };
-      }
+      // 困难词始终计算：强化复习作为常驻次级入口，不再要求"今日待学清空"才出现
+      const difficultWordIds = baseStats.totalWords > 0 ? getDifficultWordIds(allWords, allRecords) : [];
+      const nextStats = {
+        ...baseStats,
+        difficultWordIds,
+        difficultWordCount: difficultWordIds.length,
+      };
       setTodayStats(nextStats);
       setTodaySuggestion(buildTodaySuggestion(nextStats));
       const sorted = [...allWords]
@@ -423,19 +392,31 @@ export default function HomeScreen() {
                 fullWidth
                 leftIcon={<AppIcon name={todaySuggestion.icon} size={20} color={colors.onPrimary} />}
               />
-              {todaySuggestion.actionLabel === '继续学习' && todayStats.wrongQuestionCount > 0 && (
+              {/* 次级入口：与主 CTA 并列，各自独立门控（主 CTA 不指向自己时即显示） */}
+              {todayStats.wrongQuestionCount > 0 &&
+                todaySuggestion.route.screen !== 'WrongQuestionReview' && (
+                  <AppButton
+                    title="复习错题"
+                    onPress={() =>
+                      navigation.navigate('Main' as any, {
+                        screen: 'Practice' as any,
+                        params: { screen: 'WrongQuestionReview' as any },
+                      })
+                    }
+                    variant="secondary"
+                    size="md"
+                    fullWidth
+                    leftIcon={<MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.primary} />}
+                  />
+                )}
+              {todayStats.difficultWordCount > 0 && (
                 <AppButton
-                  title="复习错题"
-                  onPress={() =>
-                    navigation.navigate('Main' as any, {
-                      screen: 'Practice' as any,
-                      params: { screen: 'WrongQuestionReview' as any },
-                    })
-                  }
+                  title="强化复习"
+                  onPress={() => navigation.navigate('Study' as any, { wordIds: todayStats.difficultWordIds })}
                   variant="secondary"
                   size="md"
                   fullWidth
-                  leftIcon={<MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.primary} />}
+                  leftIcon={<AppIcon name="refresh" size={20} color={colors.primary} />}
                 />
               )}
               {canStartAnotherGroup && (
