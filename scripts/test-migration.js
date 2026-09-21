@@ -24,7 +24,7 @@ function compile() {
   fs.rmSync(OUT, { recursive: true, force: true });
   execSync(
     `npx -y -p typescript@5.7.2 tsc src/services/migrations.ts src/services/scheduler.ts ` +
-      `src/constants/schedule.ts src/utils/idUtils.ts ` +
+      `src/constants/schedule.ts src/constants/retention.ts src/utils/idUtils.ts ` +
       `--outDir ${JSON.stringify(OUT)} --module commonjs --target es2019 --skipLibCheck`,
     { cwd: ROOT, stdio: 'inherit' }
   );
@@ -42,6 +42,21 @@ function makeStorage(initial = {}) {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * 本地 'yyyy-MM-dd'，n 天前。
+ *
+ * 迁移测试里的 study_date / plan_date 不能用固定日期：v4→v5 的保留窗口裁剪会
+ * 按"今天"算下界，写死的历史日期会在窗口外被裁掉，几个月后断言就莫名失败。
+ * 统一用相对日期，让记录/计划始终落在窗口内（需要窗口外的场景再单独指定大值）。
+ * 与 scheduler.ts 的 localToday() 同为本地时区口径。
+ */
+const daysAgo = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  const p = (x) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
 
 let failures = 0;
 function check(label, cond, detail = '') {
@@ -68,17 +83,17 @@ async function main() {
       { id: 3, word: 'candid', definitions: [], difficulty: 4, frequency: 2 },
     ]),
     kaoyan_study_records: JSON.stringify([
-      { id: 1, word_id: 1, study_date: '2026-08-01', result: 1, study_mode: 'flashcard' },
-      { id: 2, word_id: 2, study_date: '2026-08-01', result: 0, study_mode: 'quiz' },
+      { id: 1, word_id: 1, study_date: daysAgo(20), result: 1, study_mode: 'flashcard' },
+      { id: 2, word_id: 2, study_date: daysAgo(20), result: 0, study_mode: 'quiz' },
       // 孤儿：word_id 99 不存在，应被丢弃
-      { id: 3, word_id: 99, study_date: '2026-08-02', result: 1, study_mode: 'flashcard' },
+      { id: 3, word_id: 99, study_date: daysAgo(19), result: 1, study_mode: 'flashcard' },
     ]),
     kaoyan_study_plans: JSON.stringify([
-      { id: 1, word_id: 1, plan_date: '2026-08-05', plan_type: 'review', completed: false },
+      { id: 1, word_id: 1, plan_date: daysAgo(15), plan_type: 'review', completed: false },
       // 占位计划：word_id 0 表示"新词待定"，必须保留为空串
-      { id: 2, word_id: 0, plan_date: '2026-08-05', plan_type: 'new', completed: false },
+      { id: 2, word_id: 0, plan_date: daysAgo(15), plan_type: 'new', completed: false },
       // 孤儿计划：应被丢弃
-      { id: 3, word_id: 77, plan_date: '2026-08-06', plan_type: 'review', completed: false },
+      { id: 3, word_id: 77, plan_date: daysAgo(14), plan_type: 'review', completed: false },
     ]),
     kaoyan_articles: JSON.stringify([
       {
@@ -171,7 +186,7 @@ async function main() {
   const wBenefit = words.find((w) => w.word === 'benefit');
   const wCandid = words.find((w) => w.word === 'candid');
   check('v3: 答对过 1 天 → stage=1、next_due=次日',
-    wAbandon.review_stage === 1 && wAbandon.next_due_date === '2026-08-02',
+    wAbandon.review_stage === 1 && wAbandon.next_due_date === daysAgo(19),
     JSON.stringify({ s: wAbandon.review_stage, d: wAbandon.next_due_date }));
   check('v3: 仅答错/未学 → stage=0、next_due=null',
     wBenefit.review_stage === 0 && wBenefit.next_due_date === null &&
@@ -239,7 +254,7 @@ async function main() {
   const strIds = makeStorage({
     kaoyan_words: JSON.stringify([{ id: 1, word: 'alpha', definitions: [], difficulty: 1, frequency: 1 }]),
     kaoyan_study_records: JSON.stringify([
-      { id: 1, word_id: '1', study_date: '2026-08-01', result: 1, study_mode: 'flashcard' },
+      { id: 1, word_id: '1', study_date: daysAgo(20), result: 1, study_mode: 'flashcard' },
     ]),
   });
   await migrateToUuidSchema(strIds);
@@ -261,23 +276,23 @@ async function main() {
       { id: UC, word: 'charlie', definitions: [], difficulty: 3, frequency: 5, dirty: false },
     ]),
     kaoyan_study_records: JSON.stringify([
-      // alpha：3 个不同日期答对 → stage 3，最近通过 09-06 → +4 天 = 09-10
-      { id: 'r1', word_id: UA, study_date: '2026-09-01', result: 1, study_mode: 'flashcard' },
-      { id: 'r2', word_id: UA, study_date: '2026-09-03', result: 1, study_mode: 'quiz' },
-      { id: 'r3', word_id: UA, study_date: '2026-09-06', result: 0, study_mode: 'quiz' },
-      { id: 'r4', word_id: UA, study_date: '2026-09-06', result: 1, study_mode: 'flashcard' },
+      // alpha：3 个不同日期答对 → stage 3，最近通过 daysAgo(15) → +4 天
+      { id: 'r1', word_id: UA, study_date: daysAgo(20), result: 1, study_mode: 'flashcard' },
+      { id: 'r2', word_id: UA, study_date: daysAgo(18), result: 1, study_mode: 'quiz' },
+      { id: 'r3', word_id: UA, study_date: daysAgo(15), result: 0, study_mode: 'quiz' },
+      { id: 'r4', word_id: UA, study_date: daysAgo(15), result: 1, study_mode: 'flashcard' },
       // bravo：只有 1 个通过日 → stage 1，+1 天
-      { id: 'r5', word_id: UB, study_date: '2026-09-10', result: 1, study_mode: 'flashcard' },
+      { id: 'r5', word_id: UB, study_date: daysAgo(11), result: 1, study_mode: 'flashcard' },
       // charlie：无记录 → stage 0
     ]),
     kaoyan_study_plans: JSON.stringify([
       // 旧 bug：同一词每天膨胀出多条未完成复习计划（含空占位）
-      { id: 'p1', word_id: UA, plan_date: '2026-09-07', plan_type: 'review', completed: false },
-      { id: 'p2', word_id: UA, plan_date: '2026-09-08', plan_type: 'review', completed: false },
-      { id: 'p3', word_id: UA, plan_date: '2026-09-10', plan_type: 'review', completed: false },
-      { id: 'p4', word_id: '', plan_date: '2026-09-07', plan_type: 'new', completed: false },
+      { id: 'p1', word_id: UA, plan_date: daysAgo(14), plan_type: 'review', completed: false },
+      { id: 'p2', word_id: UA, plan_date: daysAgo(13), plan_type: 'review', completed: false },
+      { id: 'p3', word_id: UA, plan_date: daysAgo(11), plan_type: 'review', completed: false },
+      { id: 'p4', word_id: '', plan_date: daysAgo(14), plan_type: 'new', completed: false },
       // 已完成历史计划：必须保留且不被软删
-      { id: 'p5', word_id: UA, plan_date: '2026-09-01', plan_type: 'new', completed: true },
+      { id: 'p5', word_id: UA, plan_date: daysAgo(20), plan_type: 'new', completed: true },
     ]),
   });
 
@@ -288,9 +303,9 @@ async function main() {
   const getB = w6.find((w) => w.id === UB);
   const getC = w6.find((w) => w.id === UC);
   check('alpha 3 个通过日 → stage=3', getA.review_stage === 3, String(getA.review_stage));
-  check('alpha next_due = 2026-09-10（最近通过日 +4）', getA.next_due_date === '2026-09-10', getA.next_due_date);
-  check('bravo 1 个通过日 → stage=1、next_due=2026-09-11',
-    getB.review_stage === 1 && getB.next_due_date === '2026-09-11',
+  check('alpha next_due = 最近通过日 +4', getA.next_due_date === daysAgo(11), getA.next_due_date);
+  check('bravo 1 个通过日 → stage=1、next_due=+1 天',
+    getB.review_stage === 1 && getB.next_due_date === daysAgo(10),
     JSON.stringify({ s: getB.review_stage, d: getB.next_due_date }));
   check('charlie 无记录 → stage=0 / next_due=null',
     getC.review_stage === 0 && getC.next_due_date === null);
@@ -305,12 +320,68 @@ async function main() {
   check('已完成历史计划保留 deleted_at 为空',
     donePlan && donePlan.completed === true && !donePlan.deleted_at);
   check('v3 备份已写入', Boolean(v2.map.get('kaoyan_migration_backup_v2')));
-  check('版本号推进到 3', v2.map.get('kaoyan_schema_version') === '3');
+  check('版本号一路推进到最新（v2→v3→v4→v5）',
+    v2.map.get('kaoyan_schema_version') === String(CURRENT_SCHEMA_VERSION),
+    v2.map.get('kaoyan_schema_version'));
 
   const before6 = v2.map.get('kaoyan_words');
   const again6 = await migrateToUuidSchema(v2);
   check('v3 后再跑幂等（migrated=false）', again6.migrated === false);
   check('幂等不重写数据', v2.map.get('kaoyan_words') === before6);
+
+  // ---------- 场景 7：v4→v5 保留窗口裁剪 ----------
+  console.log('\n[场景 7] v4→v5 学习记录/计划保留窗口裁剪');
+  const UA7 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const v4 = makeStorage({
+    kaoyan_schema_version: '4',
+    kaoyan_words: JSON.stringify([
+      { id: UA7, word: 'alpha', definitions: [], difficulty: 3, frequency: 5, review_stage: 2, dirty: false },
+    ]),
+    kaoyan_study_records: JSON.stringify([
+      // 超出 90 天窗口 → 物理移除
+      { id: 'old1', word_id: UA7, study_date: daysAgo(120), result: 1, study_mode: 'flashcard', updated_at: '2026-05-01T00:00:00.000Z', deleted_at: null, dirty: false },
+      { id: 'old2', word_id: UA7, study_date: daysAgo(91), result: 0, study_mode: 'quiz', updated_at: '2026-06-01T00:00:00.000Z', deleted_at: null, dirty: false },
+      // 窗口边界（含）与窗口内 → 保留
+      { id: 'edge', word_id: UA7, study_date: daysAgo(89), result: 1, study_mode: 'flashcard', updated_at: '2026-07-01T00:00:00.000Z', deleted_at: null, dirty: false },
+      { id: 'new1', word_id: UA7, study_date: daysAgo(3), result: 1, study_mode: 'flashcard', updated_at: '2026-09-18T00:00:00.000Z', deleted_at: null, dirty: false },
+      // 缺 study_date → 无法判定，保守保留（不静默丢数据）
+      { id: 'nodate', word_id: UA7, result: 1, study_mode: 'flashcard', updated_at: '2026-09-18T00:00:00.000Z', deleted_at: null, dirty: false },
+    ]),
+    kaoyan_study_plans: JSON.stringify([
+      // 超出 30 天窗口——即便已完成，也按日期裁（不按 completed 判断）
+      { id: 'pop', word_id: UA7, plan_date: daysAgo(60), plan_type: 'new', completed: true, updated_at: '2026-07-01T00:00:00.000Z', deleted_at: null, dirty: false },
+      { id: 'pold', word_id: UA7, plan_date: daysAgo(31), plan_type: 'review', completed: false, updated_at: '2026-08-01T00:00:00.000Z', deleted_at: null, dirty: false },
+      // 窗口内 → 保留
+      { id: 'pnew', word_id: UA7, plan_date: daysAgo(2), plan_type: 'review', completed: false, updated_at: '2026-09-19T00:00:00.000Z', deleted_at: null, dirty: false },
+    ]),
+  });
+
+  const v4Result = await migrateToUuidSchema(v4);
+  check('v4→v5 返回 migrated=true', v4Result.migrated === true, JSON.stringify(v4Result));
+  check('裁掉 2 条过期学习记录', v4Result.counts.studyRecordsDropped === 2, JSON.stringify(v4Result.counts));
+  check('裁掉 2 条过期学习计划', v4Result.counts.studyPlansDropped === 2, JSON.stringify(v4Result.counts));
+
+  const r7 = v4.read('kaoyan_study_records');
+  check('窗口内/边界/无日期记录保留 (5→3)', r7.length === 3, `实际 ${r7.length}`);
+  check('保留的记录未丢同步元数据',
+    r7.every((r) => typeof r.updated_at === 'string' && 'deleted_at' in r && 'dirty' in r));
+  check('保留的是预期那几条',
+    r7.map((r) => r.id).sort().join(',') === 'edge,new1,nodate', JSON.stringify(r7.map((r) => r.id)));
+
+  const p7 = v4.read('kaoyan_study_plans');
+  check('窗口内计划保留 (3→1)', p7.length === 1 && p7[0].id === 'pnew', JSON.stringify(p7));
+  check('已完成的历史计划也按窗口裁掉', !p7.some((p) => p.completed));
+
+  check('版本号推进到 5', v4.map.get('kaoyan_schema_version') === '5');
+  // 裁剪是有意丢弃（旧数据无消费方，服务端保留全量），不写备份：
+  // 备份整个膨胀数组既无意义，迁移时写它本身也可能再撞一次配额。
+  check('不生成膨胀备份', !v4.map.has('kaoyan_migration_backup_v4'));
+
+  // 幂等：版本号已推进，再跑不裁任何东西
+  const before7 = v4.map.get('kaoyan_study_records');
+  const again7 = await migrateToUuidSchema(v4);
+  check('二次迁移幂等（migrated=false）', again7.migrated === false, JSON.stringify(again7));
+  check('幂等不重写记录', v4.map.get('kaoyan_study_records') === before7);
 
   fs.rmSync(OUT, { recursive: true, force: true });
 

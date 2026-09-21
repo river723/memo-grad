@@ -7,6 +7,9 @@
  *   "每次学完整套重铺 6 天复习计划" 造成的膨胀/重复未完成计划全部软删（见 [runScheduleV2ToV3]）。
  * - v3 → v4：真题错题本地收敛。按 questionId 去重并把服务端拉回来的 snake_case 行
  *   规整回本地 camelCase 形状（见 [runDedupRealExamWrongsV3ToV4]）。
+ * - v4 → v5：学习记录/计划保留窗口裁剪。StudyRecord 每答一次追加一行，是全库增长
+ *   最快的表；不裁会一直涨到打满 localStorage 配额，setItem 抛 QuotaExceededError、
+ *   作答静默丢失（见 [runRetentionPruneV4ToV5]）。
  *
  * 外键关系（v1→v2 时需随主键一起改写，否则学习历史会静默丢失）：
  *   Word.id → StudyRecord.word_id / StudyPlan.word_id / Article.word_ids[]
@@ -17,8 +20,9 @@
 import { generateId, nowIso } from '../utils/idUtils';
 import { deriveStageFromRecords } from './scheduler';
 import { normalizeRealExamWrongPull } from './realExamWrongShape';
+import { STUDY_RECORD_RETENTION_DAYS, STUDY_PLAN_RETENTION_DAYS, retentionCutoff, pruneOlderThan } from '../constants/retention';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 /** 各实体的原始存储 key（迁移用无前缀名，经 prefixFn 拼上用户前缀）。 */
 const RAW_KEYS = {
@@ -96,6 +100,18 @@ export async function migrateToUuidSchema(
       counts.realExamWrongsRows = r4.counts.rows;
       counts.realExamWrongsDeduped = r4.counts.deduped;
       counts.realExamWrongsNormalized = r4.counts.normalized;
+    }
+  }
+
+  // ---- v4 → v5：学习记录/计划保留窗口裁剪 ----
+  const v4Raw = await storage.getItem(versionKey);
+  const v4 = v4Raw ? Number(v4Raw) : 4;
+  if (v4 < 5) {
+    const r5 = await runRetentionPruneV4ToV5(storage, k);
+    if (r5.migrated) {
+      migrated = true;
+      counts.studyRecordsDropped = r5.studyRecordsDropped;
+      counts.studyPlansDropped = r5.studyPlansDropped;
     }
   }
 
@@ -456,6 +472,59 @@ async function runDedupRealExamWrongsV3ToV4(
   const counts = { rows: shaped.length, deduped, normalized };
   console.log('[migration] 真题错题收敛完成', counts);
   return { migrated: true, counts };
+}
+
+/**
+ * v4 → v5：学习记录 / 学习计划按保留窗口物理裁剪。
+ *
+ * StudyRecord 每答一次（含一个词内的重试）追加一行，是全库增长最快的表；
+ * StudyPlan 每天每词一行、完成后也不清理。两者本地走整表 read-modify-write，
+ * 不裁会一直涨到打满 localStorage 配额——setItem 抛 QuotaExceededError，
+ * StudyScreen 的作答落库静默失败，用户只看到"已继续学习"。
+ *
+ * 本步是一次性清理历史积压：下次启动就跑完，不必等用户再答一题。
+ * 增量增长由 StorageService.addStudyRecord / writePrunedPlans 在每次写入时兜住。
+ *
+ * 裁剪是物理移除而非软删除：软删的行仍被序列化进同一个 blob，占用的字节一点
+ * 没少。只裁本地、不动服务端：管理后台的学习活跃度统计需要完整历史，且增量
+ * 同步只拉 updatedAt > lastSyncAt 的行，裁掉的旧行不会再被拉回来。
+ *
+ * 幂等：裁完再跑 dropped 为 0、不重写。版本号最后写，任一步抛错都不会留下
+ * "已迁移"的假象。写失败（配额已满）由 ensureMigrated 的 catch 吞掉，
+ * addStudyRecord 侧的裁剪会在下一次作答时自愈。
+ */
+async function runRetentionPruneV4ToV5(
+  storage: MinimalStorage,
+  k: (rawKey: string) => string
+): Promise<{ migrated: boolean; studyRecordsDropped: number; studyPlansDropped: number }> {
+  const records = await readArray(storage, k(RAW_KEYS.records));
+  const recordCutoff = retentionCutoff(STUDY_RECORD_RETENTION_DAYS);
+  const prunedRecords = pruneOlderThan(records, 'study_date', recordCutoff);
+
+  const plans = await readArray(storage, k(RAW_KEYS.plans));
+  const planCutoff = retentionCutoff(STUDY_PLAN_RETENTION_DAYS);
+  const prunedPlans = pruneOlderThan(plans, 'plan_date', planCutoff);
+
+  await Promise.all([
+    storage.setItem(k(RAW_KEYS.records), JSON.stringify(prunedRecords.kept)),
+    storage.setItem(k(RAW_KEYS.plans), JSON.stringify(prunedPlans.kept)),
+  ]);
+  await storage.setItem(k('kaoyan_schema_version'), '5');
+
+  const studyRecordsDropped = prunedRecords.dropped;
+  const studyPlansDropped = prunedPlans.dropped;
+  if (studyRecordsDropped > 0 || studyPlansDropped > 0) {
+    console.log(
+      '[migration] 保留窗口裁剪完成',
+      { studyRecordsDropped, studyPlansDropped, recordCutoff, planCutoff }
+    );
+  }
+
+  return {
+    migrated: studyRecordsDropped > 0 || studyPlansDropped > 0,
+    studyRecordsDropped,
+    studyPlansDropped,
+  };
 }
 
 /** 安全解析 JSON 数组，任何异常都退化为空数组，避免迁移因单个坏键中断。 */

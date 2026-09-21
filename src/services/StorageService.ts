@@ -1,5 +1,6 @@
 import { Word, StudyRecord, StudyPlan, Article, ExamSession, ExamDraft, WrongQuestion, AppSettings, AIProviderId, RealExamSession, RealExamWrongQuestion, RealExamReadingPassage, RealExamClozePaper, RealExamNewTypePaper, RealExamLetter, RealExamOptionLetter } from '../types';
 import { AI_PROVIDERS, WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
+import { STUDY_RECORD_RETENTION_DAYS, STUDY_PLAN_RETENTION_DAYS, RETENTION_FALLBACK_DAYS, retentionCutoff, pruneOlderThan, isQuotaError } from '../constants/retention';
 import { generateId, nowIso, excludeDeleted } from '../utils/idUtils';
 import { migrateToUuidSchema, MigrationResult, CURRENT_SCHEMA_VERSION } from './migrations';
 import { localToday } from './scheduler';
@@ -330,6 +331,39 @@ class StorageService {
   }
 
   // 学习记录操作
+  /**
+   * 写"只追加日志表"的统一入口：先按保留窗口物理裁剪，再写；若仍超配额，
+   * 按更短的兜底窗口重裁重试一次，保证最近的数据能落下来而不是整次失败。
+   *
+   * 为什么是物理移除而非软删除：软删的行仍被序列化进同一个 blob，占用的字节
+   * 一点没少，配额照样爆。为什么只裁本地：服务端保留全量供管理后台统计
+   * （totalRecords / distinctDays / 正确率），且增量同步只拉
+   * updatedAt > lastSyncAt 的行，已裁掉的旧行不会再被拉回来。
+   */
+  private async writePrunedLog(
+    storageKey: string,
+    rows: any[],
+    dateField: 'study_date' | 'plan_date',
+    retentionDays: number
+  ): Promise<void> {
+    const serialize = (days: number) =>
+      JSON.stringify(pruneOlderThan(rows, dateField, retentionCutoff(days)).kept);
+    try {
+      await AsyncStorage.setItem(storageKey, serialize(retentionDays));
+    } catch (error) {
+      if (!isQuotaError(error)) throw error;
+      console.warn(`[Storage] 配额不足，按 ${RETENTION_FALLBACK_DAYS} 天保留期重试写入 ${storageKey}`);
+      await AsyncStorage.setItem(storageKey, serialize(RETENTION_FALLBACK_DAYS));
+    }
+  }
+
+  /** 学习计划走统一的保留裁剪写入（30 天窗口）。 */
+  private async writePrunedPlans(rows: StudyPlan[]): Promise<void> {
+    await this.writePrunedLog(
+      this.key(this.KEYS.STUDY_PLANS), rows, 'plan_date', STUDY_PLAN_RETENTION_DAYS
+    );
+  }
+
   async addStudyRecord(record: Omit<StudyRecord, 'id'>): Promise<void> {
     await this.ensureMigrated();
     const records = await this.getAllStudyRecordsRaw();
@@ -342,8 +376,12 @@ class StorageService {
       dirty: true
     };
 
+    // StudyRecord 每答一次追加一行，是全库增长最快的表：不裁会一直涨到打满
+    // localStorage 配额，setItem 抛 QuotaExceededError、作答静默丢失。
     records.push(newRecord);
-    await AsyncStorage.setItem(this.key(this.KEYS.STUDY_RECORDS), JSON.stringify(records));
+    await this.writePrunedLog(
+      this.key(this.KEYS.STUDY_RECORDS), records, 'study_date', STUDY_RECORD_RETENTION_DAYS
+    );
   }
 
   private async getAllStudyRecordsRaw(): Promise<StudyRecord[]> {
@@ -380,7 +418,7 @@ class StorageService {
     };
 
     plans.push(newPlan);
-    await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
+    await this.writePrunedPlans(plans);
   }
 
   private async getAllStudyPlansRaw(): Promise<StudyPlan[]> {
@@ -443,7 +481,7 @@ class StorageService {
       changed = true;
     }
     if (changed) {
-      await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
+      await this.writePrunedPlans(plans);
     }
   }
 
@@ -454,7 +492,7 @@ class StorageService {
 
     if (index !== -1) {
       plans[index] = { ...plans[index], completed: true, updated_at: nowIso(), dirty: true };
-      await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
+      await this.writePrunedPlans(plans);
     }
   }
 
@@ -478,7 +516,7 @@ class StorageService {
       }
     }
     if (changed) {
-      await AsyncStorage.setItem(this.key(this.KEYS.STUDY_PLANS), JSON.stringify(plans));
+      await this.writePrunedPlans(plans);
     }
   }
 
