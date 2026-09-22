@@ -17,6 +17,7 @@
 import StorageService from './StorageService';
 import { api } from './ApiClient';
 import { realExamWrongMergeKey, normalizeRealExamWrongPull } from './realExamWrongShape';
+import { mergePulledEntities } from './syncMerge';
 
 interface WordRedirect {
   from: string;
@@ -149,27 +150,13 @@ export async function syncAll(): Promise<SyncResult | null> {
       if (remoteList.length === 0) continue;
 
       const locals = await getRawEntities(storageKey);
-      const localById = new Map<string, number>();
-      locals.forEach((e: any, i: number) => {
-        const key = entityMergeKey(entityName, e);
-        if (key) localById.set(key, i);
-      });
-
-      for (const remoteRaw of remoteList) {
-        const remote = normalizePulledEntity(entityName, remoteRaw);
-        const existingIdx = localById.get(entityMergeKey(entityName, remote));
-        if (existingIdx !== undefined) {
-          // LWW：远端更新覆盖本地（服务器已处理冲突）
-          if (!locals[existingIdx].updated_at || new Date(remote.updated_at) >= new Date(locals[existingIdx].updated_at)) {
-            locals[existingIdx] = { ...remote, dirty: false };
-          }
-        } else {
-          // 新记录
-          locals.push({ ...remote, dirty: false });
-        }
-      }
-
-      await (StorageService as any)._rawSetItem(storageKey, JSON.stringify(locals));
+      // 只归一化拉取行（wire→本地形状），本地行原样参与键匹配
+      const merged = mergePulledEntities(
+        locals,
+        remoteList.map((e: any) => normalizePulledEntity(entityName, e)),
+        (e: any) => entityMergeKey(entityName, e)
+      );
+      await (StorageService as any)._rawSetItem(storageKey, JSON.stringify(merged));
     }
 
     // 5. 清除本地 dirty 标记（推过的记录已 clean）。
