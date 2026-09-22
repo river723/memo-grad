@@ -7,6 +7,7 @@ import { useAppTheme } from '../theme/theme';
 import { makeStyles } from '../utils/useStyles';
 import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
+import { localToday } from '../services/scheduler';
 import { ExamQuestion, ExamAnswer as ExamAnswerType, ExamQuestionType, Word, WordDictEntry } from '../types';
 import { WRONG_QUESTION_MASTERY_THRESHOLD } from '../constants';
 import AppButton from '../components/ds/AppButton';
@@ -92,7 +93,7 @@ export default function ExamResultScreen() {
           }
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = localToday();
         for (const answer of answers) {
           await StorageService.addStudyRecord({
             word_id: answer.question.word_id,

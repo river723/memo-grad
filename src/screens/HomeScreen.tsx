@@ -12,6 +12,7 @@ import StorageService from '../services/StorageService';
 import StudyPlanService from '../services/StudyPlanService';
 import AutoWordService from '../services/AutoWordService';
 import { buildDailyQueue, isNewWord, localToday } from '../services/scheduler';
+import { countPassedWords } from '../services/studyStats';
 import { useToast } from '../components/ds/Toast';
 import { Word, WeeklyStudyTrend } from '../types';
 import { useAnnouncements } from '../providers/AnnouncementProvider';
@@ -178,15 +179,21 @@ export default function HomeScreen() {
         toast.info(`已按考频自动加入 ${autoAdded} 个新词`);
       }
       const today = localToday();
-      const [allWords, allPlans, todayRecords, allRecords, wrongQuestions] = await Promise.all([
+      const [allWords, todayRecords, allRecords, wrongQuestions] = await Promise.all([
         StorageService.getWords(),
-        StorageService.getStudyPlans(),
         StorageService.getStudyRecordsByDate(today),
         StorageService.getStudyRecords(),
         StorageService.getWrongQuestions(),
       ]);
-      const todayPlans = allPlans.filter((p) => p.plan_date === today);
-      const todayCompleted = todayPlans.filter((p) => p.completed).length;
+      // 「今日完成」= 今日至少答对一次的不同词数（StudyRecord 按 word_id 去重）。
+      // 不用 StudyPlan.completed：那是单调布尔却被当普通字段做 last-write-wins，
+      // 手机推的 true 会被 web 推的 false 覆盖（syncRoutes 的 StudyPlan 无单调
+      // 收敛，对照 word 有 convergeWordProgress）；两端各自物化今日计划又生成
+      // 不同 UUID、服务端无业务唯一约束，重复行会让计数翻倍。表现就是"手机端
+      // 已完成、web 端显示不一样"。StudyRecord 每行独立 UUID、跨端只走 create，
+      // 是真正的 append-only，两端天然一致。
+      // 语义代价：「太简单」移出生词本不写 record、故不算完成——与直觉一致。
+      const todayCompleted = countPassedWords(todayRecords);
       const todayCorrectCount = todayRecords.filter((r) => r.result === 1).length;
       const accuracy = todayRecords.length > 0 ? todayCorrectCount / todayRecords.length : 0;
       // 待学数以调度字段（review_stage/next_due_date）为唯一真相派生，不再数可能膨胀或尚未投影的计划：
@@ -356,7 +363,7 @@ export default function HomeScreen() {
             >
               <View style={{ flex: 1, gap: 6 }}>
                 <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.caption.size, letterSpacing: 0.6 }}>
-                  {availableCount > 0 ? '今日待学' : todayStats.todayTotal > 0 ? '今日任务' : '今日'}
+                  {availableCount > 0 ? '今日待学' : todayStats.todayTotal > 0 ? '今日完成' : '今日'}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
                   <Text
