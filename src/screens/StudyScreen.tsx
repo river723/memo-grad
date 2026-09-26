@@ -211,6 +211,21 @@ export default function StudyScreen() {
     }
   }, [currentMode, words.length, generatedArticle]);
 
+  /**
+   * 载入语音/应用设置。单词卡自动发音的 effect 读的是 speechSettings.autoPlaySound，
+   * 初始值是 false——所以任何不走 loadStudyWords 的会话入口（如「今日认错回顾」）
+   * 都必须单独调它，否则进会话后不自动发音。
+   */
+  const loadSpeechSettings = async (): Promise<AppSettings> => {
+    const settings = await StorageService.getSettings();
+    setAppSettings(settings);
+    setSpeechSettings({
+      soundEnabled: settings.soundEnabled !== false,
+      autoPlaySound: settings.autoPlaySound === true,
+    });
+    return settings;
+  };
+
   const loadStudyWords = async (exceedDailyLimit = false) => {
     try {
       setGeneratedArticle(null);
@@ -234,12 +249,7 @@ export default function StudyScreen() {
       const allWords = await StorageService.getWords();
       const today = localToday();
 
-      const settings = await StorageService.getSettings();
-      setAppSettings(settings);
-      setSpeechSettings({
-        soundEnabled: settings.soundEnabled !== false,
-        autoPlaySound: settings.autoPlaySound === true,
-      });
+      const settings = await loadSpeechSettings();
       const dailyLimit = typeof settings.dailyNewWords === 'number'
         ? settings.dailyNewWords
         : 10;
@@ -362,7 +372,11 @@ export default function StudyScreen() {
    */
   const startTodayWrongDrill = async () => {
     try {
-      const drillWords = await fetchTodayWrongWords();
+      // 语音设置不走 loadStudyWords 加载，这里补一次，否则进会话不自动发音。
+      const [drillWords] = await Promise.all([
+        fetchTodayWrongWords(),
+        loadSpeechSettings(),
+      ]);
       if (drillWords.length === 0) {
         toast.info('今天还没有点过「不认识」的词');
         return;
@@ -1134,7 +1148,7 @@ export default function StudyScreen() {
                 onPress={() => startTodayWrongDrill()}
                 style={styles.addWordBtn}
               >
-                回顾今日认错词（{drillCount}）
+                今日回顾（{drillCount}）
               </Button>
             )}
             {!isCustomReview && allStudiedToday && (
@@ -1209,7 +1223,7 @@ export default function StudyScreen() {
             <View style={styles.progressHeaderRight}>
               <View style={styles.drillBadge}>
                 <AppIcon name="refresh" size={13} color={colors.warning} />
-                <Text style={styles.drillBadgeText}>今日认错回顾</Text>
+                <Text style={styles.drillBadgeText}>今日回顾</Text>
               </View>
               <Pressable
                 accessibilityLabel="退出回顾"
@@ -1248,7 +1262,7 @@ export default function StudyScreen() {
                 {studyStats.accuracy >= 80 ? '\u{1F389}' : '\u{1F4AA}'}
               </Text>
               <Text style={styles.completionTitle}>
-                {isDrillSession ? '今日认错回顾完成！' : isCustomReview ? '强化复习完成！' : isContinueSession ? '本轮完成！' : '今日目标达成！'}
+                {isDrillSession ? '今日回顾完成！' : isCustomReview ? '强化复习完成！' : isContinueSession ? '本轮完成！' : '今日目标达成！'}
               </Text>
 
               <View style={styles.completionStats}>

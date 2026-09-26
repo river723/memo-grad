@@ -142,9 +142,9 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
   // 比"做一组考题巩固"更贴合此刻的心流。回顾会话是纯加练：不动调度、不计今日完成。
   if (stats.todayPending === 0 && stats.unstudiedNewWordCount === 0 && stats.todayWrongWordCount > 0) {
     return {
-      title: '今日认错回顾',
+      title: '今日回顾',
       description: `${stats.todayWrongWordCount} 个词今天点过「不认识」，趁热再刷一遍。`,
-      actionLabel: '回顾今日认错词',
+      actionLabel: '今日回顾',
       icon: 'refresh',
       route: {
         tab: 'Home',
@@ -452,7 +452,7 @@ export default function HomeScreen() {
                 !(todaySuggestion.route.screen === 'Study' &&
                   todaySuggestion.route.params?.drillTodayWrong) && (
                   <AppButton
-                    title={`回顾今日认错词（${todayStats.todayWrongWordCount}）`}
+                    title={`今日回顾（${todayStats.todayWrongWordCount}）`}
                     onPress={() =>
                       navigation.navigate('Study' as any, {
                         wordIds: todayStats.todayWrongWordIds,
@@ -586,7 +586,7 @@ export default function HomeScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: colors.onSurface, fontSize: typography.bodyLg.size, fontWeight: '600' }}>
-                        今日认错词
+                        今日回顾
                       </Text>
                       <Text style={{ color: colors.onSurfaceVariant, fontSize: typography.caption.size, marginTop: 2 }}>
                         {todayStats.todayWrongWordCount} 个词今天点过不认识，趁热再刷
