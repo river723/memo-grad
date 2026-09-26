@@ -32,7 +32,8 @@ export type RootStackParamList = {
 /** 各 Tab 内 Stack 的路由参数表 */
 export type LearnStackParamList = {
   Home: undefined;
-  Study: { wordIds?: string[] } | undefined;
+  /** wordIds：指定词集合的自定义复习；drillTodayWrong：今日认错回顾（纯加练，数据源改为今日 StudyRecord） */
+  Study: { wordIds?: string[]; drillTodayWrong?: boolean } | undefined;
   WordDetail: { wordId: string };
   AddWord: undefined;
   WordbankPicker: undefined;

@@ -35,10 +35,12 @@ type TodayStats = {
   difficultWordIds: string[];
   difficultWordCount: number;
   unstudiedNewWordCount: number;
+  todayWrongWordIds: string[];
+  todayWrongWordCount: number;
 };
 
 type SuggestionRoute =
-  | { tab: 'Home'; screen: 'Study'; params?: { wordIds?: string[] } }
+  | { tab: 'Home'; screen: 'Study'; params?: { wordIds?: string[]; drillTodayWrong?: boolean } }
   | { tab: 'Home'; screen: 'AddWord' }
   | { tab: 'Practice'; screen: 'WrongQuestionReview' }
   | { tab: 'Practice'; screen: 'ExamSetup' };
@@ -63,6 +65,8 @@ const DEFAULT_TODAY_STATS: TodayStats = {
   difficultWordIds: [],
   difficultWordCount: 0,
   unstudiedNewWordCount: 0,
+  todayWrongWordIds: [],
+  todayWrongWordCount: 0,
 };
 
 const DEFAULT_SUGGESTION: TodaySuggestion = {
@@ -132,6 +136,21 @@ const buildTodaySuggestion = (stats: TodayStats): TodaySuggestion => {
       actionLabel: '复习错题',
       icon: 'alert-circle-outline',
       route: { tab: 'Practice', screen: 'WrongQuestionReview' },
+    };
+  }
+  // 今日任务已清空、生词本也无未学存量，但今天点过「不认识」→ 主动提议加练，
+  // 比"做一组考题巩固"更贴合此刻的心流。回顾会话是纯加练：不动调度、不计今日完成。
+  if (stats.todayPending === 0 && stats.unstudiedNewWordCount === 0 && stats.todayWrongWordCount > 0) {
+    return {
+      title: '今日认错回顾',
+      description: `${stats.todayWrongWordCount} 个词今天点过「不认识」，趁热再刷一遍。`,
+      actionLabel: '回顾今日认错词',
+      icon: 'refresh',
+      route: {
+        tab: 'Home',
+        screen: 'Study',
+        params: { wordIds: stats.todayWrongWordIds, drillTodayWrong: true },
+      },
     };
   }
   if (stats.todayTotal > 0 && stats.todayPending === 0) {
@@ -219,10 +238,22 @@ export default function HomeScreen() {
       };
       // 困难词始终计算：强化复习作为常驻次级入口，不再要求"今日待学清空"才出现
       const difficultWordIds = baseStats.totalWords > 0 ? getDifficultWordIds(allWords, allRecords) : [];
+      // 今日认错词：今天点过「不认识」（StudyRecord result=0）的不同词，只保留仍在生词本的。
+      // 空串 word_id 是历史哨兵（新词占位、ID 待定），排除。
+      const existingWordIds = new Set(allWords.map((w) => w.id));
+      const todayWrongWordIds = Array.from(
+        new Set(
+          todayRecords
+            .filter((r) => r.result === 0 && typeof r.word_id === 'string' && r.word_id.length > 0)
+            .map((r) => r.word_id)
+        )
+      ).filter((id) => existingWordIds.has(id));
       const nextStats = {
         ...baseStats,
         difficultWordIds,
         difficultWordCount: difficultWordIds.length,
+        todayWrongWordIds,
+        todayWrongWordCount: todayWrongWordIds.length,
       };
       setTodayStats(nextStats);
       setTodaySuggestion(buildTodaySuggestion(nextStats));
@@ -416,6 +447,24 @@ export default function HomeScreen() {
                     leftIcon={<MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.primary} />}
                   />
                 )}
+              {/* 今日认错回顾：纯加练入口，主 CTA 已指向它时不再重复显示 */}
+              {todayStats.todayWrongWordCount > 0 &&
+                !(todaySuggestion.route.screen === 'Study' &&
+                  todaySuggestion.route.params?.drillTodayWrong) && (
+                  <AppButton
+                    title={`回顾今日认错词（${todayStats.todayWrongWordCount}）`}
+                    onPress={() =>
+                      navigation.navigate('Study' as any, {
+                        wordIds: todayStats.todayWrongWordIds,
+                        drillTodayWrong: true,
+                      })
+                    }
+                    variant="secondary"
+                    size="md"
+                    fullWidth
+                    leftIcon={<AppIcon name="refresh" size={20} color={colors.primary} />}
+                  />
+                )}
               {todayStats.difficultWordCount > 0 && (
                 <AppButton
                   title="强化复习"
@@ -480,7 +529,7 @@ export default function HomeScreen() {
             </Animated.View>
 
             {/* === 第三段：待办 + 最近添加 === */}
-            {(todayStats.wrongQuestionCount > 0 || todayStats.difficultWordCount > 0) && (
+            {(todayStats.wrongQuestionCount > 0 || todayStats.todayWrongWordCount > 0 || todayStats.difficultWordCount > 0) && (
               <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
                 {todayStats.wrongQuestionCount > 0 && (
                   <Pressable
@@ -509,6 +558,38 @@ export default function HomeScreen() {
                       </Text>
                       <Text style={{ color: colors.onSurfaceVariant, fontSize: typography.caption.size, marginTop: 2 }}>
                         {todayStats.wrongQuestionCount} 道错题待复盘
+                      </Text>
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={colors.tertiary} />
+                  </Pressable>
+                )}
+                {todayStats.todayWrongWordCount > 0 && (
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate('Study' as any, {
+                        wordIds: todayStats.todayWrongWordIds,
+                        drillTodayWrong: true,
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.todoRow,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.outline,
+                        borderRadius: radius.lg,
+                        opacity: pressed ? 0.85 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.todoIcon, { backgroundColor: colors.status.pending.bg }]}>
+                      <AppIcon name="refresh" size={20} color={colors.warning} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.onSurface, fontSize: typography.bodyLg.size, fontWeight: '600' }}>
+                        今日认错词
+                      </Text>
+                      <Text style={{ color: colors.onSurfaceVariant, fontSize: typography.caption.size, marginTop: 2 }}>
+                        {todayStats.todayWrongWordCount} 个词今天点过不认识，趁热再刷
                       </Text>
                     </View>
                     <MaterialCommunityIcons name="chevron-right" size={20} color={colors.tertiary} />

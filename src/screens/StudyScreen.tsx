@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Platform, Alert } from 'react-native';
+import { View, ScrollView, Pressable, Platform, Alert } from 'react-native';
 import {
   Card,
   Text,
@@ -16,7 +16,7 @@ import { baseTabBarStyle } from '../navigation/AppNavigator';
 import StorageService from '../services/StorageService';
 import AutoWordService from '../services/AutoWordService';
 import { Word, StudyRecord, AppSettings, Article } from '../types';
-import { localToday, buildDailyQueue, advanceOnPass } from '../services/scheduler';
+import { localToday, buildDailyQueue, advanceOnPass, isNewWord } from '../services/scheduler';
 import { format } from 'date-fns';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
@@ -26,6 +26,7 @@ import { useAppTheme } from '../theme/theme';
 import { palette, radius, spacing } from '../theme/tokens';
 import FlashcardStudy from '../components/FlashcardStudy';
 import WordDictModal from '../components/WordDictModal';
+import AppIcon from '../components/ds/AppIcon';
 import { useToast } from '../components/ds/Toast';
 
 type StudyScreenMode = 'flashcard' | 'listening' | 'quiz' | 'article';
@@ -94,6 +95,9 @@ export default function StudyScreen() {
     ? route.params.wordIds.filter((id: unknown): id is string => typeof id === 'string' && id !== '')
     : [];
   const customWordIdKey = customWordIds.join(',');
+  // 「今日认错回顾」加练会话：数据源是今日 StudyRecord 里 result=0 的词，而非传入的 wordIds。
+  // 纯加练——不写 StudyRecord、不推进 review_stage/next_due_date、不重复完成今日计划。
+  const drillTodayWrong = route.params?.drillTodayWrong === true;
   const [currentMode, setCurrentMode] = useState<StudyScreenMode>('flashcard');
   const [words, setWords] = useState<Word[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -115,6 +119,9 @@ export default function StudyScreen() {
   const [allStudiedToday, setAllStudiedToday] = useState(false);
   const [isCustomReview, setIsCustomReview] = useState(false);
   const [isContinueSession, setIsContinueSession] = useState(false);
+  const [isDrillSession, setIsDrillSession] = useState(false);
+  // 「今日任务已完成」空态里「回顾今日认错词」按钮的门控计数（0 = 今天没点过不认识，隐藏按钮）。
+  const [drillCount, setDrillCount] = useState(0);
   const [showCompletion, setShowCompletion] = useState(false);
   const [trulyCompleted, setTrulyCompleted] = useState(0);
   const [speechSettings, setSpeechSettings] = useState({
@@ -172,6 +179,11 @@ export default function StudyScreen() {
   }, [navigation, colors]);
 
   useEffect(() => {
+    // 「今日认错回顾」不依赖 route.params.wordIds，内部自行从今日学习记录取词。
+    if (drillTodayWrong) {
+      startTodayWrongDrill();
+      return;
+    }
     loadStudyWords();
   }, [customWordIdKey]);
 
@@ -206,6 +218,7 @@ export default function StudyScreen() {
       setLoadedArticleId(null);
       setArticleError(null);
       setShowArticleTranslation(false);
+      setDrillCount(0);
 
       // 学习页首载也做一次被动补充（日期守卫保证每天只跑一次）；
       // 「继续学习」入口则强制补充，跳过守卫。自定义复习会话不动生词本。
@@ -254,6 +267,7 @@ export default function StudyScreen() {
         setAllStudiedToday(false);
         setIsCustomReview(true);
         setIsContinueSession(false);
+        setIsDrillSession(false);
         setShowCompletion(false);
         retryMapRef.current = new Map();
         newWordIdSetRef.current = new Set();
@@ -264,6 +278,7 @@ export default function StudyScreen() {
       }
 
       setIsCustomReview(false);
+      setIsDrillSession(false);
 
       // 单一派生源（复习调度的唯一真相是 word.review_stage / next_due_date）：
       // 到期复习 = stage>=1 且 next_due<=今天（不封顶，漏学自动补）；
@@ -276,6 +291,10 @@ export default function StudyScreen() {
       if (studyWords.length === 0) {
         setAllStudiedToday(true);
         setWords([]);
+        // 今日任务已清空：算出今日认错词数量，供空态「回顾今日认错词」按钮门控。
+        void fetchTodayWrongWords()
+          .then(ws => setDrillCount(ws.length))
+          .catch(error => console.error('Failed to count today wrong words:', error));
         return;
       }
 
@@ -310,6 +329,70 @@ export default function StudyScreen() {
       setTrulyCompleted(0);
     } catch (error) {
       console.error('Failed to load study words:', error);
+    }
+  };
+
+  /**
+   * 取「今日点过「不认识」且仍在生词本」的词。
+   * 回顾会话（startTodayWrongDrill）与「今日任务已完成」空态的回顾按钮门控共用。
+   * 空串 word_id 是历史哨兵（新词占位、ID 待定），排除。
+   */
+  const fetchTodayWrongWords = async (): Promise<Word[]> => {
+    const [records, allWords] = await Promise.all([
+      StorageService.getStudyRecordsByDate(localToday()),
+      StorageService.getWords(),
+    ]);
+    const wrongIds = new Set(
+      records
+        .filter(r => r.result === 0 && typeof r.word_id === 'string' && r.word_id.length > 0)
+        .map(r => r.word_id)
+    );
+    // 与现存生词本取交集：已被「太简单」移出/软删的词不进回顾队列。
+    return allWords.filter(w => typeof w.id === 'string' && wrongIds.has(w.id));
+  };
+
+  /**
+   * 「今日认错回顾」：把今天点过「不认识」的词（StudyRecord result=0）再刷一遍。
+   * 与 customReview 共享同一套队列/完成卡骨架，差别只在数据源与「纯加练」语义：
+   *  - 数据源是今日学习记录，而非 route.params.wordIds；
+   *  - 过关不推进 review_stage / next_due_date、不写 StudyRecord、不重复完成今日计划，
+   *    所以今日完成数/正确率/后续复习节奏都不会被这次加练污染；
+   *  - 队列语义照旧：点「不认识」回队尾重刷，直到答对才出队（是"学一遍"不是"看一遍"）；
+   *  - 完成后点「再来一轮」即重新计算今日认错集，实现"多遍"。
+   */
+  const startTodayWrongDrill = async () => {
+    try {
+      const drillWords = await fetchTodayWrongWords();
+      if (drillWords.length === 0) {
+        toast.info('今天还没有点过「不认识」的词');
+        return;
+      }
+
+      const drillNewIds = drillWords.filter(isNewWord).map(w => w.id);
+      const newCount = drillNewIds.length;
+
+      setWords(drillWords);
+      setWordTypeCounts({ newCount, reviewCount: drillWords.length - newCount });
+      newWordIdSetRef.current = new Set(drillNewIds.filter(Boolean));
+      setCompletedByType({ newDone: 0, reviewDone: 0 });
+      setStudyStats({
+        total: drillWords.length,
+        completed: 0,
+        correct: 0,
+        accuracy: 0
+      });
+      setCurrentIndex(0);
+      setIsFlipped(false);
+      setAllStudiedToday(false);
+      setIsCustomReview(false);
+      setIsContinueSession(false);
+      setIsDrillSession(true);
+      setShowCompletion(false);
+      retryMapRef.current = new Map();
+      removedCountRef.current = 0;
+      setTrulyCompleted(0);
+    } catch (error) {
+      console.error('Failed to start today wrong drill:', error);
     }
   };
 
@@ -471,23 +554,27 @@ export default function StudyScreen() {
     }
 
     // —— 2) 后台落库（串行，不阻塞前进）：失败仅提示，不回滚已推进的 UI（该词下次还会再出现）。——
-    enqueuePersist(async () => {
-      try {
-        const record: Omit<StudyRecord, 'id'> = {
-          word_id: currentWord.id,
-          study_date: format(new Date(), 'yyyy-MM-dd'),
-          result: isCorrect ? 1 : 0,
-          study_mode: studyMode
-        };
-        await StorageService.addStudyRecord(record);
-        if (wordFinished) {
-          await persistFinishWord(currentWord, firstTry, today);
+    // 「今日认错回顾」是纯加练：这些词当天已过关、stage/到期日已推进、今日计划已完成，
+    // 再加练只巩固不记档——跳过落库，今日完成数/正确率/后续复习间隔都不会被污染。
+    if (!isDrillSession) {
+      enqueuePersist(async () => {
+        try {
+          const record: Omit<StudyRecord, 'id'> = {
+            word_id: currentWord.id,
+            study_date: format(new Date(), 'yyyy-MM-dd'),
+            result: isCorrect ? 1 : 0,
+            study_mode: studyMode
+          };
+          await StorageService.addStudyRecord(record);
+          if (wordFinished) {
+            await persistFinishWord(currentWord, firstTry, today);
+          }
+        } catch (error) {
+          console.error('Failed to persist study result:', error);
+          toast.error('本次作答保存失败，已继续学习');
         }
-      } catch (error) {
-        console.error('Failed to persist study result:', error);
-        toast.error('本次作答保存失败，已继续学习');
-      }
-    });
+      });
+    }
   };
 
   /**
@@ -890,7 +977,7 @@ export default function StudyScreen() {
       <FlashcardStudy
         currentWord={currentWord}
         onResult={handleResult}
-        onRemove={handleTooEasy}
+        onRemove={isDrillSession ? undefined : handleTooEasy}
         speakWord={speakWord}
         speechEnabled={speechSettings.soundEnabled}
         onEnhance={enhanceCurrentWord}
@@ -1040,6 +1127,16 @@ export default function StudyScreen() {
                 </Text>
               </>
             )}
+            {!isCustomReview && allStudiedToday && drillCount > 0 && (
+              <Button
+                mode="contained"
+                icon="refresh"
+                onPress={() => startTodayWrongDrill()}
+                style={styles.addWordBtn}
+              >
+                回顾今日认错词（{drillCount}）
+              </Button>
+            )}
             {!isCustomReview && allStudiedToday && (
               <Button
                 mode="contained"
@@ -1100,12 +1197,37 @@ export default function StudyScreen() {
 
       <View style={styles.progressCard}>
         <View style={styles.progressHeader}>
-          <Text style={styles.progressText}>
-            {trulyCompleted} / {studyStats.total}
-          </Text>
-          <Text style={styles.accuracyText}>
-            准确率: {studyStats.accuracy.toFixed(1)}%
-          </Text>
+          <View style={styles.progressHeaderLeft}>
+            <Text style={styles.progressText}>
+              {trulyCompleted} / {studyStats.total}
+            </Text>
+            <Text style={styles.accuracyText}>
+              准确率: {studyStats.accuracy.toFixed(1)}%
+            </Text>
+          </View>
+          {isDrillSession && (
+            <View style={styles.progressHeaderRight}>
+              <View style={styles.drillBadge}>
+                <AppIcon name="refresh" size={13} color={colors.warning} />
+                <Text style={styles.drillBadgeText}>今日认错回顾</Text>
+              </View>
+              <Pressable
+                accessibilityLabel="退出回顾"
+                onPress={() => navigation.goBack()}
+                hitSlop={10}
+                style={({ pressed }) => [
+                  styles.drillExit,
+                  {
+                    backgroundColor: pressed ? colors.surfaceVariant : 'transparent',
+                    borderColor: colors.outline,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              >
+                <AppIcon name="close" size={16} color={colors.onSurfaceVariant} />
+              </Pressable>
+            </View>
+          )}
         </View>
         <ProgressBar
           progress={trulyCompleted / Math.max(studyStats.total, 1)}
@@ -1126,7 +1248,7 @@ export default function StudyScreen() {
                 {studyStats.accuracy >= 80 ? '\u{1F389}' : '\u{1F4AA}'}
               </Text>
               <Text style={styles.completionTitle}>
-                {isCustomReview ? '强化复习完成！' : isContinueSession ? '本轮完成！' : '今日目标达成！'}
+                {isDrillSession ? '今日认错回顾完成！' : isCustomReview ? '强化复习完成！' : isContinueSession ? '本轮完成！' : '今日目标达成！'}
               </Text>
 
               <View style={styles.completionStats}>
@@ -1160,11 +1282,11 @@ export default function StudyScreen() {
               <View style={styles.completionActions}>
                 <Button
                   mode="contained"
-                  onPress={() => loadStudyWords(true)}
+                  onPress={isDrillSession ? () => startTodayWrongDrill() : () => loadStudyWords(true)}
                   style={styles.completionPrimaryBtn}
                   icon="refresh"
                 >
-                  {isCustomReview ? '再练一遍' : '继续学习'}
+                  {isDrillSession ? '再来一轮' : isCustomReview ? '再练一遍' : '继续学习'}
                 </Button>
                 <Button
                   mode="outlined"
@@ -1267,6 +1389,38 @@ const useStyles = makeStyles(colors => ({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.xs,
+  },
+  progressHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.md,
+    flexShrink: 1,
+  },
+  progressHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  drillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    backgroundColor: colors.status.pending.bg,
+    borderRadius: radius.sm,
+  },
+  drillBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.warning,
+  },
+  drillExit: {
+    width: 26,
+    height: 26,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   progressText: {
     fontSize: 14,
