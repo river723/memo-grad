@@ -199,3 +199,6 @@ assets/east6500.pdf
 # 迁移测试脚本的临时编译产物
 .tmp-migration-test/
 
+# 故事数据备份文件（手动备份，不入库）
+src/data/stories.backup-*.json
+
