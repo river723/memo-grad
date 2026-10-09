@@ -272,6 +272,12 @@ async function syncEntity(
     const data = pickForPrisma(dataRaw);
     // 删 updatedAt：交给 @updatedAt 自动维护，保证 create 也用服务器时间
     delete (data as Record<string, unknown>).updatedAt;
+    // 文章阅读计数由 POST /api/articles/:id/read 服务端原子自增，
+    // 客户端本地降级值不参与 sync——否则离线回推会覆盖权威值。
+    if (tableName === 'article') {
+      delete (data as Record<string, unknown>).readCount;
+      delete (data as Record<string, unknown>).lastReadAt;
+    }
 
     if (serverEnt) {
       // 服务端有记录：客户端推即覆盖（@updatedAt 自动 bump updatedAt）。

@@ -11,10 +11,11 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { AppState, Platform } from 'react-native';
 import StorageService from '../services/StorageService';
 import { OFFLINE_MODE } from '../config/appMode';
 import { registerTokenStore, api, ApiClientError, setCredentials } from '../services/ApiClient';
-import { startBackgroundSync, stopBackgroundSync } from '../services/SyncService';
+import { startBackgroundSync, stopBackgroundSync, onAppForeground } from '../services/SyncService';
 
 /**
  * 权益信息（对应服务端 /me 返回的 entitlement 字段）。
@@ -158,6 +159,29 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [persistTokens, switchUser]);
 
   useEffect(() => { restoreSession(); }, []);
+
+  // 切回前台 / 浏览器标签变可见时立即同步。
+  // 单靠 startBackgroundSync 的 setInterval 不够：app 挂起时 JS timer 完全冻结，
+  // 浏览器后台标签页会被节流到 ≥60s——一端刚生成的文章在另一端要等很久（甚至永不）
+  // 才出现。这里补上 SyncService 注释里承诺、却从未接线的「回到前台」触发。
+  //
+  // 注意 AppState 在 Expo Web 上只是 stub（恒 'active'、addEventListener 空操作），
+  // web 端必须走 document.visibilitychange。
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return; // 未登录时 storage key 会退回无前缀形态，同步无意义
+    if (Platform.OS === 'web') {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') onAppForeground();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      return () => document.removeEventListener('visibilitychange', onVisible);
+    }
+    const sub = AppState.addEventListener('change', (status) => {
+      if (status === 'active') onAppForeground();
+    });
+    return () => sub.remove();
+  }, [userId]);
 
   const sendCode = useCallback(async (phone: string): Promise<string | null> => {
     if (OFFLINE_MODE) return null; // 登录墙离线不可达，防御性兜底

@@ -18,6 +18,7 @@ import announcementRoutes from './routes/announcementRoutes';
 import worddictRoutes from './routes/worddictRoutes';
 import examContentRoutes from './routes/examContentRoutes';
 import storyRoutes from './routes/storyRoutes';
+import articleRoutes from './routes/articleRoutes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -110,6 +111,8 @@ export async function buildApp() {
   await app.register(aiRoutes, { prefix: '/api/ai' });
   await app.register(paymentRoutes, { prefix: '/api/pay' });
   await app.register(syncRoutes, { prefix: '/api/sync' });
+  // 文章阅读计数（已鉴权，服务端原子自增，不走 sync）
+  await app.register(articleRoutes, { prefix: '/api/articles' });
   // 公开词库路由（不带 admin 前缀），与 announcement 一样放最后
   await app.register(worddictRoutes, { prefix: '/api' });
   // 公开真题内容路由（不带 admin 前缀）

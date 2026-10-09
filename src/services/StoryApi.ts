@@ -14,6 +14,8 @@ export interface StorySeriesWire {
   seriesTitle: string;
   totalChapters: number;
   totalWords: number;
+  /** 系列行最后更新时间（server 已按 desc 排序；客户端据此显式选最新）。 */
+  updatedAt?: string;
 }
 
 /** 服务端序列化的系列元信息 + 章节列表（不含正文）。 */
@@ -74,6 +76,12 @@ async function getWithEtag<T>(path: string, opts: FetchOpts, op: string): Promis
       method: 'GET',
       headers,
       signal: opts.signal,
+      // 服务端 max-age=30d 会让浏览器把单章正文落进 HTTP 磁盘缓存 30 天，
+      // 跨会话都不再请求——NAS 重生成某章后手机端立刻新文、web 最长 30 天才换。
+      // 原生 RN fetch（OkHttp/NSURLSession）对 GET 不缓存，这里显式 no-store
+      // 让 web 与原生行为对称。代价：每次进章节多一次网络往返（~35KB），
+      // 对一个每次只翻一两章的阅读器来说可忽略。
+      cache: 'no-store',
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -89,8 +97,13 @@ export const StoryApi = {
   async getSeries(opts: FetchOpts = {}): Promise<StorySeriesMetaWire | null> {
     const list = await getWithEtag<{ series: StorySeriesWire[] }>('/api/stories', opts, 'getSeries');
     if (!list || list.series.length === 0) return null;
-    const first = list.series[0];
-    // 拿第一个系列的完整元信息（含章节列表）
+    // server 已按 updatedAt desc 排序；这里再显式取最新，避免盲取 series[0]
+    // 依赖服务端排序约定（历史上曾因 asc 排序 + series[0] 而固定展示最老系列）。
+    const first = [...list.series].sort((a, b) => {
+      const da = a.updatedAt ? Date.parse(a.updatedAt) : NaN;
+      const db = b.updatedAt ? Date.parse(b.updatedAt) : NaN;
+      return (Number.isNaN(db) ? -Infinity : db) - (Number.isNaN(da) ? -Infinity : da);
+    })[0];
     return getWithEtag<StorySeriesMetaWire>(`/api/stories/${first.id}`, opts, 'getSeriesMeta');
   },
 

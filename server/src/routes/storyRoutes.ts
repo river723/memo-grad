@@ -85,13 +85,15 @@ async function loadSeriesOrThrow(storyId: string) {
 
 export default async function storyRoutes(app: FastifyInstance) {
   // ---------- 0. 系列列表（客户端发现 storyId 用） ----------
+  // 按 updatedAt desc 排：客户端取「最新系列」为当前展示系列。
+  // 带 updatedAt 字段，让客户端能显式判定新旧，而不依赖这里的排序约定。
   app.get(
     '/stories',
     { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
     async () => {
       const series = await prisma.story.findMany({
         where: { deletedAt: null },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { updatedAt: 'desc' },
       });
       return {
         series: series.map((s) => ({
@@ -99,6 +101,7 @@ export default async function storyRoutes(app: FastifyInstance) {
           seriesTitle: s.seriesTitle,
           totalChapters: s.totalChapters,
           totalWords: s.totalWords,
+          updatedAt: s.updatedAt,
         })),
       };
     }

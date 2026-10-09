@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, FlatList, Pressable, StyleSheet } from 'react-native';
 import { Text, FAB } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { useAppTheme } from '../theme/theme';
 import { radius, spacing } from '../theme/tokens';
 import { makeStyles } from '../utils/useStyles';
 import StorageService from '../services/StorageService';
+import { onSyncComplete } from '../services/SyncService';
 import { Article } from '../types';
 import { showConfirm } from '../providers/ConfirmDialogProvider';
 import EmptyState from '../components/ds/EmptyState';
@@ -129,13 +130,7 @@ export default function ArticleListScreen() {
   const styles = useStyles();
   const [articles, setArticles] = useState<Article[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadArticles();
-    }, [])
-  );
-
-  const loadArticles = async () => {
+  const loadArticles = useCallback(async () => {
     try {
       const allArticles = await StorageService.getArticles();
       allArticles.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -143,7 +138,17 @@ export default function ArticleListScreen() {
     } catch (error) {
       console.error('Failed to load articles:', error);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadArticles();
+    }, [loadArticles])
+  );
+
+  // sync 完成（后台 5s / 切前台 / 5min 定时）后重读——
+  // useFocusEffect 只在进屏时触发一次，不会感知异步同步完成。
+  useEffect(() => onSyncComplete(loadArticles), [loadArticles]);
 
   const handleDelete = async (article: Article) => {
     const confirmed = await showConfirm(

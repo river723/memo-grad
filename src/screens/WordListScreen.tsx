@@ -14,6 +14,7 @@ import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { palette, radius } from '../theme/tokens';
 import StorageService from '../services/StorageService';
+import { onSyncComplete } from '../services/SyncService';
 import { Word } from '../types';
 import SortPicker, { SortOption } from '../components/SortPicker';
 import FilterPicker, { FilterOption } from '../components/FilterPicker';
@@ -66,6 +67,9 @@ export default function WordListScreen() {
       loadWords();
     }, [loadWords])
   );
+
+  // sync 完成后重读——getWords 是本地 AsyncStorage，useFocusEffect 不会感知后台 sync 完成。
+  useEffect(() => onSyncComplete(loadWords), [loadWords]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

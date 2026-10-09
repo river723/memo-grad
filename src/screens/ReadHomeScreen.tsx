@@ -8,6 +8,7 @@ import { useAppTheme } from '../theme/theme';
 import { radius, spacing } from '../theme/tokens';
 import { spring } from '../theme/motion';
 import StorageService from '../services/StorageService';
+import { onSyncComplete } from '../services/SyncService';
 import { getStorySeries, type StorySeriesMeta } from '../utils/storyContent';
 import StoryListScreen from './StoryListScreen';
 import ArticleListScreen from './ArticleListScreen';
@@ -61,6 +62,10 @@ export default function ReadHomeScreen() {
       loadStats();
     }, [loadStats])
   );
+
+  // sync 完成后重读统计——articleCount/readArticles 来自本地 AsyncStorage，
+  // 与 ArticleListScreen 同理：useFocusEffect 不会感知后台 sync 完成。
+  useEffect(() => onSyncComplete(loadStats), [loadStats]);
 
   useEffect(() => {
     heroOpacity.setValue(0);

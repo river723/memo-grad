@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppIcon, { type IconName } from '../components/ds/AppIcon';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppNavigation } from '../navigation/types';
+import { onSyncComplete } from '../services/SyncService';
 import { useAppTheme } from '../theme/theme';
 import { radius, spacing } from '../theme/tokens';
 import { spring, timingSlow } from '../theme/motion';
@@ -278,6 +279,10 @@ export default function HomeScreen() {
     }, [loadDashboardData])
   );
 
+  // sync 完成后重读——loadDashboardData 读本地 getWords/calculateStudyStats，
+  // useFocusEffect 不会感知后台 sync 完成。
+  useEffect(() => onSyncComplete(loadDashboardData), [loadDashboardData]);
+
   // 每次数据更新时跑进场动画
   useEffect(() => {
     if (!loading) {
@@ -445,24 +450,6 @@ export default function HomeScreen() {
                     size="md"
                     fullWidth
                     leftIcon={<MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.primary} />}
-                  />
-                )}
-              {/* 今日认错回顾：纯加练入口，主 CTA 已指向它时不再重复显示 */}
-              {todayStats.todayWrongWordCount > 0 &&
-                !(todaySuggestion.route.screen === 'Study' &&
-                  todaySuggestion.route.params?.drillTodayWrong) && (
-                  <AppButton
-                    title={`今日回顾（${todayStats.todayWrongWordCount}）`}
-                    onPress={() =>
-                      navigation.navigate('Study' as any, {
-                        wordIds: todayStats.todayWrongWordIds,
-                        drillTodayWrong: true,
-                      })
-                    }
-                    variant="secondary"
-                    size="md"
-                    fullWidth
-                    leftIcon={<AppIcon name="refresh" size={20} color={colors.primary} />}
                   />
                 )}
               {todayStats.difficultWordCount > 0 && (

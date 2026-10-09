@@ -8,6 +8,7 @@ import { makeStyles } from '../utils/useStyles';
 import { useAppTheme } from '../theme/theme';
 import { radius, spacing } from '../theme/tokens';
 import StorageService from '../services/StorageService';
+import { api } from '../services/ApiClient';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
 import { showConfirm } from '../providers/ConfirmDialogProvider';
@@ -80,8 +81,21 @@ export default function ArticleDetailScreen() {
 
       await StorageService.getSettings();
 
-      const newReadCount = (art.read_count || 0) + 1;
+      // 阅读计数：服务端原子自增（/api/articles/:id/read），不走 /api/sync。
+      // 多端共用同一账号时若走 sync 的 LWW，两台设备各自 +1、各自推、后推者
+      // 覆盖先推者——read_count 只累计"幸存的那几次推送"，基本不收敛。
+      // 服务端失败（离线 / 路由未部署）时降级本地 +1，下次 sync 拉取时服务端
+      // 权威值会覆盖本地，最终收敛到正确值。
       const now = new Date().toISOString();
+      let newReadCount = (art.read_count || 0) + 1;
+      try {
+        const res = await api.post<{ ok: true; readCount: number; lastReadAt: string | null }>(
+          `/api/articles/${articleId}/read`
+        );
+        newReadCount = res.readCount;
+      } catch {
+        /* 离线或 API 未部署：用本地降级值，sync 后会对齐 */
+      }
       await StorageService.updateArticle(articleId, {
         read_count: newReadCount,
         last_read_at: now,

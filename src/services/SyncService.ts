@@ -14,10 +14,19 @@
  *   - 手动触发（下拉刷新）
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import StorageService from './StorageService';
 import { api } from './ApiClient';
 import { realExamWrongMergeKey, normalizeRealExamWrongPull } from './realExamWrongShape';
 import { mergePulledEntities } from './syncMerge';
+import {
+  STUDY_RECORD_RETENTION_DAYS,
+  STUDY_PLAN_RETENTION_DAYS,
+  RETENTION_FALLBACK_DAYS,
+  retentionCutoff,
+  pruneOlderThan,
+  isQuotaError,
+} from '../constants/retention';
 
 interface WordRedirect {
   from: string;
@@ -41,6 +50,22 @@ interface SyncResult {
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let isSyncing = false;
 
+/** sync 完成后的订阅者。UI 用这个在 sync 落地后重读本地数据——
+ * 否则 useFocusEffect 在首次进屏时读到的 AsyncStorage 可能是 sync 前的旧值，
+ * 而 sync 5 秒后才完成、AsyncStorage 更新，但页面不会再自动重读。 */
+const syncListeners = new Set<() => void>();
+
+export function onSyncComplete(cb: () => void): () => void {
+  syncListeners.add(cb);
+  return () => { syncListeners.delete(cb); };
+}
+
+function emitSyncComplete(): void {
+  for (const cb of syncListeners) {
+    try { cb(); } catch (err) { console.warn('[Sync] listener error:', err); }
+  }
+}
+
 /**
  * 取某 Storage key 的全部实体（含软删除的，同步需要它们来传播删除事实）。
  * 通过 StorageService 获取带用户前缀的 key，确保不同用户数据隔离。
@@ -58,6 +83,40 @@ async function getRawEntities(storageKey: string): Promise<any[]> {
 /** 获取所有需要同步的实体 key（带用户前缀） */
 function getSyncEntityKeys(): Record<string, string> {
   return (StorageService as any).syncEntityKeys();
+}
+
+/**
+ * 实体名 → 日期字段。只有真正的 append-only 日志表按日期裁剪；
+ * 其他实体（word/article/examSession/...）体量小且不会无限增长，裸写即可。
+ * 这些 key 由 getSyncEntityKeys 定义，字段名与 StorageService 的写入路径一致。
+ */
+const LOG_ENTITIES: Record<string, { dateField: string; retentionDays: number }> = {
+  studyRecord: { dateField: 'study_date', retentionDays: STUDY_RECORD_RETENTION_DAYS },
+  studyPlan: { dateField: 'plan_date', retentionDays: STUDY_PLAN_RETENTION_DAYS },
+};
+
+/**
+ * 合并后的实体写回本地。日志表带保留裁剪 + 配额兜底降级重试，
+ * 避免首次全量重拉（cursorVersion 升级 → lastSyncAt=null → 服务端回传全量历史）
+ * 把 90 天 study_records 整表塞回 localStorage 打满配额——那时 setItem 抛
+ * QuotaExceededError，整个 sync 中断，emitSyncComplete 永不触发，UI 不刷新。
+ * 已裁掉的旧行不会再回来：服务端增量游标按 @updatedAt 过滤，本地裁剪是纯物理移除。
+ */
+async function writeEntity(entityName: string, storageKey: string, rows: any[]): Promise<void> {
+  const log = LOG_ENTITIES[entityName];
+  if (!log) {
+    await AsyncStorage.setItem(storageKey, JSON.stringify(rows));
+    return;
+  }
+  const serialize = (days: number) =>
+    JSON.stringify(pruneOlderThan(rows, log.dateField, retentionCutoff(days)).kept);
+  try {
+    await AsyncStorage.setItem(storageKey, serialize(log.retentionDays));
+  } catch (error) {
+    if (!isQuotaError(error)) throw error;
+    console.warn(`[Sync] 配额不足，${entityName} 按 ${RETENTION_FALLBACK_DAYS} 天保留期重试`);
+    await AsyncStorage.setItem(storageKey, serialize(RETENTION_FALLBACK_DAYS));
+  }
 }
 
 /** 获取 lastSyncAt 的存储 key（带用户前缀） */
@@ -156,7 +215,13 @@ export async function syncAll(): Promise<SyncResult | null> {
         remoteList.map((e: any) => normalizePulledEntity(entityName, e)),
         (e: any) => entityMergeKey(entityName, e)
       );
-      await (StorageService as any)._rawSetItem(storageKey, JSON.stringify(merged));
+      try {
+        await writeEntity(entityName, storageKey, merged);
+      } catch (err: any) {
+        // 单个实体写不进去（配额、其他 IO 错误）不能连坐整个合并：
+        // 排在它后面的实体照样要落本地。游标本轮不推进，下次会重拉本实体。
+        console.warn(`[Sync] ${entityName} 写入本地失败（跳过，下次重拉）:`, err?.message || err);
+      }
     }
 
     // 5. 清除本地 dirty 标记（推过的记录已 clean）。
@@ -183,7 +248,13 @@ export async function syncAll(): Promise<SyncResult | null> {
         return { ...e, dirty: false };
       });
       if (changed) {
-        await (StorageService as any)._rawSetItem(storageKey, JSON.stringify(cleaned));
+        // 日志表同样要裁剪写入：清 dirty 是 read-modify-write，不裁剪会重新
+        // 触发配额错误。单实体失败不连坐——游标推进在下一步，本实体下次重拉。
+        try {
+          await writeEntity(entityName, storageKey, cleaned);
+        } catch (err: any) {
+          console.warn(`[Sync] ${entityName} 清 dirty 写入失败（跳过）:`, err?.message || err);
+        }
       }
     }
 
@@ -214,11 +285,16 @@ export async function syncAll(): Promise<SyncResult | null> {
     console.log('[Sync] 完成', result.results);
     return result;
   } catch (err: any) {
-    // 同步失败不抛异常：离线时正常使用，下次联网自动重试
+    // 同步失败不抛异常：离线时正常使用，下次联网自动重试。
     console.warn('[Sync] 失败:', err?.message || err);
     return null;
   } finally {
     isSyncing = false;
+    // 无论成功/失败都通知 UI 重读——成功路径已合并远端实体，失败路径可能
+    // 已部分合并（单实体失败已 catch），本地状态都可能与 UI 展示不一致。
+    // 早先 emitSyncComplete 只在成功路径触发，导致配额错误等中断时
+    // UI 永远拿不到新数据（"手机端文章在 web 看不到"的直接根因）。
+    emitSyncComplete();
   }
 }
 
