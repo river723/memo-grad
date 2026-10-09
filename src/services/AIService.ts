@@ -72,7 +72,7 @@ class AIService {
     words: string[],
     theme: string = 'random',
     targetLength: number = 200
-  ): Promise<{ title: string; content: string; translation: string }> {
+  ): Promise<{ title: string; titleZh?: string; content: string; translation: string }> {
     return OFFLINE_MODE
       ? this.local!.generateFunArticle(words, theme, targetLength)
       : this.proxy('generateFunArticle', { words, theme, targetLength });

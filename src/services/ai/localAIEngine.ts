@@ -302,7 +302,7 @@ export class LocalAIEngine {
     words: string[],
     theme: string = 'random',
     targetLength: number = 200
-  ): Promise<{ title: string; content: string; translation: string }> {
+  ): Promise<{ title: string; titleZh?: string; content: string; translation: string }> {
     await this.ensureConfig();
     const themes: Record<string, string> = {
       technology: '科技',
@@ -321,7 +321,7 @@ export class LocalAIEngine {
 
 要求：
 - 文章长度约 ${targetLength} 词
-- 每个目标单词自然融入文章，出现 1-2 次
+- **每个目标单词必须至少出现 1 次，最多出现 2 次**（请勿任意重复）
 - 文章生动有趣，有完整的叙事结构
 - 适合考研英语水平的读者，目标单词以外的词汇要简单易懂
 - 标题要吸引人，能概括文章内容
@@ -329,7 +329,8 @@ export class LocalAIEngine {
 
 请返回严格的JSON格式，不要任何额外文本：
 {
-  "title": "文章标题",
+  "title": "文章标题（英文）",
+  "title_zh": "文章标题的中文翻译",
   "content": "文章正文（英文）",
   "translation": "文章的中文翻译"
 }`;
@@ -371,6 +372,7 @@ export class LocalAIEngine {
           const parsed = JSON.parse(jsonMatch[0]);
           return {
             title: parsed.title || '未命名文章',
+            titleZh: parsed.title_zh || '',
             content: parsed.content || content,
             translation: parsed.translation || ''
           };
@@ -382,6 +384,7 @@ export class LocalAIEngine {
       // Fallback: use raw content as article body
       return {
         title: '趣味文章',
+        titleZh: '',
         content: content,
         translation: ''
       };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, Platform, Alert } from 'react-native';
+import { View, ScrollView, Pressable, Platform, Alert, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   Card,
   Text,
@@ -8,7 +9,6 @@ import {
   Surface,
   Chip,
   SegmentedButtons,
-  TextInput,
   ActivityIndicator,
 } from 'react-native-paper';
 import { useAppNavigation, useAppRoute } from '../navigation/types';
@@ -16,7 +16,7 @@ import { baseTabBarStyle } from '../navigation/AppNavigator';
 import StorageService from '../services/StorageService';
 import AutoWordService from '../services/AutoWordService';
 import { Word, StudyRecord, AppSettings, Article } from '../types';
-import { localToday, buildDailyQueue, advanceOnPass, isNewWord } from '../services/scheduler';
+import { localToday, buildDailyQueue, advanceOnPass, isNewWord, isDue, normalizeStage } from '../services/scheduler';
 import { format } from 'date-fns';
 import AIService, { SubscriptionRequiredError } from '../services/AIService';
 import { subscriptionPrompt } from '../utils/subscriptionPrompt';
@@ -29,7 +29,7 @@ import WordDictModal from '../components/WordDictModal';
 import AppIcon from '../components/ds/AppIcon';
 import { useToast } from '../components/ds/Toast';
 
-type StudyScreenMode = 'flashcard' | 'listening' | 'quiz' | 'article';
+type StudyScreenMode = 'flashcard' | 'article';
 
 interface PreviewSegment {
   text: string;
@@ -108,13 +108,6 @@ export default function StudyScreen() {
     correct: 0,
     accuracy: 0
   });
-  const [showResult, setShowResult] = useState(false);
-  const [currentResult, setCurrentResult] = useState<'correct' | 'incorrect' | null>(null);
-  const [quizOptions, setQuizOptions] = useState<string[]>([]);
-  const [selectedAnswer, setSelectedAnswer] = useState<string>('');
-  const [showQuizResult, setShowQuizResult] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [listenAnswer, setListenAnswer] = useState('');
   const [wordTypeCounts, setWordTypeCounts] = useState({ newCount: 0, reviewCount: 0 });
   const [allStudiedToday, setAllStudiedToday] = useState(false);
   const [isCustomReview, setIsCustomReview] = useState(false);
@@ -133,6 +126,7 @@ export default function StudyScreen() {
   const [isGeneratingArticle, setIsGeneratingArticle] = useState(false);
   const [generatedArticle, setGeneratedArticle] = useState<{
     title: string;
+    titleZh?: string;
     content: string;
     translation: string;
   } | null>(null);
@@ -142,6 +136,9 @@ export default function StudyScreen() {
   const [selectedArticleWord, setSelectedArticleWord] = useState<Word | null>(null);
   const [showArticleWordModal, setShowArticleWordModal] = useState(false);
   const [loadedArticleId, setLoadedArticleId] = useState<string | null>(null);
+  const [selectedArticleWords, setSelectedArticleWords] = useState<Word[]>([]);
+  const [showWordPicker, setShowWordPicker] = useState(false);
+  const [wordPickerLoading, setWordPickerLoading] = useState(false);
   // 用 useRef 追踪重试中单词的连续正确次数，不在 Map 中的单词 = 还没答错过（首次答对即过关）
   const retryMapRef = useRef<Map<string, number>>(new Map());
   const pendingIndexRef = useRef<number>(0);
@@ -149,8 +146,6 @@ export default function StudyScreen() {
   const newWordIdSetRef = useRef<Set<string>>(new Set());
   // 「太简单」移出生词本的词数：全靠它清空队列且未学一词时也能触发完成卡
   const removedCountRef = useRef(0);
-  // 选择题选项生成的序号：异步拉全词库作干扰项时，丢弃过期请求防止写回上一个词的选项
-  const quizSeqRef = useRef(0);
   const [completedByType, setCompletedByType] = useState({ newDone: 0, reviewDone: 0 });
   // 作答提交锁：乐观推进期间阻止连点 / 重入。ref 做同步守卫（避免闭包旧值），state 驱动按钮禁用。
   const [answerBusy, setAnswerBusy] = useState(false);
@@ -187,24 +182,19 @@ export default function StudyScreen() {
     loadStudyWords();
   }, [customWordIdKey]);
 
-  // 监听浮层关闭 + 队列为空 → 触发完成卡片
+  // 队列为空 + 有完成记录 → 触发完成卡片
   useEffect(() => {
-    if (!showResult && words.length === 0 && (studyStats.completed > 0 || removedCountRef.current > 0)) {
+    if (words.length === 0 && (studyStats.completed > 0 || removedCountRef.current > 0)) {
       setShowCompletion(true);
     }
-  }, [showResult, words.length]);
+  }, [words.length]);
 
-  // 当前词 id：答对出队/答错回队尾后 currentIndex 常保持不变，仅靠索引无法察觉「换词」，
-  // 必须以词 id 作为依赖，否则选择题选项会停留在上一个词（四个选项里没有当前词的正确释义）。
   const currentWordId = words[currentIndex]?.id;
 
-  useEffect(() => {
-    if (currentMode === 'quiz' && words.length > 0) {
-      generateQuizOptions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMode, currentWordId]);
-
+  // 进入短文模式时加载历史短文（匹配旧短文复用，不消耗 AI 额度）。
+  // 注意：不再自动填充 selectedArticleWords——那会改变 getArticleWords 的词集，
+  // 导致和当初生成短文用的词集对不上、历史短文匹配落空。
+  // 用户点「选词」手动勾选后 selectedArticleWords 才会非空并覆盖取词。
   useEffect(() => {
     if (currentMode === 'article' && words.length > 0 && !generatedArticle) {
       loadExistingArticleForCurrentWords();
@@ -233,6 +223,7 @@ export default function StudyScreen() {
       setLoadedArticleId(null);
       setArticleError(null);
       setShowArticleTranslation(false);
+      setSelectedArticleWords([]);
       setDrillCount(0);
 
       // 学习页首载也做一次被动补充（日期守卫保证每天只跑一次）；
@@ -540,32 +531,14 @@ export default function StudyScreen() {
 
     pendingIndexRef.current = nextIndex;
 
-    // 反馈 + 推进
-    if (currentMode === 'flashcard') {
-      // 单词卡是自评：翻面后已看到释义，卡片自身也有飘字/抖动反馈（FlashcardStudy 内 320ms），
-      // 无需再弹全屏对错浮层、不停留，直接切下一张。
-      setCurrentIndex(nextIndex);
-      setIsFlipped(false);
-      setTurn(t => t + 1);
-      // 乐观前进完成即放锁：新卡正面 flipped=false，按钮天然禁用，不会误触。
-      answerBusyRef.current = false;
-      setAnswerBusy(false);
-    } else {
-      // 选择/听写：需要停留看清正确答案，保留全屏对错浮层 1.2~1.5s 再推进
-      setCurrentResult(isCorrect ? 'correct' : 'incorrect');
-      setShowResult(true);
-
-      setTimeout(() => {
-        setShowResult(false);
-        setCurrentIndex(pendingIndexRef.current);
-        setIsFlipped(false);
-        setSelectedAnswer('');
-        setShowQuizResult(false);
-        setListenAnswer('');
-        answerBusyRef.current = false;
-        setAnswerBusy(false);
-      }, wordFinished ? 1500 : 1200);
-    }
+    // 单词卡是自评：翻面后已看到释义，卡片自身也有飘字/抖动反馈（FlashcardStudy 内 320ms），
+    // 无需再弹全屏对错浮层、不停留，直接切下一张。
+    setCurrentIndex(nextIndex);
+    setIsFlipped(false);
+    setTurn(t => t + 1);
+    // 乐观前进完成即放锁：新卡正面 flipped=false，按钮天然禁用，不会误触。
+    answerBusyRef.current = false;
+    setAnswerBusy(false);
 
     // —— 2) 后台落库（串行，不阻塞前进）：失败仅提示，不回滚已推进的 UI（该词下次还会再出现）。——
     // 「今日认错回顾」是纯加练：这些词当天已过关、stage/到期日已推进、今日计划已完成，
@@ -659,97 +632,39 @@ export default function StudyScreen() {
     }
   };
 
-  const generateQuizOptions = async () => {
-    const currentWord = getCurrentWord();
-    if (!currentWord) return;
-
-    const correctMeaning = currentWord.definitions[0]?.meaning?.trim();
-    if (!correctMeaning) return;
-
-    // 干扰项必须取自整本生词本而非当前队列：队列答到末尾会出队、所剩无几，凑不满 3 个干扰项。
-    const seq = ++quizSeqRef.current;
-    let poolWords: Word[] = words;
-    try {
-      const all = await StorageService.getWords();
-      if (Array.isArray(all) && all.length > 0) poolWords = all;
-    } catch {
-      // 读词库失败则退回用当前队列
-    }
-    // await 期间若已切到下一个词，丢弃本次结果，避免写回上一个词的选项
-    if (quizSeqRef.current !== seq) return;
-
-    // 去重 + 排除当前词、空释义、与正确释义相同的项
-    const pool = Array.from(
-      new Set(
-        poolWords
-          .filter(w => w.id !== currentWord.id)
-          .map(w => w.definitions[0]?.meaning?.trim())
-          .filter((m): m is string => !!m && m !== correctMeaning)
-      )
-    );
-    // Fisher–Yates 洗牌后取前 3 个
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    const wrongOptions = pool.slice(0, 3);
-
-    const allOptions = [correctMeaning, ...wrongOptions].sort(() => Math.random() - 0.5);
-    setQuizOptions(allOptions);
-    setSelectedAnswer('');
-    setShowQuizResult(false);
-  };
-
-  const handleQuizAnswer = (answer: string) => {
-    setSelectedAnswer(answer);
-    const currentWord = getCurrentWord();
-    if (!currentWord) return;
-
-    const isCorrect = answer === currentWord.definitions[0]?.meaning;
-    setShowQuizResult(true);
-
-    setTimeout(() => {
-      handleResult(isCorrect);
-    }, 1500);
-  };
-
-  const startListeningMode = () => {
-    const currentWord = getCurrentWord();
-    if (!currentWord || !speechSettings.soundEnabled) return;
-
-    setIsListening(true);
-    speakWord(currentWord.word);
-
-    setTimeout(() => {
-      setIsListening(false);
-    }, 10000);
-  };
-
   useEffect(() => {
     const currentWord = getCurrentWord();
     if (
       currentWord &&
       currentMode === 'flashcard' &&
-      !showResult &&
       !showCompletion &&
       speechSettings.soundEnabled &&
       speechSettings.autoPlaySound
     ) {
       speakWord(currentWord.word);
     }
-  }, [currentIndex, words, currentMode, showResult, showCompletion, speechSettings]);
+  }, [currentIndex, words, currentMode, showCompletion, speechSettings]);
 
-  const handleListenSubmit = () => {
-    const currentWord = getCurrentWord();
-    if (!currentWord) return;
-
-    const isCorrect = listenAnswer.trim().toLowerCase() === currentWord.word.toLowerCase();
-    handleResult(isCorrect);
+/**
+ * 计算单词在短文推荐中的优先级分数。
+ * 分数越高，推荐优先级越高。
+ * 培养：今天到期的复习词 > 高频词 > 新词/低频词
+ */
+  const getArticleWords = () => {
+    // 若用户在选词界面已做出选择，用用户选定的词
+    if (selectedArticleWords.length > 0) return selectedArticleWords;
+    // 原始逻辑：直接取当前词列表前 30 个（自定义复习时 words 就是传入的 wordIds）
+    return words.slice(0, 30);
   };
 
-  const getArticleWords = () => words.slice(0, 30);
-
-  const getArticleTargetLength = (articleWords: Word[]) => articleWords.length * 20;
+  const getArticleTargetLength = (articleWords: Word[]) => {
+    const n = articleWords.length;
+    if (n === 0) return 0;
+    if (n <= 10) return Math.max(100, n * 15);
+    if (n <= 20) return n * 15;
+    if (n <= 30) return n * 12;
+    return Math.min(400, n * 10);
+  };
 
   const getArticleWordIds = (articleWords: Word[]) => articleWords
     .map(w => w.id)
@@ -761,33 +676,89 @@ export default function StudyScreen() {
     setShowArticleWordModal(true);
   };
 
+  /**
+   * 计算单词在短文推荐中的优先级分数（供选词面板排序用）。
+   * 今天到期的复习词 > 高考频词 > 低频词。
+   */
+  const calcWordScore = (word: Word): number => {
+    const today = localToday();
+    if (isDue(word, today)) return 1000;
+    const freq = word.frequency != null ? word.frequency : 2;
+    let score = freq * 30;
+    const diff = word.difficulty != null ? word.difficulty : 3;
+    score -= (diff - 3) * 8;
+    return score;
+  };
+
   const loadExistingArticleForCurrentWords = async () => {
     const articleWords = getArticleWords();
     const currentWordIds = getArticleWordIds(articleWords);
     if (currentWordIds.length === 0) return;
 
     try {
+      // 载入历史短文：优先匹配包含当前词的短文（按重叠度+时间排序），找不到就回退到最近一篇
       const articles = await StorageService.getArticles();
-      const matchedArticle = articles
-        .filter(article => {
-          const articleIdSet = new Set(article.word_ids.filter(id => typeof id === 'string' && id !== ''));
-          return currentWordIds.every(id => articleIdSet.has(id));
-        })
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      if (articles.length === 0) return;
 
-      if (matchedArticle) {
-        setGeneratedArticle({
-          title: matchedArticle.title,
-          content: matchedArticle.content,
-          translation: matchedArticle.translation,
-        });
-        setGeneratedArticleWords(articleWords);
-        setLoadedArticleId(matchedArticle.id || null);
-        setArticleError('已载入该组单词的历史短文，不会消耗 AI 额度。');
-        setShowArticleTranslation(false);
-      }
+      const currentSet = new Set(currentWordIds);
+
+      // 给每篇打分：重叠度（当前词中有多少落在文章里）* 1000 + 时间权重（越新越大）
+      const scored = articles.map(a => {
+        const aSet = new Set(a.word_ids.filter(id => typeof id === 'string' && id !== ''));
+        const overlap = [...currentSet].filter(id => aSet.has(id)).length;
+        const timeScore = new Date(a.created_at).getTime() / 1e6;
+        return { a, score: overlap * 1000 + timeScore, overlap };
+      }).sort((x, y) => y.score - x.score);
+
+      // 只要有重叠就复用（哪怕只有 1 个词也认，比重新生成省额度）；完全没重叠就取最新的
+      const top = scored[0];
+      const useFallback = top.overlap === 0;
+      const matched = top.a;
+
+      setGeneratedArticle({
+        title: matched.title,
+        content: matched.content,
+        translation: matched.translation,
+      });
+      setGeneratedArticleWords(articleWords);
+      setLoadedArticleId(matched.id || null);
+      setArticleError(useFallback
+        ? `未找到包含当前 ${currentWordIds.length} 词的历史短文，已载入最近一篇（可点"重新生成"用当前词）`
+        : `已载入匹配的历史短文（含当前 ${top.overlap}/${currentWordIds.length} 词），不会消耗 AI 额度。`);
+      setShowArticleTranslation(false);
     } catch (error) {
       console.warn('Failed to load existing article:', error);
+    }
+  };
+
+  /**
+   * 加载短文推荐词：按优先级排序取前 30 个，并按「短文覆盖次数」降权已被多次选中的词。
+   * 调用方把结果存进 selectedArticleWords（仅用于选词面板，不影响匹配逻辑）。
+   */
+  const loadRecommendedArticleWords = async () => {
+    setWordPickerLoading(true);
+    try {
+      const coverage = await StorageService.getWordArticleCoverage();
+      const scored = words
+        .map(w => ({ word: w, score: calcWordScore(w) }))
+        .sort((a, b) => b.score - a.score);
+
+      // 降权：已被选入短文 ≥3 次的词，score 乘以系数
+      const weighted = scored
+        .map(item => {
+          if (coverage.get(item.word.id) >= 3) {
+            item.score *= 0.5;
+          }
+          return item;
+        })
+        .sort((a, b) => b.score - a.score);
+
+      setSelectedArticleWords(weighted.slice(0, 30).map(i => i.word));
+    } catch (error) {
+      console.warn('Failed to load recommended article words:', error);
+      setSelectedArticleWords(words.slice(0, 30));
+    } finally {
+      setWordPickerLoading(false);
     }
   };
 
@@ -801,14 +772,20 @@ export default function StudyScreen() {
       return;
     }
 
+    const targetWordList = articleWords.map(w => w.word);
+    // 客户端解析 'random' 主题：随机选一个具体主题键，避免服务端把 "random" 字面传给 AI
+    // 导致标题出现 "Random"（服务端旧代码未做解析，需客户端兜底）
+    const THEME_KEYS = ['technology', 'life', 'history', 'nature', 'science'] as const;
+    const resolvedTheme = THEME_KEYS[Math.floor(Math.random() * THEME_KEYS.length)];
     setIsGeneratingArticle(true);
     setShowArticleTranslation(false);
     setGeneratedArticleWords([]);
     setLoadedArticleId(null);
+
     try {
       const result = await AIService.generateFunArticle(
-        articleWords.map(w => w.word),
-        'random',
+        targetWordList,
+        resolvedTheme,
         targetLength
       );
       setGeneratedArticle(result);
@@ -821,7 +798,7 @@ export default function StudyScreen() {
           translation: result.translation,
           words: articleWords.map(w => w.word),
           word_ids: articleWords.map(w => w.id).filter((id): id is string => typeof id === 'string' && id !== ''),
-          theme: 'random',
+          theme: resolvedTheme,
           created_at: new Date().toISOString(),
           read_count: 0,
         };
@@ -839,10 +816,139 @@ export default function StudyScreen() {
       }
       const msg = error.message || '短文生成失败，请重试';
       setArticleError(msg);
-      Alert.alert('生成失败', msg);
     } finally {
       setIsGeneratingArticle(false);
     }
+  };
+
+  const renderWordPicker = () => {
+    const headerHeight = 56;
+    return (
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>智能选词</Text>
+            <Button
+              mode="text"
+              onPress={() => setShowWordPicker(false)}
+              style={{ padding: 8 }}
+            >
+              关闭
+            </Button>
+          </View>
+
+          <View style={styles.modalBody}>
+            {wordPickerLoading ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={{ marginTop: 12 }}>正在加载...</Text>
+              </View>
+            ) : (
+              <ScrollView>
+                <Text style={styles.modalSectionTitle}>智能推荐（按今日优先级排序）</Text>
+                <View style={styles.wordPickerList}>
+                  {selectedArticleWords.length === 0 ? (
+                    <Text style={{ textAlign: 'center', color: colors.onSurfaceVariant, marginTop: 24 }}>
+                      暂无可选单词
+                    </Text>
+                  ) : (
+                    <>
+                      {/* 显示已选词汇，带反选功能 */}
+                      <Text style={styles.modalSectionSubtitle}>已选 {selectedArticleWords.length} 词</Text>
+                      <View style={styles.wordPickerSelected}>
+                        {selectedArticleWords.map(word => (
+                          <View key={word.id} style={styles.wordPickerItem}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8 }}>
+                              <Text>{word.word}</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Text style={{ fontSize: 12, color: colors.onSurfaceVariant }}>
+                                  复习 {normalizeStage(word.review_stage)}
+                                </Text>
+                                <Text style={{ marginHorizontal: 4, fontSize: 12, color: colors.onSurfaceVariant }}>
+                                  频{word.frequency ?? 2}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setSelectedArticleWords(selectedArticleWords.filter(w => w.id !== word.id));
+                                }}
+                                style={{ padding: 8 }}
+                              >
+                                <MaterialCommunityIcons name="close" size={18} color={colors.danger} />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
+                  </View>
+                  <View style={{ height: 12 }} />
+                  <Text style={styles.modalSectionTitle}>全部单词</Text>
+                  <View style={styles.wordPickerList}>
+                    {words.map(word => {
+                      const isSelected = selectedArticleWords.some(w => w.id === word.id);
+                      return (
+                        <View key={word.id} style={styles.wordPickerItem}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (isSelected) {
+                                setSelectedArticleWords(selectedArticleWords.filter(w => w.id !== word.id));
+                              } else {
+                                setSelectedArticleWords([...selectedArticleWords, word]);
+                              }
+                            }}
+                            style={[
+                              styles.wordPickerItemContent,
+                              isSelected && styles.wordPickerItemSelected,
+                            ]}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Text>{word.word}</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Text style={{ fontSize: 12, color: colors.onSurfaceVariant }}>
+                                  复习 {normalizeStage(word.review_stage)}
+                                </Text>
+                                <Text style={{ marginHorizontal: 4, fontSize: 12, color: colors.onSurfaceVariant }}>
+                                  频{word.frequency ?? 2}
+                                </Text>
+                              </View>
+                            </View>
+                            <MaterialCommunityIcons name={isSelected ? 'check' : 'checkbox-blank-outline'} size={20} color={isSelected ? colors.primary : colors.onSurfaceVariant} />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              )}
+          </View>
+
+          <View style={styles.modalFooter}>
+            <Button
+              mode="text"
+              onPress={() => {
+                setSelectedArticleWords([]);
+                setShowWordPicker(false);
+              }}
+              style={{ flex: 1 }}
+            >
+              重置
+            </Button>
+            <View style={{ width: 1 }} /> {/* 分隔线 */}
+            <Button
+              mode="contained"
+              onPress={() => {
+                setShowWordPicker(false);
+              }}
+              style={{ flex: 1 }}
+            >
+              确定
+            </Button>
+          </View>
+        </View>
+      </View>
+    );
   };
 
   const renderHighlightedArticle = () => {
@@ -903,6 +1009,21 @@ export default function StudyScreen() {
             将根据 {articleWords.length} 个生词自动生成约 {targetLength} 词的短文。
           </Text>
 
+          {/* 选词按钮 */}
+          <Button
+            mode="outlined"
+            onPress={() => {
+              // 首次打开面板时若尚无选中词，填上推荐词供用户增删
+              if (selectedArticleWords.length === 0) loadRecommendedArticleWords();
+              setShowWordPicker(true);
+            }}
+            disabled={isGeneratingArticle}
+            icon="pencil"
+            style={{ marginVertical: 8, borderColor: colors.primary }}
+          >
+            {selectedArticleWords.length > 0 ? `已选 ${selectedArticleWords.length} 词` : '选词'}
+          </Button>
+
           {articleError && (
             <Text style={loadedArticleId ? styles.articleInfo : styles.articleError}>
               {articleError}
@@ -931,24 +1052,44 @@ export default function StudyScreen() {
 
         {hasArticle && (
           <View style={styles.articlePreviewCard}>
-            {/* 重新生成短文入口（次要） */}
-            <Button
-              mode="outlined"
-              compact
-              icon="refresh"
-              onPress={handleGenerateArticle}
-              loading={isGeneratingArticle}
-              disabled={isGeneratingArticle || articleWords.length === 0}
-              style={{ alignSelf: 'flex-start', marginBottom: spacing.sm }}
-            >
-              重新生成短文
-            </Button>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.sm }}>
+              {/* 重新生成短文入口 */}
+              <Button
+                mode="outlined"
+                compact
+                icon="refresh"
+                onPress={handleGenerateArticle}
+                loading={isGeneratingArticle}
+                disabled={isGeneratingArticle || articleWords.length === 0}
+                style={{ flex: 1 }}
+              >
+                重新生成
+              </Button>
+              {/* 选词按钮 */}
+              <Button
+                mode="outlined"
+                onPress={() => {
+                  if (selectedArticleWords.length === 0) loadRecommendedArticleWords();
+                  setShowWordPicker(true);
+                }}
+                disabled={isGeneratingArticle}
+                icon="pencil"
+                style={{ flex: 1, borderColor: colors.primary }}
+              >
+                {selectedArticleWords.length > 0 ? `已选 ${selectedArticleWords.length} 词` : '选词'}
+              </Button>
+            </View>
             {articleError && (
               <Text style={loadedArticleId ? styles.articleInfo : styles.articleError}>
                 {articleError}
               </Text>
             )}
             <Text style={styles.articlePreviewTitle}>{generatedArticle.title}</Text>
+            {!!generatedArticle.titleZh && (
+              <Text style={{ fontSize: 15, color: colors.onSurfaceVariant, marginBottom: 12 }}>
+                {generatedArticle.titleZh}
+              </Text>
+            )}
             {renderHighlightedArticle()}
 
             <Text style={styles.articleTapHint}>
@@ -967,6 +1108,9 @@ export default function StudyScreen() {
 
             {showArticleTranslation && !!generatedArticle.translation && (
               <Surface style={styles.articleTranslationBox}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.primary, marginBottom: 8 }}>
+                  中文翻译
+                </Text>
                 <Text style={styles.articleTranslationText}>{generatedArticle.translation}</Text>
               </Surface>
             )}
@@ -1000,117 +1144,6 @@ export default function StudyScreen() {
         busy={answerBusy}
         resetKey={turn}
       />
-    );
-  };
-
-  const renderListeningMode = () => {
-    const currentWord = getCurrentWord();
-    if (!currentWord) return null;
-
-    return (
-      <View style={styles.modeContainer}>
-        <View style={styles.wordCard}>
-          <View style={styles.listeningContainer}>
-            <Text style={styles.listeningTitle}>听力练习</Text>
-            <Surface style={styles.soundIcon}>
-              <Text style={styles.soundEmoji}>{isListening ? '🔊' : '🎧'}</Text>
-            </Surface>
-            <Text style={styles.listeningHint}>
-              {!speechSettings.soundEnabled
-                ? '发音功能已关闭，请先到设置中开启'
-                : isListening
-                ? '播放中...'
-                : '点击听取单词发音'}
-            </Text>
-            <Button
-              mode="contained"
-              onPress={startListeningMode}
-              loading={isListening}
-              disabled={isListening || !speechSettings.soundEnabled}
-              style={styles.playButton}
-              icon={speechSettings.soundEnabled ? 'play' : 'volume-off'}
-            >
-              {speechSettings.soundEnabled ? '播放' : '发音已关闭'}
-            </Button>
-
-            {isListening && (
-              <View style={styles.answerSection}>
-                <Text style={styles.answerTitle}>你听到了哪个单词？</Text>
-                <TextInput
-                  mode="outlined"
-                  placeholder="输入你听到的单词"
-                  value={listenAnswer}
-                  onChangeText={setListenAnswer}
-                  style={styles.listenInput}
-                  autoCapitalize="none"
-                />
-                <View style={styles.answerButtons}>
-                  <Button
-                    mode="outlined"
-                    onPress={() => handleResult(false)}
-                    style={styles.answerBtn}
-                  >
-                    跳过
-                  </Button>
-                  <Button
-                    mode="contained"
-                    onPress={handleListenSubmit}
-                    style={styles.answerBtn}
-                  >
-                    提交
-                  </Button>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  const renderQuizMode = () => {
-    const currentWord = getCurrentWord();
-    if (!currentWord) return null;
-
-    return (
-      <View style={styles.modeContainer}>
-        <View style={styles.wordCard}>
-          <Text style={styles.quizTitle}>选择正确的释义</Text>
-          <Text style={styles.quizWord}>{currentWord.word}</Text>
-
-          <View style={styles.optionsContainer}>
-            {quizOptions.map((option, index) => {
-              const isSelected = selectedAnswer === option;
-              const isCorrect = option === currentWord.definitions[0]?.meaning;
-              const showFeedback = showQuizResult && isSelected;
-
-              return (
-                <Surface
-                  key={index}
-                  style={[
-                    styles.optionItem,
-                    isSelected && styles.selectedOption,
-                    showFeedback && isCorrect && styles.correctOption,
-                    showFeedback && !isCorrect && isSelected && styles.incorrectOption
-                  ]}
-                >
-                  <Button
-                    mode="text"
-                    onPress={() => !showQuizResult && handleQuizAnswer(option)}
-                    style={styles.optionButton}
-                    disabled={showQuizResult}
-                  >
-                    <Text style={styles.optionText}>{option}</Text>
-                  </Button>
-                  {showFeedback && (
-                    <Text style={styles.resultIcon}>{isCorrect ? '✅' : '❌'}</Text>
-                  )}
-                </Surface>
-              );
-            })}
-          </View>
-        </View>
-      </View>
     );
   };
 
@@ -1194,16 +1227,9 @@ export default function StudyScreen() {
             setCurrentMode(value as StudyScreenMode);
             setCurrentIndex(0);
             setIsFlipped(false);
-            setSelectedAnswer('');
-            setShowQuizResult(false);
-            setShowResult(false);
-            setListenAnswer('');
-            setIsListening(false);
           }}
           buttons={[
             { value: 'flashcard', label: '📖 单词卡' },
-            { value: 'listening', label: '🔊 听写' },
-            { value: 'quiz', label: '✏️ 释义' },
             { value: 'article', label: '✨ 短文' }
           ]}
         />
@@ -1316,8 +1342,6 @@ export default function StudyScreen() {
         ) : null}
         {!showCompletion && (
           <>
-            {currentMode === 'listening' && renderListeningMode()}
-            {currentMode === 'quiz' && renderQuizMode()}
             {currentMode === 'article' && renderArticleMode()}
           </>
         )}
@@ -1327,56 +1351,15 @@ export default function StudyScreen() {
       {/* 无外层滚动的单词卡模式：卡片弹性占满剩余空间，底部三按钮固定可见 */}
       {currentMode === 'flashcard' && !showCompletion && renderFlashcardMode()}
 
-      {/* 答题结果浮层提到根容器：绝对定位覆盖全屏，两种渲染分支下行为一致 */}
-      {showResult && (
-        <View style={styles.resultOverlay}>
-          <View
-            style={[
-              styles.resultSurface,
-              currentResult === 'correct'
-                ? styles.resultSurfaceCorrect
-                : styles.resultSurfaceIncorrect,
-            ]}
-          >
-            <View
-              style={[
-                styles.resultIconBubble,
-                currentResult === 'correct'
-                  ? styles.resultIconBubbleCorrect
-                  : styles.resultIconBubbleIncorrect,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.resultIconGlyph,
-                  currentResult === 'correct'
-                    ? styles.resultIconGlyphCorrect
-                    : styles.resultIconGlyphIncorrect,
-                ]}
-              >
-                {currentResult === 'correct' ? '✓' : '✕'}
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.resultText,
-                currentResult === 'correct'
-                  ? styles.resultTextCorrect
-                  : styles.resultTextIncorrect,
-              ]}
-            >
-              {currentResult === 'correct' ? '认识' : '不认识'}
-            </Text>
-          </View>
-        </View>
-      )}
-
       {/* 单词释义弹窗 */}
       <WordDictModal
         visible={showArticleWordModal}
         onClose={() => setShowArticleWordModal(false)}
         word={selectedArticleWord}
       />
+
+      {/* 选词浮层（组件根层级，覆盖全屏） */}
+      {showWordPicker && renderWordPicker()}
     </View>
   );
 }
@@ -1937,5 +1920,92 @@ const useStyles = makeStyles(colors => ({
   },
   resultIconGlyphIncorrect: {
     color: palette.danger,
+  },
+  // Modal styles for word picker
+  modalContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    zIndex: 1000,
+    elevation: 1000,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '85%',
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  modalBody: {
+    flex: 1,
+    padding: 16,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.outline,
+  },
+  modalSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  modalSectionSubtitle: {
+    fontSize: 12,
+    color: colors.onSurfaceVariant,
+    marginBottom: 8,
+  },
+  wordPickerList: {
+    gap: 4,
+  },
+  wordPickerSelected: {
+    gap: 4,
+    marginBottom: 8,
+  },
+  wordPickerItem: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  wordPickerItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  wordPickerItemSelected: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
   },
 }));

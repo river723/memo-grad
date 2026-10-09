@@ -150,9 +150,31 @@ export default async function aiRoutes(app: FastifyInstance) {
 
       case 'generateFunArticle': {
         if (!Array.isArray(body.words)) throw ApiError.badRequest('INVALID_PARAMS', '缺少 words');
-        const prompt = `用以下单词写一篇英文短文并翻译：${body.words.join(', ')}。\n主题：${body.theme || '随机'}。\n长度约${body.targetLength || 200}词。\n请返回JSON：{"title":"标题","content":"英文正文","translation":"中文翻译"}`;
+        // 'random' 主题：服务端解析成具体中文主题，避免 AI 把 "Random" 写进标题
+        const THEME_MAP: Record<string, string> = {
+          technology: '科技', life: '生活', history: '历史', nature: '自然', science: '科学',
+        };
+        const themeKeys = Object.keys(THEME_MAP);
+        const themeName = !body.theme || body.theme === 'random'
+          ? THEME_MAP[themeKeys[Math.floor(Math.random() * themeKeys.length)]!]
+          : (THEME_MAP[body.theme] || body.theme || '随机');
+        const prompt = `请使用以下单词创作一篇生动有趣的英文短文，并提供中文翻译：
+
+单词列表：${body.words.join(', ')}
+文章主题：${themeName}
+
+要求：
+- 文章长度约 ${body.targetLength || 200} 词
+- 每个目标单词必须至少出现 1 次，最多出现 2 次（请勿任意重复）
+- 文章生动有趣，有完整的叙事结构
+- 适合考研英语水平的读者，目标单词以外的词汇要简单易懂
+- 标题要吸引人，能概括文章内容，不要在标题中出现 "Random" 字样
+- 翻译要准确流畅，符合中文表达习惯
+
+请返回严格的JSON格式，不要任何额外文本：
+{"title":"文章标题","content":"文章正文（英文）","translation":"文章的中文翻译"}`;
         const content = await chat([
-          { role: 'system', content: '你是英语创意写手，请严格用 JSON 格式回答' },
+          { role: 'system', content: '你是一个英语创意写手兼翻译，擅长将指定词汇自然融入生动有趣的英文短文中。请严格用 JSON 格式回答。' },
           { role: 'user', content: prompt },
         ], 4000, 0.7, request.log);
         const parsed = extractJson(content) || {};
